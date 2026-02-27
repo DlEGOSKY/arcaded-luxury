@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Arcade Mini Games: Luxury Edition</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+    <div class="crt-overlay"></div>
+    <div class="scanlines"></div>
+
+    <div class="vignette"></div>
+    <div class="scanlines"></div>
+    <div id="flash-layer"></div>
+    
+    <canvas id="game-canvas"></canvas>
+
+    <div id="debug-console" class="hidden">
+        <div id="console-output">
+            <div class="console-msg sys">ARCADE_OS v3.5 // DEBUG TERMINAL</div>
+            <div class="console-msg">Type 'help' for commands...</div>
+        </div>
+        <input type="text" id="console-input" placeholder="> Enter command" autocomplete="off">
+    </div>
+
+    <div id="debug-trigger" style="position:fixed; bottom:0; right:0; width:80px; height:80px; z-index:9999; cursor:help;" title="Debug Console"></div>
+
+    <div id="toast-container"></div>
+
+    <div id="ui-layer">
+        
+        <section id="screen-welcome" class="screen">
+            <h1>Arcade<br><span style="font-size:0.6em; letter-spacing:8px; color:var(--primary)">Luxury</span></h1>
+            <button id="btn-start" class="btn">Conectar Sistema</button>
+            <p style="margin-top: 30px; font-family: monospace; color: #64748b; font-size: 0.8rem;">INIT_CORE_MODULES...</p>
+        </section>
+
+        <section id="screen-menu" class="screen hidden">
+            <div style="width:100%; max-width:800px; display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:0 10px;">
+                <h2>Protocolos</h2>
+                <div style="display:flex; gap:10px;">
+                    <button id="btn-daily" class="btn btn-secondary" style="padding:10px 15px; margin:0; border-color:var(--daily); color:#f97316; display:flex; align-items:center; gap:8px;">
+                        <i class="fa-solid fa-calendar-check"></i> <span class="btn-text">Diario</span>
+                    </button>
+                    
+                    <button id="btn-pass" class="btn btn-secondary" style="padding:10px 15px; margin:0; border-color:#d946ef; color:#d946ef; display:flex; align-items:center; gap:8px;">
+                        <i class="fa-solid fa-ticket"></i> <span class="btn-text">Neon Pass</span>
+                    </button>
+                    
+                    <button id="btn-shop" class="btn btn-secondary" style="padding:10px 15px; margin:0; border-color:var(--gold); color:var(--gold); display:flex; align-items:center; gap:8px;">
+                        <i class="fa-solid fa-cart-shopping"></i> <span class="btn-text">Tienda</span>
+                    </button>
+                    
+                    <button id="btn-profile" class="btn btn-secondary" style="padding:10px 15px; margin:0; display:flex; align-items:center; gap:8px;">
+                        <i class="fa-solid fa-user-astronaut"></i> <span class="btn-text">Perfil</span>
+                    </button>
+
+                    <button id="btn-settings" class="btn btn-secondary" style="padding:10px 15px; margin:0; display:flex; align-items:center; gap:8px;">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="menu-grid" id="main-menu-grid"></div>
+            
+            <div class="profile-bar" style="flex-direction:column; gap:5px; height:auto; padding:15px;">
+                <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                    <div style="text-align:left;">
+                        <span id="player-rank" style="color:var(--primary); font-size:0.8rem; letter-spacing:2px; font-weight:bold;">VAGABUNDO</span>
+                        <div style="font-size:1.2rem; font-family:var(--font-display);">LVL <span id="player-level" style="color:white;">1</span></div>
+                    </div>
+                    <div style="text-align:right;">
+                        <span style="color:#64748b; font-size:0.8rem">CRÉDITOS</span>
+                        <div style="color:var(--gold); font-family:var(--font-display); font-size:1.5rem" id="menu-credits">0</div>
+                    </div>
+                </div>
+                <div style="width:100%; height:6px; background:rgba(255,255,255,0.1); border-radius:3px; margin-top:5px; position:relative; overflow:hidden;">
+                    <div id="xp-bar" style="width:0%; height:100%; background:linear-gradient(90deg, var(--primary), var(--purple)); transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);"></div>
+                </div>
+                <div style="width:100%; display:flex; justify-content:space-between; color:#64748b; font-size:0.6rem; margin-top:2px;">
+                    <span>XP</span>
+                    <span id="xp-text">0 / 100</span>
+                </div>
+            </div>
+        </section>
+
+        <section id="screen-shop" class="screen hidden">
+            <div class="shop-header">
+                <h2 style="margin:0;">LA BÓVEDA</h2>
+                <div class="shop-balance">
+                    <i class="fa-solid fa-coins"></i>
+                    <span id="shop-credits">0</span> CR
+                </div>
+            </div>
+
+            <div class="loot-box-promo">
+                <div style="display:flex; align-items:center; gap:20px;">
+                    <div style="font-size:3rem; color:#eab308;"><i class="fa-solid fa-box-open"></i></div>
+                    <div>
+                        <h3 style="color:white; margin:0;">CAJA DE SUMINISTROS</h3>
+                        <small style="color:#94a3b8;">Contiene créditos aleatorios</small>
+                    </div>
+                </div>
+                <button class="btn" id="btn-buy-lootbox" style="background:#eab308; border-color:#eab308; color:black;">
+                    ABRIR (500 CR)
+                </button>
+            </div>
+
+            <div class="shop-grid-container" id="shop-grid"></div>
+
+            <div style="margin-top: 20px;">
+                <button id="btn-shop-back" class="btn btn-secondary">VOLVER</button>
+            </div>
+        </section>
+
+        <section id="screen-daily" class="screen hidden"></section>
+
+        <section id="screen-pass" class="screen hidden">
+            <div class="pass-header">
+                <h2 style="margin:0; color:#d946ef; text-shadow:0 0 15px #d946ef;">NEON PASS <span style="font-size:0.5em; color:white;">TEMP. 1</span></h2>
+                <div style="font-size:0.8rem; color:#94a3b8; margin-top:5px;">NIVEL ACTUAL: <span id="pass-user-level" style="color:white; font-weight:bold;">1</span></div>
+            </div>
+
+            <div class="pass-track-container" id="pass-track"></div>
+
+            <div style="margin-top: 20px;">
+                <button id="btn-pass-back" class="btn btn-secondary">VOLVER AL MENÚ</button>
+            </div>
+        </section>
+
+        <section id="screen-game" class="screen hidden">
+            <button id="btn-global-abort" class="btn btn-secondary" 
+            onclick="window.app.audio.playClick(); window.app.endGame();" 
+            style="position:absolute; top:20px; right:20px; z-index:9999; font-size:0.8rem; padding:5px 15px; border-color:rgba(255,255,255,0.2); background:rgba(0,0,0,0.5); backdrop-filter:blur(5px);">
+            <i class="fa-solid fa-xmark"></i> ABORTAR
+            </button>
+            <div id="game-ui-overlay"></div>
+            <div class="hud-top">
+                <div class="score-box">
+                    <div class="score-label">Score</div>
+                    <div class="score-value" id="ui-score">0</div>
+                    <div class="credits-value" id="ui-credits"><span style="font-size:0.9rem;">$</span> <span id="val-credits">0</span></div>
+                </div>
+                <div class="score-box" style="text-align:right">
+                    <div class="streak-badge" id="ui-streak">🔥 x1</div>
+                    <button id="btn-quit" class="btn-secondary" style="padding: 5px 15px; font-size: 0.7rem; margin-top:5px; min-width: auto;">ABORT</button>
+                </div>
+            </div>
+        </section>
+
+        <div id="modal-profile" class="modal hidden">
+            <h2 style="color:white; font-size:2rem; margin-bottom:10px">AGENTE</h2>
+            <div class="stats-row">
+                <div class="stat-card"><small>PARTIDAS</small><span id="stats-games">0</span></div>
+                <div class="stat-card"><small>PATRIMONIO</small><span id="stats-credits" style="color:var(--gold)">0</span></div>
+            </div>
+            <div style="width:100%; max-width:500px; margin-bottom:10px; text-align:left; color:#94a3b8; font-size:0.8rem; text-transform:uppercase;">Récords Personales</div>
+            <div class="highscore-list" id="highscore-list"></div>
+            <div class="achievement-grid" id="achievement-list" style="margin:10px 0;"></div>
+            <button class="btn" id="btn-close-profile" style="margin-top:10px;">Cerrar</button>
+        </div>
+
+        <div id="modal-settings" class="modal hidden">
+            <h2 style="color:white; font-size:1.8rem; margin-bottom:20px; text-transform:uppercase; letter-spacing:2px;"><i class="fa-solid fa-sliders"></i> SISTEMA</h2>
+            <div class="settings-panel" style="width:100%; max-width:400px; text-align:left;">
+                <div class="setting-row">
+                    <label>VOLUMEN MAESTRO <span id="val-master">50%</span></label>
+                    <input type="range" id="rng-master" min="0" max="100" value="50" class="cyber-range">
+                </div>
+                <div class="setting-row">
+                    <label>EFECTOS (SFX) <span id="val-sfx">100%</span></label>
+                    <input type="range" id="rng-sfx" min="0" max="100" value="100" class="cyber-range">
+                </div>
+                <div class="setting-row">
+                    <label>AMBIENTE <span id="val-music">50%</span></label>
+                    <input type="range" id="rng-music" min="0" max="100" value="50" class="cyber-range">
+                </div>
+                <div class="setting-row" style="display:flex; justify-content:space-between; align-items:center;">
+                    <label style="margin:0;">PARTÍCULAS (HQ)</label>
+                    <input type="checkbox" id="chk-performance" checked style="width:20px; height:20px;">
+                </div>
+            </div>
+            <div style="margin-top:20px; font-size:0.7rem; color:#64748b;">ID: AGENT-007 // ARCADE OS v3.5</div>
+            <button class="btn" id="btn-close-settings" style="margin-top:20px; width:100%;">GUARDAR</button>
+        </div>
+
+        <div id="modal-info" class="modal hidden">
+            <div id="info-content" style="text-align:left;"></div>
+            <button class="btn" id="btn-close-info" style="margin-top:20px; width:100%;">ENTENDIDO</button>
+        </div>
+
+    </div>
+
+    <script type="module" src="assets/js/main.js"></script>
+
+
+    <svg style="display: none;">
+    <defs>
+        <filter id="static-noise">
+            <feTurbulence type="fractalNoise" baseFrequency="0.80" numOctaves="3" stitchTiles="stitch" />
+            <feColorMatrix type="saturate" values="0" />
+        </filter>
+    </defs>
+</svg>
+
+<div class="scanlines"></div>
+<div class="vignette"></div>
+<div id="noise-layer"></div>
+
+
+</body>
+</html>
