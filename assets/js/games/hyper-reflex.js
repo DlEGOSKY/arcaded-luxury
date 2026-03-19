@@ -46,29 +46,51 @@ export class GameReflex {
     init() {
         if(window.app.credits < 15) {
             try { window.app.showToast("FONDOS INSUFICIENTES", "Requiere $15", "danger"); } catch(e){}
-            // Salida segura
             if(this.onQuit) this.onQuit(0);
             return;
         }
 
-        this.uiContainer.innerHTML = `
-            <div style="text-align:center; animation: fadeIn 0.5s;">
-                <h2 style="color: #fff; text-shadow: 0 0 15px var(--reflex); margin-bottom:30px;">CALIBRACIÓN SINÁPTICA</h2>
-                <div style="display:flex; gap:20px; justify-content:center; flex-wrap:wrap;">
-                    <button class="btn cyber-card-btn" id="mode-normal" style="flex-direction:column; gap:10px; width:140px; height:180px; border-color:var(--reflex);">
-                        <span style="font-size:2.5rem;">⚡</span><span>NORMAL</span><span style="font-size:0.6rem; opacity:0.7;">Promedio de 5</span>
-                    </button>
-                    <button class="btn cyber-card-btn" id="mode-hardcore" style="flex-direction:column; gap:10px; width:140px; height:180px; border-color:#ef4444;">
-                        <span style="font-size:2.5rem;">☠️</span><span style="color:#ef4444">LETHAL</span><span style="font-size:0.6rem; opacity:0.7;">&lt; 250ms o FIN</span>
-                    </button>
-                </div>
-                <button class="btn btn-secondary" id="reflex-back" style="margin-top:30px;">Volver</button>
-            </div>`;
+        const modes = [
+            { id:'mode-normal',   mc:'var(--reflex,#f97316)', icon:'fa-bolt',             name:'ESTÁNDAR', desc:'Promedio de 5 rondas' },
+            { id:'mode-hardcore', mc:'#ef4444',               icon:'fa-skull-crossbones',  name:'LETAL',    desc:'< 250ms o fin'       },
+        ];
 
-        document.getElementById('mode-normal').onclick = () => this.startGame('NORMAL');
+        this.uiContainer.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:28px;width:100%;">
+            <div style="text-align:center;">
+                <div style="font-family:var(--font-display);font-size:1.6rem;color:white;letter-spacing:4px;margin-bottom:4px;">HYPER REFLEX</div>
+                <div style="font-size:0.65rem;color:var(--reflex,#f97316);letter-spacing:3px;font-family:monospace;">CALIBRACIÓN SINÁPTICA</div>
+                <div style="width:120px;height:1px;background:var(--reflex,#f97316);margin:10px auto 0;opacity:0.5;"></div>
+            </div>
+            <div style="display:flex;gap:14px;justify-content:center;">
+                ${modes.map(m=>`
+                <div style="
+                    width:160px;min-height:160px;
+                    background:rgba(10,16,30,0.9);
+                    border:1px solid ${m.mc}25;
+                    border-radius:14px;
+                    display:flex;flex-direction:column;
+                    align-items:center;justify-content:center;
+                    gap:10px;cursor:pointer;
+                    transition:transform 0.15s,border-color 0.15s,box-shadow 0.15s;
+                    padding:20px 12px;position:relative;overflow:hidden;"
+                    id="${m.id}"
+                    onmouseenter="this.style.transform='translateY(-4px)';this.style.borderColor='${m.mc}';this.style.boxShadow='0 8px 24px rgba(0,0,0,0.4)';"
+                    onmouseleave="this.style.transform='';this.style.borderColor='${m.mc}25';this.style.boxShadow='';">
+                    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${m.mc};opacity:0.6;border-radius:14px 14px 0 0;"></div>
+                    <i class="fa-solid ${m.icon}" style="font-size:2rem;color:${m.mc};filter:drop-shadow(0 0 8px ${m.mc});"></i>
+                    <div style="font-family:var(--font-display);font-size:0.8rem;letter-spacing:2px;color:${m.mc};">${m.name}</div>
+                    <div style="font-size:0.62rem;color:#475569;font-family:monospace;letter-spacing:1px;text-transform:uppercase;">${m.desc}</div>
+                </div>`).join('')}
+            </div>
+            <button class="btn btn-secondary" id="reflex-back" style="width:180px;">
+                <i class="fa-solid fa-arrow-left"></i> VOLVER AL LOBBY
+            </button>
+        </div>`;
+
+        document.getElementById('mode-normal').onclick   = () => this.startGame('NORMAL');
         document.getElementById('mode-hardcore').onclick = () => this.startGame('HARDCORE');
-        // Salida segura desde el menú
-        document.getElementById('reflex-back').onclick = () => { if(this.onQuit) this.onQuit(0); };
+        document.getElementById('reflex-back').onclick   = () => { if(this.onQuit) this.onQuit(0); };
     }
 
     startGame(mode) {

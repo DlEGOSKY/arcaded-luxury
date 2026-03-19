@@ -33,6 +33,9 @@ export class CyberPongGame {
         this.difficulty = 1;
         this.isPlaying = true;
 
+        // Pausar el fondo animado para que Pong controle el canvas
+        if (window.app && window.app.canvas) window.app.canvas.pauseBackground();
+
         // Eventos Mouse
         this.moveHandler = (e) => {
             const rect = this.canvas.getBoundingClientRect();
@@ -198,5 +201,7 @@ export class CyberPongGame {
         window.removeEventListener('keydown', this.keyDownHandler);
         window.removeEventListener('keyup', this.keyUpHandler);
         cancelAnimationFrame(this.animationId);
+        // Reanudar el fondo animado del CanvasManager
+        if (window.app && window.app.canvas) window.app.canvas.resumeBackground();
     }
 }

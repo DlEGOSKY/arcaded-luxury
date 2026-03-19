@@ -63,15 +63,16 @@ export class CanvasManager {
 
     initBackground() {
         this.bgParticles = [];
-        const count = Math.floor((this.canvas.width * this.canvas.height) / 12000); // Más partículas
+        // Reducir partículas: 18000 en lugar de 12000 — mucho más liviano
+        const count = Math.min(40, Math.floor((this.canvas.width * this.canvas.height) / 22000));
         for (let i = 0; i < count; i++) {
             this.bgParticles.push({
                 x: Math.random() * this.canvas.width, 
                 y: Math.random() * this.canvas.height,
-                vx: (Math.random() - 0.5) * 0.5, 
-                vy: (Math.random() - 0.5) * 0.5,
-                size: Math.random() * 2 + 1,
-                char: Math.random() > 0.5 ? '1' : '0' // Para Matrix
+                vx: (Math.random() - 0.5) * 0.4, 
+                vy: (Math.random() - 0.5) * 0.4,
+                size: Math.random() * 1.5 + 0.5,
+                char: Math.random() > 0.5 ? '1' : '0'
             });
         }
     }
@@ -202,7 +203,18 @@ export class CanvasManager {
         ctx.fill();
     }
 
+    pauseBackground() { this._paused = true; }
+    resumeBackground() { 
+        this._paused = false;
+        this.fxParticles = [];
+    }
+
     loop() {
+        if (this._paused) {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            requestAnimationFrame(() => this.loop());
+            return;
+        }
         // Limpiar
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
@@ -213,40 +225,30 @@ export class CanvasManager {
         this.ctx.lineWidth = 1;
 
         // 1. DIBUJAR FONDO (Red Neuronal)
+        const DIST_SQ = 9000; // 100px² — evitar Math.sqrt en el inner loop
         for (let i = 0; i < this.bgParticles.length; i++) {
             let p = this.bgParticles[i];
-            
-            // Movimiento
-            p.x += p.vx; 
-            p.y += p.vy;
-            
-            // Rebote
-            if (p.x < 0 || p.x > this.canvas.width) p.vx *= -1;
+            p.x += p.vx; p.y += p.vy;
+            if (p.x < 0 || p.x > this.canvas.width)  p.vx *= -1;
             if (p.y < 0 || p.y > this.canvas.height) p.vy *= -1;
-            
-            // Dibujar Partícula
             this.drawParticle(this.ctx, p);
-            
-            // Dibujar Líneas (Conexiones)
-            // Solo conectamos si no es modo Matrix (porque Matrix no tiene líneas)
+
             if (this.activeMood !== 'MATRIX') {
                 for (let j = i + 1; j < this.bgParticles.length; j++) {
                     let p2 = this.bgParticles[j];
-                    let dx = p.x - p2.x; 
-                    let dy = p.y - p2.y; 
-                    let dist = Math.sqrt(dx*dx + dy*dy);
-                    
-                    if (dist < 100) {
-                        this.ctx.beginPath(); 
-                        this.ctx.globalAlpha = 1 - (dist / 100);
-                        this.ctx.moveTo(p.x, p.y); 
+                    const dx = p.x - p2.x, dy = p.y - p2.y;
+                    const dSq = dx*dx + dy*dy;
+                    if (dSq < DIST_SQ) {
+                        this.ctx.beginPath();
+                        this.ctx.globalAlpha = (1 - dSq / DIST_SQ) * 0.5;
+                        this.ctx.moveTo(p.x, p.y);
                         this.ctx.lineTo(p2.x, p2.y);
-                        this.ctx.stroke(); 
-                        this.ctx.globalAlpha = 1;
+                        this.ctx.stroke();
                     }
                 }
             }
         }
+        this.ctx.globalAlpha = 1;
 
         // 2. DIBUJAR EXPLOSIONES (FX)
         for (let i = this.fxParticles.length - 1; i >= 0; i--) {

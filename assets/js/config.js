@@ -23,12 +23,51 @@ export const CONFIG = {
     LOOT_BOX: {
         COST: 500,
         DROPS: [
-            { type: 'CREDITS', val: 100,  prob: 30, name: 'Reintegro', icon: 'fa-coins', color: '#94a3b8' },
-            { type: 'CREDITS', val: 500,  prob: 40, name: 'Bolsa de Créditos', icon: 'fa-sack-dollar', color: '#3b82f6' },
-            { type: 'CREDITS', val: 1000, prob: 20, name: 'Maletín Ejecutivo', icon: 'fa-briefcase', color: '#a855f7' },
-            { type: 'CREDITS', val: 5000, prob: 9,  name: 'Lingote de Oro', icon: 'fa-gem', color: '#eab308' },
-            { type: 'JACKPOT', val: 10000, prob: 1, name: 'JACKPOT', icon: 'fa-trophy', color: '#ef4444' }
+            { type: 'CREDITS', val: 100,  prob: 30, name: 'Reintegro',        icon: 'fa-coins',        color: '#94a3b8' },
+            { type: 'CREDITS', val: 500,  prob: 40, name: 'Bolsa de Créditos',icon: 'fa-sack-dollar',  color: '#3b82f6' },
+            { type: 'CREDITS', val: 1000, prob: 20, name: 'Maletín Ejecutivo',icon: 'fa-briefcase',    color: '#a855f7' },
+            { type: 'CREDITS', val: 5000, prob:  9, name: 'Lingote de Oro',   icon: 'fa-gem',          color: '#eab308' },
+            { type: 'JACKPOT', val:10000, prob:  1, name: 'JACKPOT',          icon: 'fa-trophy',       color: '#ef4444' }
         ]
+    },
+
+    // Cajas premium con distintas tablas de drops
+    PREMIUM_BOXES: {
+        'box_cyber': {
+            id: 'box_cyber', name: 'Caja Cyber', icon: 'fa-box', color: '#3b82f6',
+            desc: 'Drops de créditos mejorados. Sin Reintegro.',
+            price: 1200, rarity: 'rare',
+            drops: [
+                { type:'CREDITS', val:500,   prob:40, name:'Boost de Datos',   color:'#3b82f6' },
+                { type:'CREDITS', val:1500,  prob:35, name:'Paquete Cyber',    color:'#60a5fa' },
+                { type:'CREDITS', val:3000,  prob:18, name:'Núcleo Cyber',     color:'#a855f7' },
+                { type:'CREDITS', val:8000,  prob: 6, name:'Override Cyber',   color:'#eab308' },
+                { type:'JACKPOT', val:20000, prob: 1, name:'JACKPOT CYBER',    color:'#ef4444' },
+            ]
+        },
+        'box_void': {
+            id: 'box_void', name: 'Caja del Abismo', icon: 'fa-circle-dot', color: '#6366f1',
+            desc: 'Alto riesgo, alta recompensa. Puede dar muy poco o mucho.',
+            price: 800, rarity: 'epic',
+            drops: [
+                { type:'CREDITS', val:50,    prob:40, name:'Vacío',            color:'#334155' },
+                { type:'CREDITS', val:200,   prob:25, name:'Sombra',           color:'#6366f1' },
+                { type:'CREDITS', val:5000,  prob:20, name:'Pulso Abismal',    color:'#8b5cf6' },
+                { type:'CREDITS', val:15000, prob:14, name:'Singularidad',     color:'#a855f7' },
+                { type:'JACKPOT', val:50000, prob: 1, name:'EL ABISMO TOTAL',  color:'#6366f1' },
+            ]
+        },
+        'box_gold': {
+            id: 'box_gold', name: 'Caja Magnate', icon: 'fa-crown', color: '#fbbf24',
+            desc: 'Solo recompensas grandes. Sin basura.',
+            price: 3000, rarity: 'legendary',
+            drops: [
+                { type:'CREDITS', val:2000,  prob:40, name:'Inversión',        color:'#fbbf24' },
+                { type:'CREDITS', val:5000,  prob:35, name:'Portafolio',       color:'#f59e0b' },
+                { type:'CREDITS', val:12000, prob:20, name:'Fondo Magnate',    color:'#d97706' },
+                { type:'JACKPOT', val:100000,prob: 5, name:'MONOPOLIO',        color:'#ef4444' },
+            ]
+        }
     },
 
     GAMES_LIST: [
@@ -103,15 +142,15 @@ export const CONFIG = {
         { id: 't_discord', type: 'THEME', name: 'Chat Mode', icon: 'fa-brands fa-discord', desc: 'Para gamers nocturnos.', price: 99999, val: { primary: '#5865F2', text: '#dcddde' } },
         { id: 't_vapor', type: 'THEME', name: 'Aesthetic', icon: 'fa-solid fa-landmark', desc: 'Vaporwave vibes.', price: 99999, val: { primary: '#ff71ce', text: '#01cdfe' } },
         
-        // --- TEMAS NUEVOS CORREGIDOS ---
+        // --- TEMAS NUEVOS ---
         {
             id: 't_hazard',
             type: 'THEME',
             name: 'POLICE LINE',
             desc: 'Zona restringida.',
             price: 1500,
-            icon: 'fa-solid fa-exclamation-triangle', // Icono corregido
-            class: 't_hazard'
+            icon: 'fa-solid fa-triangle-exclamation',
+            val: { primary: '#f59e0b', text: '#1c1917' }
         },
         {
             id: 't_y2k',
@@ -119,8 +158,8 @@ export const CONFIG = {
             name: 'ATOMIC PURPLE',
             desc: 'Carcasa translúcida.',
             price: 2000,
-            icon: 'fa-solid fa-gamepad', // Icono corregido
-            class: 't_y2k'
+            icon: 'fa-solid fa-gamepad',
+            val: { primary: '#c084fc', text: '#e9d5ff' }
         },
         {
             id: 't_receipt',
@@ -128,8 +167,8 @@ export const CONFIG = {
             name: 'TICKET',
             desc: 'Consumo masivo.',
             price: 800,
-            icon: 'fa-solid fa-file-invoice', // Icono corregido
-            class: 't_receipt'
+            icon: 'fa-solid fa-file-invoice',
+            val: { primary: '#1c1c1c', text: '#333333' }
         },
 
       
@@ -156,7 +195,26 @@ export const CONFIG = {
 
         { id: 'up_credit', type: 'HARDWARE', name: 'Credit Miner v1', icon: 'fa-solid fa-microchip', desc: '+10% Ganancia de Créditos (Pasivo).', price: 5000, val: 'credit_boost' },
         { id: 'up_xp', type: 'HARDWARE', name: 'Neural Link', icon: 'fa-solid fa-brain', desc: '+15% Ganancia de XP (Pasivo).', price: 4000, val: 'xp_boost' },
-        { id: 'up_vip', type: 'HARDWARE', name: 'VIP Pass', icon: 'fa-solid fa-id-card', desc: 'Loot Box cuesta 400 CR en vez de 500.', price: 8000, val: 'vip_discount' }
+        { id: 'up_vip', type: 'HARDWARE', name: 'VIP Pass', icon: 'fa-solid fa-id-card', desc: 'Loot Box cuesta 400 CR en vez de 500.', price: 8000, val: 'vip_discount' },
+
+        // --- CAJAS PREMIUM ---
+        { id: 'box_cyber', type: 'LOOTBOX', name: 'Caja Cyber',      icon: 'fa-solid fa-box',      desc: 'Drops de créditos mejorados. Sin Reintegro.',                   price: 1200, val: 'box_cyber',  rarity:'rare'      },
+        { id: 'box_void',  type: 'LOOTBOX', name: 'Caja del Abismo', icon: 'fa-solid fa-circle-dot',desc: 'Alto riesgo, alta recompensa. Puede dar muy poco o muchísimo.', price: 800,  val: 'box_void',   rarity:'epic'      },
+        { id: 'box_gold',  type: 'LOOTBOX', name: 'Caja Magnate',    icon: 'fa-solid fa-crown',    desc: 'Solo recompensas grandes. Sin basura garantizada.',             price: 3000, val: 'box_gold',   rarity:'legendary' },
+
+        // --- TARJETAS DE RESULTADO (CALLCARDS) — Universos de referencia ---
+        { id: 'cc_default',   type: 'CALLCARD', name: 'Sistema Base',    icon: 'fa-solid fa-table-columns',    desc: 'Estilo estándar. Siempre disponible.',                price: 0,     val: 'default',   ref: '' },
+        { id: 'cc_bsod',      type: 'CALLCARD', name: 'Windows BSOD',    icon: 'fa-solid fa-display',          desc: 'Pantalla azul de la muerte. Clásico de Windows.',     price: 1500,  val: 'bsod',      ref: 'Windows' },
+        { id: 'cc_matrix',    type: 'CALLCARD', name: 'Matrix',           icon: 'fa-solid fa-code',             desc: 'La lluvia de código de Neo. Sigue al conejo blanco.', price: 2000,  val: 'matrix',    ref: 'Matrix' },
+        { id: 'cc_fallout',   type: 'CALLCARD', name: 'Fallout',          icon: 'fa-solid fa-radiation',        desc: 'El yermo post-nuclear. War. War never changes.',      price: 2500,  val: 'fallout',   ref: 'Fallout' },
+        { id: 'cc_vcity',     type: 'CALLCARD', name: 'Vice City',        icon: 'fa-solid fa-umbrella-beach',   desc: 'Neon de los 80s. Bienvenido a Vice City.',            price: 3000,  val: 'vcity',     ref: 'GTA: Vice City' },
+        { id: 'cc_doom',      type: 'CALLCARD', name: 'DOOM',             icon: 'fa-solid fa-skull',            desc: 'El infierno en la Tierra. Rip and tear.',             price: 3500,  val: 'doom',      ref: 'DOOM' },
+        { id: 'cc_minecraft', type: 'CALLCARD', name: 'Minecraft',        icon: 'fa-solid fa-cube',             desc: 'Bloques y píxeles. Un mundo por construir.',          price: 2000,  val: 'minecraft', ref: 'Minecraft' },
+        { id: 'cc_tron',      type: 'CALLCARD', name: 'TRON',             icon: 'fa-solid fa-circle-nodes',     desc: 'La Cuadrícula. Programas y ciclos de luz.',           price: 4000,  val: 'tron',      ref: 'TRON' },
+        { id: 'cc_discord',   type: 'CALLCARD', name: 'Discord',          icon: 'fa-solid fa-headset',          desc: 'Pings a medianoche. Servidor de leyenda.',            price: 1200,  val: 'discord',   ref: 'Discord' },
+        { id: 'cc_hacker',    type: 'CALLCARD', name: 'H4CK3R',           icon: 'fa-solid fa-terminal',         desc: 'Lluvia de código verde. Modo hacker total.',          price: 2800,  val: 'hacker',    ref: 'Hackers/Mr. Robot' },
+        { id: 'cc_retro',     type: 'CALLCARD', name: 'Arcade 1984',      icon: 'fa-solid fa-gamepad',          desc: 'Pixeles y beeps. La era dorada del arcade.',          price: 3200,  val: 'retro',     ref: 'Arcade clásico' },
+        { id: 'cc_gold',      type: 'CALLCARD', name: 'Pay2Win',          icon: 'fa-solid fa-crown',            desc: 'Lluvia de oro. Para los que pagan la skin.',          price: 8000,  val: 'gold',      ref: 'Battle Royale' }
     ],
 
     SKILLS: {
@@ -166,24 +224,47 @@ export const CONFIG = {
     },
 
     ACHIEVEMENTS: [
-        { id: 'rich', name: 'Magnate', desc: 'Tener $500', check: (s) => s.credits >= 500, icon: '💎' },
-        { id: 'pro', name: 'Veterano', desc: '50 Juegos', check: (s) => s.gamesPlayed >= 50, icon: '🎖️' },
-        { id: 'sniper', name: 'Sniper', desc: 'Reflejos < 200ms', check: (s) => s.bestReflex > 0 && s.bestReflex < 200, icon: '⚡' }
+        { id: 'rich',        name: 'Magnate',       desc: 'Tener $500',           check: (s) => s.credits >= 500,                                 icon: '💎' },
+        { id: 'pro',         name: 'Veterano',      desc: '50 partidas jugadas',  check: (s) => s.gamesPlayed >= 50,                              icon: '🎖️' },
+        { id: 'sniper',      name: 'Sniper',        desc: 'Reflejos < 200ms',     check: (s) => s.bestReflex > 0 && s.bestReflex < 200,            icon: '⚡' },
+        { id: 'firstblood',  name: 'Primera Sangre',desc: 'Jugar por primera vez',check: (s) => s.gamesPlayed >= 1,                              icon: '🩸' },
+        { id: 'millionaire', name: 'Millonario',    desc: 'Acumular $10,000',     check: (s) => s.credits >= 10000,                               icon: '🏦' },
+        { id: 'dedicated',   name: 'Dedicado',      desc: '200 partidas jugadas', check: (s) => s.gamesPlayed >= 200,                             icon: '🔩' },
+        { id: 'collector',   name: 'Coleccionista', desc: 'Nivel 10 alcanzado',   check: (s) => s.level >= 10,                                    icon: '📦' },
+        { id: 'speedgod',    name: 'Dios de la Vel.',desc:'Reflejos < 150ms',     check: (s) => s.bestReflex > 0 && s.bestReflex < 150,            icon: '🌩️' },
+        { id: 'legend',      name: 'Leyenda',       desc: 'Nivel 30 alcanzado',   check: (s) => s.level >= 30,                                    icon: '👑' }
     ],
 
     BATTLE_PASS: [
-        { lvl: 2, type: 'CREDITS', val: 500, name: 'Bolsa de Créditos', icon: 'fa-coins' },
-        { lvl: 3, type: 'PARTICLE', val: 'p_heart', name: 'FX: Corazones', icon: 'fa-heart' }, 
-        // CAMBIO IMPORTANTE: NIVEL 5 AHORA DESBLOQUEA CYBER PONG
-        { lvl: 5, type: 'GAME_UNLOCK', val: 'cyber-pong', name: 'JUEGO: Cyber Pong', icon: 'fa-table-tennis-paddle-ball' },
-        { lvl: 7, type: 'CREDITS', val: 1000, name: 'Maletín de Fondos', icon: 'fa-briefcase' },
-        { lvl: 10, type: 'THEME', val: 't_nokia', name: 'TEMA: Indestructible', icon: 'fa-mobile-screen-button' }, // Movimos Nokia al 10
-        { lvl: 12, type: 'AVATAR', val: 'fa-user-secret', name: 'AVATAR: Hacker', icon: 'fa-user-secret' },
-        { lvl: 15, type: 'HARDWARE', val: 'up_xp', name: 'MEJORA: Neural Link', icon: 'fa-brain' },
-        { lvl: 20, type: 'THEME', val: 't_vapor', name: 'TEMA: Aesthetic', icon: 'fa-landmark' },
-        { lvl: 25, type: 'THEME', val: 't_discord', name: 'TEMA: Chat Mode', icon: 'fa-brands fa-discord' },
-        { lvl: 30, type: 'AVATAR', val: 'fa-dragon', name: 'AVATAR: Elder Dragon', icon: 'fa-dragon' },
-        { lvl: 50, type: 'CREDITS', val: 10000, name: 'JACKPOT FINAL', icon: 'fa-trophy' }
+        { lvl: 1,  type: 'CREDITS',     val: 200,              name: 'Pago Inicial',        icon: 'fa-coins',                    rarity: 'common',    desc: '+200 CR de bienvenida' },
+        { lvl: 2,  type: 'PARTICLE',    val: 'p_square',       name: 'FX: Vóxeles',         icon: 'fa-cube',                     rarity: 'common',    desc: 'Explosiones cúbicas' },
+        { lvl: 3,  type: 'CREDITS',     val: 300,              name: 'Fondo Operativo',      icon: 'fa-sack-dollar',              rarity: 'common',    desc: '+300 CR' },
+        { lvl: 4,  type: 'AVATAR',      val: 'fa-headset',     name: 'Avatar: Ops',          icon: 'fa-headset',                  rarity: 'rare',      desc: 'Identidad de operador' },
+        { lvl: 5,  type: 'GAME_UNLOCK', val: 'cyber-pong',     name: 'CYBER PONG',           icon: 'fa-table-tennis-paddle-ball', rarity: 'epic',      desc: 'Juego exclusivo desbloqueado' },
+        { lvl: 6,  type: 'CREDITS',     val: 500,              name: 'Dividendo',            icon: 'fa-coins',                    rarity: 'common',    desc: '+500 CR' },
+        { lvl: 7,  type: 'PARTICLE',    val: 'p_star',         name: 'FX: Polvo Estelar',    icon: 'fa-star',                     rarity: 'rare',      desc: 'Brillos intensos' },
+        { lvl: 8,  type: 'CREDITS',     val: 600,              name: 'Activos Digitales',    icon: 'fa-coins',                    rarity: 'common',    desc: '+600 CR' },
+        { lvl: 9,  type: 'AVATAR',      val: 'fa-robot',       name: 'Avatar: T-800',        icon: 'fa-robot',                    rarity: 'rare',      desc: 'Sin sentimientos' },
+        { lvl: 10, type: 'THEME',       val: 't_nokia',        name: 'Indestructible',       icon: 'fa-mobile-screen-button',     rarity: 'epic',      desc: 'Snake 3310 style' },
+        { lvl: 11, type: 'CREDITS',     val: 700,              name: 'Comisión',             icon: 'fa-coins',                    rarity: 'common',    desc: '+700 CR' },
+        { lvl: 12, type: 'PARTICLE',    val: 'p_code',         name: 'FX: Glitches',         icon: 'fa-bug',                      rarity: 'rare',      desc: 'Errores del sistema' },
+        { lvl: 13, type: 'CREDITS',     val: 800,              name: 'Liquidez',             icon: 'fa-coins',                    rarity: 'common',    desc: '+800 CR' },
+        { lvl: 14, type: 'AVATAR',      val: 'fa-user-secret', name: 'Avatar: Hacker',       icon: 'fa-user-secret',              rarity: 'epic',      desc: 'Modo incógnito' },
+        { lvl: 15, type: 'HARDWARE',    val: 'up_xp',          name: 'Neural Link',          icon: 'fa-brain',                    rarity: 'legendary', desc: '+15% XP permanente' },
+        { lvl: 17, type: 'CREDITS',     val: 1000,             name: 'Maletín de Fondos',    icon: 'fa-briefcase',                rarity: 'rare',      desc: '+1000 CR' },
+        { lvl: 18, type: 'PARTICLE',    val: 'p_heart',        name: 'FX: Corazones',        icon: 'fa-heart',                    rarity: 'rare',      desc: 'Amor pixelado' },
+        { lvl: 19, type: 'AVATAR',      val: 'fa-user-ninja',  name: 'Avatar: Cyber Ninja',  icon: 'fa-user-ninja',               rarity: 'epic',      desc: 'Silencioso y letal' },
+        { lvl: 20, type: 'THEME',       val: 't_vapor',        name: 'Aesthetic',            icon: 'fa-landmark',                 rarity: 'legendary', desc: 'Vaporwave vibes' },
+        { lvl: 22, type: 'CREDITS',     val: 1200,             name: 'Capital Oscuro',       icon: 'fa-coins',                    rarity: 'rare',      desc: '+1200 CR' },
+        { lvl: 24, type: 'PARTICLE',    val: 'p_money',        name: 'FX: Money Rain',       icon: 'fa-sack-dollar',              rarity: 'epic',      desc: 'Lluvia de efectivo' },
+        { lvl: 25, type: 'THEME',       val: 't_discord',      name: 'Chat Mode',            icon: 'fa-brands fa-discord',        rarity: 'legendary', desc: 'Para gamers nocturnos' },
+        { lvl: 27, type: 'CREDITS',     val: 1500,             name: 'Fondo Oscuro',         icon: 'fa-coins',                    rarity: 'rare',      desc: '+1500 CR' },
+        { lvl: 29, type: 'PARTICLE',    val: 'p_bio',          name: 'FX: Tóxico',           icon: 'fa-biohazard',                rarity: 'epic',      desc: 'Residuos peligrosos' },
+        { lvl: 30, type: 'AVATAR',      val: 'fa-dragon',      name: 'Elder Dragon',         icon: 'fa-dragon',                   rarity: 'legendary', desc: 'Poder ancestral despertado' },
+        { lvl: 35, type: 'HARDWARE',    val: 'up_credit',      name: 'Credit Miner v1',      icon: 'fa-microchip',                rarity: 'legendary', desc: '+10% créditos permanente' },
+        { lvl: 40, type: 'CREDITS',     val: 5000,             name: 'Reserva Federal',      icon: 'fa-coins',                    rarity: 'legendary', desc: '+5000 CR' },
+        { lvl: 45, type: 'PARTICLE',    val: 'p_pizza',        name: 'FX: Pizza Time',       icon: 'fa-pizza-slice',              rarity: 'epic',      desc: 'Secreto desclasificado' },
+        { lvl: 50, type: 'CREDITS',     val: 10000,            name: 'JACKPOT FINAL',        icon: 'fa-trophy',                   rarity: 'legendary', desc: 'El final del camino' }
     ],
 
     RANKS: [

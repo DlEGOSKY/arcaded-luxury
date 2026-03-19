@@ -9,7 +9,11 @@ export class HoloMatchGame {
         this.cols = 4;
         this.rows = 3;
         this.cards = [];
-        this.emojis = ['⚡', '💎', '🧬', '🔮', '🚀', '🔥', '🧿', '💠', '🪐', '🤖'];
+        this.emojis = [
+            'fa-bolt', 'fa-gem', 'fa-dna', 'fa-eye', 'fa-rocket', 'fa-fire',
+            'fa-shield-halved', 'fa-cube', 'fa-brain', 'fa-microchip',
+            'fa-satellite', 'fa-lock', 'fa-star', 'fa-zap', 'fa-circle-dot'
+        ];
         
         this.firstCard = null;
         this.secondCard = null;
@@ -135,22 +139,43 @@ export class HoloMatchGame {
     }
 
     renderGame() {
-        let gridHTML = `<div class="holo-grid" style="grid-template-columns: repeat(${this.cols}, 1fr);">`;
-        this.cards.forEach((card) => {
-            const content = card.isVirus ? '<i class="fa-solid fa-virus" style="color:#ef4444"></i>' : card.val;
-            const virusClass = card.isVirus ? 'virus' : '';
-            gridHTML += `<div class="holo-card-container ${virusClass}" id="card-${card.id}" onclick="window.app.game.handleCardClick(${card.id})"><div class="holo-face holo-back"></div><div class="holo-face holo-front">${content}</div></div>`;
+        // Colores únicos por icono para distinguirlos visualmente
+        const iconColors = ['#3b82f6','#fbbf24','#22c55e','#a855f7','#ef4444','#06b6d4','#f97316','#10b981','#ec4899','#84cc16','#f59e0b','#6366f1','#e11d48','#0ea5e9','#8b5cf6'];
+        const timeColor = this.mode === 'RUSH' ? '#eab308' : '#3b82f6';
+        const cardSize = (this.cols === 4 && this.rows <= 3) ? '90px' : '78px';
+
+        let gridHTML = `<div class="holo-grid" style="grid-template-columns:repeat(${this.cols},${cardSize});gap:10px;">`;
+        this.cards.forEach((card, idx) => {
+            const iconIdx = this.emojis.indexOf(card.val);
+            const color = card.isVirus ? '#ef4444' : (iconColors[iconIdx % iconColors.length] || '#3b82f6');
+            const icon = card.isVirus ? 'fa-biohazard' : card.val;
+            const virusClass = card.isVirus ? ' virus' : '';
+            gridHTML += `
+                <div class="holo-card-container${virusClass}" id="card-${card.id}"
+                     style="width:${cardSize};height:calc(${cardSize} * 1.2);"
+                     onclick="window.app.game.handleCardClick(${card.id})">
+                    <div class="holo-face holo-back"></div>
+                    <div class="holo-face holo-front" style="background:${color}18;border-color:${color};box-shadow:inset 0 0 20px ${color}20;">
+                        <i class="fa-solid ${icon}" style="font-size:1.8rem;color:${color};filter:drop-shadow(0 0 8px ${color});"></i>
+                    </div>
+                </div>`;
         });
         gridHTML += '</div>';
-        const timeColor = this.mode === 'RUSH' ? '#eab308' : '#3b82f6';
+
         this.uiContainer.innerHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center; width:100%; height:100%; justify-content:center;">
-                <div class="hm-hud-container">
-                    <div class="hm-stat-capsule" style="border-color:${timeColor}"><span class="hm-label">TIEMPO</span><span class="hm-value" id="hm-time" style="color:${timeColor}">${this.timeLeft.toFixed(1)}</span></div>
-                    <div class="hm-stat-capsule" style="border-color:#fbbf24"><span class="hm-label">COMBO</span><span class="hm-value" id="hm-combo" style="color:#fbbf24">x1</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;width:100%;height:100%;justify-content:center;gap:16px;padding:16px;box-sizing:border-box;">
+            <div class="hm-hud-container">
+                <div class="hm-stat-capsule" style="border-color:${timeColor}">
+                    <span class="hm-label">TIEMPO</span>
+                    <span class="hm-value" id="hm-time" style="color:${timeColor}">${this.timeLeft.toFixed(1)}</span>
                 </div>
-                ${gridHTML}
-            </div>`;
+                <div class="hm-stat-capsule" style="border-color:#fbbf24">
+                    <span class="hm-label">COMBO</span>
+                    <span class="hm-value" id="hm-combo" style="color:#fbbf24">×1</span>
+                </div>
+            </div>
+            ${gridHTML}
+        </div>`;
     }
 
     handleCardClick(id) {

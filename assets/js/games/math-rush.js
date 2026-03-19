@@ -78,7 +78,7 @@ export class MathRushGame {
         this.equations = [];
         if(this.uiScore) this.uiScore.innerText = '0';
         this.uiContainer.innerHTML = `
-            <div class="math-lives-indicator" id="mr-lives">❤️❤️❤️</div>
+            <div class="math-lives-indicator" id="mr-lives"><i class="fa-solid fa-heart" style="color:#ec4899;margin:0 3px;"></i><i class="fa-solid fa-heart" style="color:#ec4899;margin:0 3px;"></i><i class="fa-solid fa-heart" style="color:#ec4899;margin:0 3px;"></i></div>
             <div class="zone-indicator zone-true">VERDAD (Izq)</div>
             <div class="zone-indicator zone-false">FALSO (Der)</div>
             <div id="math-track" style="position:absolute; top:0; left:0; width:100%; height:100%; overflow:hidden; pointer-events:none;"></div>
@@ -157,9 +157,9 @@ export class MathRushGame {
         try { this.audio.playLose(); } catch(e){}
         document.body.classList.add('shake-screen');
         setTimeout(() => document.body.classList.remove('shake-screen'), 300);
-        const livesStr = "❤️".repeat(this.lives) + "💀".repeat(3 - this.lives);
+        const livesStr = '<i class="fa-solid fa-heart" style="color:#ec4899;margin:0 3px;"></i>'.repeat(this.lives) + '<i class="fa-solid fa-xmark" style="color:#334155;margin:0 3px;font-size:0.9rem;"></i>'.repeat(3-this.lives);
         const livesEl = document.getElementById('mr-lives');
-        if(livesEl) livesEl.innerText = livesStr;
+        if(livesEl) livesEl.innerHTML = livesStr;
         if (this.lives <= 0) this.gameOver();
     }
 
