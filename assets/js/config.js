@@ -97,6 +97,9 @@ export const CONFIG = {
         { id: 'pixel-draw',   name: 'Pixel Draw',   icon: 'fa-solid fa-paintbrush',  color: 'REFLEX', desc: 'Protocolo Artístico',  cat: 'MEMORIA' },
         { id: 'number-grid',  name: 'Number Grid',  icon: 'fa-solid fa-hashtag',     color: 'MATH',   desc: 'Protocolo Numérico',   cat: 'REFLEJOS' },
         { id: 'word-rush',    name: 'Word Rush',    icon: 'fa-solid fa-spell-check',  color: 'CYAN',   desc: 'Protocolo Léxico',                         cat: 'MENTAL'  },
+        { id: 'simon-says',    name:'Simon Says',    icon:'fa-solid fa-circle-play',  color:'MEMORY', desc:'Protocolo Cromático',   cat:'MEMORIA'  },
+        { id: 'pattern-rush',  name:'Pattern Rush',  icon:'fa-solid fa-border-all',   color:'MEMORY', desc:'Protocolo Visual',      cat:'MEMORIA'  },
+        { id: 'reaction-chain',name:'Reaction Chain', icon:'fa-solid fa-link',         color:'REFLEX', desc:'Protocolo de Cadena',   cat:'REFLEJOS' },
         { id: 'cipher-decode',name: 'Cipher Decode',icon: 'fa-solid fa-lock',                    color: 'VAULT',  desc: 'Descifra el Mensaje',                       cat: 'MENTAL' }
     ],
 
@@ -125,6 +128,9 @@ export const CONFIG = {
         'pixel-draw':    { desc: 'Copia el sprite píxel a píxel.', mech: 'Pinta la grilla 8x8 copiando el modelo.', obj: 'Máxima precisión.', diff: 'Creativo.' },
         'number-grid':   { desc: 'Toca los números en orden.', mech: 'Encuentra y toca del 1 al N lo más rápido posible.', obj: 'Velocidad y memoria visual.', diff: 'Reflejos.' },
         'word-rush':     { desc: 'Adivina la palabra oculta.', mech: 'Verde=posición correcta, Amarillo=letra existe, Gris=no existe.', obj: 'Adivinar en menos intentos.', diff: 'Mental.' },
+        'simon-says':     { desc: 'Repite la secuencia de colores.', mech: 'Observa la secuencia que se ilumina y repítela en el mismo orden.', obj: 'Llegar lo más lejos posible.', diff: 'Memoria.' },
+        'pattern-rush':   { desc: 'Memoriza y repite el patrón de colores.', mech: 'Observa qué celdas se iluminan y en qué orden, luego repite.', obj: 'Memoria visual y velocidad.', diff: 'Memoria.' },
+        'reaction-chain': { desc: 'Toca los nodos en orden.', mech: 'Los nodos se numera 1-N, tócalos en ese orden antes de que se acabe el tiempo.', obj: 'Velocidad y memoria.', diff: 'Reflejos.' },
         'cipher-decode': { desc: 'Descifra mensajes encriptados.', mech: 'Selecciona el carácter correcto para cada símbolo.', obj: 'Velocidad y precisión.', diff: 'Mental.' }
     },
 
@@ -195,11 +201,18 @@ export const CONFIG = {
       
 
 
-        { id: 't_diablo',    type: 'THEME', name: 'Diablo II',      icon: 'fa-solid fa-fire-flame-curved', desc: 'El Santuario en llamas. Rojo sangre.',         price: 4000,   val: 't_diablo'    },
-        { id: 't_cs16',      type: 'THEME', name: 'Counter-Strike', icon: 'fa-solid fa-gun',               desc: 'CT side. 1.6 forever.',                        price: 2500,   val: 't_cs16'      },
-        { id: 't_quake',     type: 'THEME', name: 'Quake',          icon: 'fa-solid fa-q',                 desc: 'Frags por segundo. Brown y oscuro.',           price: 3000,   val: 't_quake'     },
-        { id: 't_xperror',   type: 'THEME', name: 'XP Error',       icon: 'fa-brands fa-windows',          desc: 'Fatal Exception. Pantalla azul de la muerte.', price: 1500,   val: 't_xperror'   },
-        { id: 't_starcraft', type: 'THEME', name: 'StarCraft',       icon: 'fa-solid fa-star',              desc: 'Protoss azul. Por Aiur.',                     price: 3500,   val: 't_starcraft' },
+        { id: 't_diablo',    type: 'THEME', name: 'Diablo II',      icon: 'fa-solid fa-fire-flame-curved', desc: 'El Santuario en llamas. Rojo sangre.', lore: 'Solo quedan brasas y demonios.',         price: 4000,   val: 't_diablo', lore: 'Solo quedan brasas y demonios.' },
+        { id: 't_cs16',      type: 'THEME', name: 'Counter-Strike', icon: 'fa-solid fa-gun',               desc: 'CT side. 1.6 forever.',                        price: 2500,   val: 't_cs16', lore: 'CT side. Counter-Strike para siempre.' },
+        { id: 't_quake',     type: 'THEME', name: 'Quake',          icon: 'fa-solid fa-q',                 desc: 'Frags por segundo. Brown y oscuro.',           price: 3000,   val: 't_quake', lore: 'El fuego nunca se extingue aquí.' },
+        { id: 't_xperror',   type: 'THEME', name: 'XP Error',       icon: 'fa-brands fa-windows',          desc: 'Fatal Exception. Pantalla azul de la muerte.', price: 1500,   val: 't_xperror', lore: 'Un problema ha causado que el sistema deje de funcionar.' },
+        { id: 't_starcraft', type: 'THEME', name: 'StarCraft',       icon: 'fa-solid fa-star',              desc: 'Protoss azul. Por Aiur.',                     price: 3500,   val: 't_starcraft', lore: 'En nombre de Aiur. Los protoss nunca mueren.' },
+
+        { id: 't_celeste',   type: 'THEME', name: 'Celeste',      icon: 'fa-solid fa-mountain',        desc: 'Montaña azul. Determinación.',          price: 3200, val: 't_celeste', lore: 'Solo tienes que subir la montaña.' },
+        { id: 't_portal',    type: 'THEME', name: 'Portal',       icon: 'fa-solid fa-circle',           desc: 'Aperture Science. Naranja y azul.',     price: 3500, val: 't_portal', lore: 'We do what we must because we can.' },
+        { id: 't_minecraft', type: 'THEME', name: 'Minecraft',    icon: 'fa-solid fa-cube',             desc: 'Píxels verdes. El juego infinito.',     price: 2800, val: 't_minecraft', lore: 'Los bloques son eternos.' },
+        { id: 't_limbo',     type: 'THEME', name: 'Limbo',        icon: 'fa-solid fa-moon',             desc: 'Oscuridad total. Siluetas y sombras.',  price: 2200, val: 't_limbo', lore: 'En Limbo, nadie escucha tus gritos.' },
+        { id: 't_synthwave', type: 'THEME', name: 'Synthwave',    icon: 'fa-solid fa-music',            desc: 'Neón rosa. Años 80 para siempre.',      price: 4000, val: 't_synthwave', lore: 'El futuro que nunca fue. Pero podría ser.' },
+        { id: 't_terminal',  type: 'THEME', name: 'Terminal',     icon: 'fa-solid fa-terminal',         desc: 'Verde puro. El texto es todo.',         price: 1800, val: 't_terminal', lore: 'El texto es todo lo que necesitas.' },
         { id: 'p_circle', type: 'PARTICLE', name: 'Chispas', icon: 'fa-solid fa-circle', desc: 'Efecto estándar.', price: 0, val: 'circle' },
         { id: 'p_square', type: 'PARTICLE', name: 'Vóxeles', icon: 'fa-solid fa-cube', desc: 'Cubos de datos.', price: 500, val: 'square' },
         { id: 'p_star', type: 'PARTICLE', name: 'Polvo Estelar', icon: 'fa-solid fa-star', desc: 'Brilla intensamente.', price: 1200, val: 'star' },
@@ -249,7 +262,11 @@ export const CONFIG = {
         { id: 'cc_amongus',  type: 'CALLCARD', name: 'Among Us',     icon: 'fa-solid fa-user-astronaut', desc: 'Sus. Emergencia en la nave.',                  price: 2200,  val: 'amongus',   ref: 'Among Us' },
         { id: 'cc_undertale',type: 'CALLCARD', name: 'Undertale',    icon: 'fa-solid fa-heart',          desc: 'Stay determined. No maten nada.',              price: 3800,  val: 'undertale', ref: 'Undertale' },
         { id: 'cc_hollow',   type: 'CALLCARD', name: 'Hollow Knight',icon: 'fa-solid fa-chess-knight',   desc: 'El reino olvidado. Mantis y sombras.',         price: 4200,  val: 'hollow',    ref: 'Hollow Knight' },
-        { id: 'cc_stardew',  type: 'CALLCARD', name: 'Stardew',      icon: 'fa-solid fa-seedling',       desc: 'La granja te espera. Pelikan Town.',           price: 2000,  val: 'stardew',   ref: 'Stardew Valley' }
+        { id: 'cc_stardew',  type: 'CALLCARD', name: 'Stardew',      icon: 'fa-solid fa-seedling',       desc: 'La granja te espera. Pelikan Town.',           price: 2000,  val: 'stardew',   ref: 'Stardew Valley' },
+        { id: 'cc_halflife',  type:'CALLCARD', name:'Half-Life',  icon:'fa-solid fa-radiation',   desc:'Lambda. Freeman no habla.',           price:3800, val:'halflife',  ref:'Half-Life'  },
+        { id: 'cc_portal',    type:'CALLCARD', name:'Portal',     icon:'fa-solid fa-circle',       desc:'The cake is a lie.',                  price:4200, val:'portal',    ref:'Portal'     },
+        { id: 'cc_minecraft', type:'CALLCARD', name:'Minecraft',  icon:'fa-solid fa-cube',         desc:'Bloques hasta el infinito.',           price:2500, val:'minecraft', ref:'Minecraft'  },
+        { id: 'cc_celeste',   type:'CALLCARD', name:'Celeste',    icon:'fa-solid fa-mountain',     desc:'B-side desbloqueada. Madeline vive.', price:3500, val:'celeste',   ref:'Celeste'    }
     ],
 
     SKILLS: {
@@ -295,6 +312,65 @@ export const CONFIG = {
         { id: 'perfectionist',name:'Perfeccionista',     desc: 'Consigue rango S en cualquier juego', check: s => s.hasRankS,                              icon: '💯' },
         { id: 'nocturno',    name: 'Nocturno',           desc: 'Juega después de medianoche',  check: s => s.playedLate,                                    icon: '🌙' },
         { id: 'streakmaster',name:'Maestro de Rachas',   desc: 'Racha de 50 días',             check: s => (s.streak?.best||s.best||0) >= 50,               icon: '🌋' },
+
+        // ── Word Rush ──
+        { id: 'wr_first',    name: 'Primera Palabra',   desc: 'Adivina tu primera palabra en Word Rush',    check: s => (s.wordRushWins||0) >= 1,        icon: '🔤' },
+        { id: 'wr_streak',   name: 'Lingüista',         desc: 'Adivina 10 palabras en Word Rush',           check: s => (s.wordRushWins||0) >= 10,       icon: '📖' },
+        { id: 'wr_speed',    name: 'Lexicón',            desc: 'Consigue 200+ puntos en Word Rush Blitz',    check: s => (s.wordRushBest||0) >= 200,      icon: '⚡' },
+        // ── Pixel Draw ──
+        { id: 'pd_first',    name: 'Primer Píxel',      desc: 'Completa tu primer sprite en Pixel Draw',    check: s => (s.pixelDrawDone||0) >= 1,       icon: '🎨' },
+        { id: 'pd_perfect',  name: 'Artista Nato',      desc: 'Consigue 90%+ precisión en Pixel Draw',      check: s => (s.pixelDrawBest||0) >= 72,      icon: '🖌️' },
+        // ── Number Grid ──
+        { id: 'ng_first',    name: 'En Orden',          desc: 'Completa tu primer Number Grid',             check: s => (s.numberGridDone||0) >= 1,      icon: '🔢' },
+        { id: 'ng_speed',    name: 'Sub-10',            desc: 'Completa Number Grid en menos de 10 segundos', check: s => (s.numberGridBest||0) > 0 && (s.numberGridFastest||999) < 10, icon: '⏱️' },
+        { id: 'ng_blitz',    name: 'Calculadora',       desc: 'Consigue 400+ puntos en Number Grid Blitz',  check: s => (s.numberGridBest||0) >= 400,    icon: '🧮' },
+
+        // ── Pattern Rush ──
+        { id: 'pr_first',    name: 'Primer Patrón',   desc: 'Completa tu primer Pattern Rush',             check: s => (s.prDone||0) >= 1,        icon: '🔲' },
+        { id: 'pr_hard',     name: 'Memorista',       desc: 'Completa un patrón de 9 celdas',             check: s => (s.prMaxPat||0) >= 9,      icon: '🧠' },
+
+        // ── Reaction Chain ──
+        { id: 'rc_first',    name: 'Primer Eslabón',   desc: 'Completa tu primera Reaction Chain',          check: s => (s.rcDone||0) >= 1,   icon: '⛓️' },
+        { id: 'rc_speed',    name: 'Cadena de Acero',  desc: 'Completa una cadena de 8 nodos',              check: s => (s.rcMaxChain||0) >= 8, icon: '🔗' },
+
+        // ── Modo VS ──
+        { id: 'vs_first',    name: 'Primer Duelo',    desc: 'Gana tu primera partida VS',           check: s => (s.vsWins||0) >= 1,    icon: '⚔️' },
+        { id: 'vs_streak',   name: 'Invicto',         desc: 'Gana 5 partidas VS seguidas',          check: s => (s.vsStreak||0) >= 5,  icon: '🏅' },
+        // ── Simon Says ──
+        { id: 'ss_first',    name: 'Eco Digital',     desc: 'Completa tu primer Simon Says',        check: s => (s.simonDone||0) >= 1, icon: '🟢' },
+        { id: 'ss_long',     name: 'Fotográfico',     desc: 'Alcanza secuencia de 12 en Simon Says',check: s => (s.simonBest||0) >= 120, icon: '📸' },
+        // ── Temporadas ──
+        { id: 'season_vet',  name: 'Veterano Estacional', desc: 'Completa 3 temporadas',            check: s => ((s.season&&s.season.history&&s.season.history.length)||0) >= 3, icon: '🗓️' },
+        // ── Torneos ──
+        { id: 'top3',        name: 'Podio',             desc: 'Entra al Top 3 en un torneo semanal',        check: s => (s.tournamentTop3||0) >= 1,      icon: '🥇' },
+        { id: 'torneador',   name: 'Competidor',        desc: 'Participa en 4 torneos semanales',           check: s => (s.tournamentsPlayed||0) >= 4,   icon: '🏆' },
+        // ── Inversiones ──
+        { id: 'inv_first',   name: 'Primer Trade',      desc: 'Realiza tu primera inversión',               check: s => (s.investCount||0) >= 1,         icon: '📈' },
+        { id: 'inv_win',     name: 'Manos de Diamante', desc: 'Gana 10,000 CR en total con inversiones',    check: s => (s.investProfit||0) >= 10000,    icon: '💎' },
+        { id: 'inv_yolo',    name: 'YOLO',              desc: 'Invierte 10,000 CR en Alto Riesgo',          check: s => (s.investHighStake||0) >= 10000, icon: '🎲' },
+
+        // ── Maestría — dificultad alta ──
+        { id: 'centenario',  name: 'Centenario',        desc: 'Racha de 100 días',             check: s => (s.streak&&s.streak.best||s.best||0) >= 100,   icon: '💯' },
+        { id: 'grandmaster', name: 'Gran Maestro',      desc: 'Nivel 70 alcanzado',            check: s => s.level >= 70,                                   icon: '🌟' },
+        { id: 'immortal',    name: 'Inmortal',          desc: 'Nivel 100 alcanzado',           check: s => s.level >= 100,                                  icon: '♾️' },
+        { id: 'allgames',    name: 'Explorador',        desc: 'Juega todos los 25 juegos',     check: s => Object.keys(s.highScores||{}).length >= 25,      icon: '🗺️' },
+        { id: 'rankS_5',     name: 'Perfeccionista Pro',desc: 'Rango S en 5 juegos distintos', check: s => (s.rankSCount||0) >= 5,                          icon: '🎯' },
+        { id: 'nightowl2',   name: 'Fantasma',          desc: 'Juega 50 veces de madrugada',   check: s => (s.lateGames||0) >= 50,                          icon: '🦉' },
+        { id: 'konami',      name: 'El Código',         desc: 'Activa el código Konami',       check: s => !!s.konamiUsed,                                  icon: '🕹️' },
+        { id: 'investor',    name: 'Corredor de Bolsa', desc: 'Realiza 30 inversiones',        check: s => (s.investCount||0) >= 30,                        icon: '📊' },
+        { id: 'tourney3',    name: 'Campeón de Torneos',desc: 'Entra al Top 3 en 3 torneos',   check: s => (s.tournamentTop3||0) >= 3,                      icon: '🥊' },
+
+        { id: 'investor_t',  name: 'El Especulador',  unlock: 'inv_first',   desc: 'El mercado es tu campo de batalla' },
+        { id: 'champion',    name: 'El Campeón',      unlock: 'top3',        desc: 'Pódio en los torneos' },
+        { id: 'wordsmith',   name: 'El Lexicón',      unlock: 'wr_streak',   desc: 'Las palabras obedecen' },
+        { id: 'pixel_lord',  name: 'El Artista',      unlock: 'pd_perfect',  desc: 'Precisión al píxel' },
+        { id: 'immortal_t',  name: 'El Inmortal',     unlock: 'immortal',    desc: 'Nivel 100. Más allá del sistema' },
+        { id: 'konami_t',    name: 'El Truquista',    unlock: 'konami',      desc: '↑↑↓↓←→←→BA' },
+        { id: 'grandmaster_t',name:'El Gran Maestro', unlock: 'grandmaster', desc: 'Nivel 70. Leyenda viviente' },
+
+        { id: 'duelist',     name: 'El Duelista',     unlock: 'vs_first',    desc: 'Nadie se le resiste en el 1v1' },
+        { id: 'simon_t',     name: 'El Eco',          unlock: 'ss_first',    desc: 'Repite lo que el sistema ordena' },
+        { id: 'seasonal',    name: 'El Eterno',       unlock: 'season_vet',  desc: 'Tres temporadas. El sistema lo recuerda' },
         { id: 'architect',   name: 'El Architecto',      desc: 'Completa todos los logros anteriores', check: s => (s.unlockedAchs?.length||0) >= 28,       icon: '🏛️' },
     ],
 
@@ -336,6 +412,18 @@ export const CONFIG = {
         { lvl: 65, type: 'THEME',    val: 't_starcraft', name: 'StarCraft',        icon: 'fa-star',                rarity: 'legendary', desc: 'Por Aiur' },
         { lvl: 68, type: 'CREDITS',  val: 5000,         name: 'Fondo Oscuro II',   icon: 'fa-coins',               rarity: 'epic',      desc: '+5000 CR' },
         { lvl: 70, type: 'CALLCARD', val: 'hollow',     name: 'Hollow Knight',     icon: 'fa-chess-knight',        rarity: 'legendary', desc: 'El reino olvidado' },
+        { lvl: 72, type: 'CREDITS',  val: 3000,          name: 'Capital Tier II',   icon: 'fa-coins',               rarity: 'rare',      desc: '+3000 CR' },
+        { lvl: 75, type: 'THEME',    val: 't_synthwave',  name: 'Synthwave',         icon: 'fa-music',               rarity: 'epic',      desc: 'Neón rosa años 80' },
+        { lvl: 78, type: 'CALLCARD', val: 'portal',       name: 'Portal',            icon: 'fa-circle',              rarity: 'legendary', desc: 'The cake is a lie' },
+        { lvl: 80, type: 'PARTICLE', val: 'p_matrix',     name: 'FX: Matrix',        icon: 'fa-terminal',            rarity: 'epic',      desc: 'No hay cuchara' },
+        { lvl: 82, type: 'CREDITS',  val: 5000,           name: 'Fondo Oscuro III',  icon: 'fa-coins',               rarity: 'epic',      desc: '+5000 CR' },
+        { lvl: 85, type: 'THEME',    val: 't_celeste',    name: 'Celeste',           icon: 'fa-mountain',            rarity: 'legendary', desc: 'Azul montaña' },
+        { lvl: 88, type: 'CALLCARD', val: 'minecraft',    name: 'Minecraft',         icon: 'fa-cube',                rarity: 'epic',      desc: 'Bloques infinitos' },
+        { lvl: 90, type: 'HARDWARE', val: 'up_credit',    name: 'Credit Miner v2',   icon: 'fa-microchip',           rarity: 'legendary', desc: '+10% créditos extra' },
+        { lvl: 92, type: 'CREDITS',  val: 8000,           name: 'Reserva Suprema',   icon: 'fa-coins',               rarity: 'legendary', desc: '+8000 CR' },
+        { lvl: 95, type: 'THEME',    val: 't_terminal',   name: 'Terminal',          icon: 'fa-terminal',            rarity: 'epic',      desc: 'Verde puro' },
+        { lvl: 98, type: 'CALLCARD', val: 'celeste',      name: 'Celeste',           icon: 'fa-mountain',            rarity: 'legendary', desc: 'B-side desbloqueada' },
+        { lvl: 100,type: 'CREDITS',  val: 25000,          name: '¡NIVEL 100!',       icon: 'fa-crown',               rarity: 'legendary', desc: 'El pináculo. 25000 CR' },
     ],
 
     TITLES: [
@@ -349,6 +437,65 @@ export const CONFIG = {
         { id: 'perfectionist',name:'El Perfeccionista',   unlock: 'perfectionist',desc: 'Nada menos que rango S' },
         { id: 'ghost',       name: 'El Fantasma',         unlock: 'dedicated',    desc: 'Siempre presente, nunca visto' },
         { id: 'transcend',   name: 'El Trascendente',     unlock: 'transcend',    desc: 'Nivel 50. El pico del sistema' },
+
+        // ── Word Rush ──
+        { id: 'wr_first',    name: 'Primera Palabra',   desc: 'Adivina tu primera palabra en Word Rush',    check: s => (s.wordRushWins||0) >= 1,        icon: '🔤' },
+        { id: 'wr_streak',   name: 'Lingüista',         desc: 'Adivina 10 palabras en Word Rush',           check: s => (s.wordRushWins||0) >= 10,       icon: '📖' },
+        { id: 'wr_speed',    name: 'Lexicón',            desc: 'Consigue 200+ puntos en Word Rush Blitz',    check: s => (s.wordRushBest||0) >= 200,      icon: '⚡' },
+        // ── Pixel Draw ──
+        { id: 'pd_first',    name: 'Primer Píxel',      desc: 'Completa tu primer sprite en Pixel Draw',    check: s => (s.pixelDrawDone||0) >= 1,       icon: '🎨' },
+        { id: 'pd_perfect',  name: 'Artista Nato',      desc: 'Consigue 90%+ precisión en Pixel Draw',      check: s => (s.pixelDrawBest||0) >= 72,      icon: '🖌️' },
+        // ── Number Grid ──
+        { id: 'ng_first',    name: 'En Orden',          desc: 'Completa tu primer Number Grid',             check: s => (s.numberGridDone||0) >= 1,      icon: '🔢' },
+        { id: 'ng_speed',    name: 'Sub-10',            desc: 'Completa Number Grid en menos de 10 segundos', check: s => (s.numberGridBest||0) > 0 && (s.numberGridFastest||999) < 10, icon: '⏱️' },
+        { id: 'ng_blitz',    name: 'Calculadora',       desc: 'Consigue 400+ puntos en Number Grid Blitz',  check: s => (s.numberGridBest||0) >= 400,    icon: '🧮' },
+
+        // ── Pattern Rush ──
+        { id: 'pr_first',    name: 'Primer Patrón',   desc: 'Completa tu primer Pattern Rush',             check: s => (s.prDone||0) >= 1,        icon: '🔲' },
+        { id: 'pr_hard',     name: 'Memorista',       desc: 'Completa un patrón de 9 celdas',             check: s => (s.prMaxPat||0) >= 9,      icon: '🧠' },
+
+        // ── Reaction Chain ──
+        { id: 'rc_first',    name: 'Primer Eslabón',   desc: 'Completa tu primera Reaction Chain',          check: s => (s.rcDone||0) >= 1,   icon: '⛓️' },
+        { id: 'rc_speed',    name: 'Cadena de Acero',  desc: 'Completa una cadena de 8 nodos',              check: s => (s.rcMaxChain||0) >= 8, icon: '🔗' },
+
+        // ── Modo VS ──
+        { id: 'vs_first',    name: 'Primer Duelo',    desc: 'Gana tu primera partida VS',           check: s => (s.vsWins||0) >= 1,    icon: '⚔️' },
+        { id: 'vs_streak',   name: 'Invicto',         desc: 'Gana 5 partidas VS seguidas',          check: s => (s.vsStreak||0) >= 5,  icon: '🏅' },
+        // ── Simon Says ──
+        { id: 'ss_first',    name: 'Eco Digital',     desc: 'Completa tu primer Simon Says',        check: s => (s.simonDone||0) >= 1, icon: '🟢' },
+        { id: 'ss_long',     name: 'Fotográfico',     desc: 'Alcanza secuencia de 12 en Simon Says',check: s => (s.simonBest||0) >= 120, icon: '📸' },
+        // ── Temporadas ──
+        { id: 'season_vet',  name: 'Veterano Estacional', desc: 'Completa 3 temporadas',            check: s => ((s.season&&s.season.history&&s.season.history.length)||0) >= 3, icon: '🗓️' },
+        // ── Torneos ──
+        { id: 'top3',        name: 'Podio',             desc: 'Entra al Top 3 en un torneo semanal',        check: s => (s.tournamentTop3||0) >= 1,      icon: '🥇' },
+        { id: 'torneador',   name: 'Competidor',        desc: 'Participa en 4 torneos semanales',           check: s => (s.tournamentsPlayed||0) >= 4,   icon: '🏆' },
+        // ── Inversiones ──
+        { id: 'inv_first',   name: 'Primer Trade',      desc: 'Realiza tu primera inversión',               check: s => (s.investCount||0) >= 1,         icon: '📈' },
+        { id: 'inv_win',     name: 'Manos de Diamante', desc: 'Gana 10,000 CR en total con inversiones',    check: s => (s.investProfit||0) >= 10000,    icon: '💎' },
+        { id: 'inv_yolo',    name: 'YOLO',              desc: 'Invierte 10,000 CR en Alto Riesgo',          check: s => (s.investHighStake||0) >= 10000, icon: '🎲' },
+
+        // ── Maestría — dificultad alta ──
+        { id: 'centenario',  name: 'Centenario',        desc: 'Racha de 100 días',             check: s => (s.streak&&s.streak.best||s.best||0) >= 100,   icon: '💯' },
+        { id: 'grandmaster', name: 'Gran Maestro',      desc: 'Nivel 70 alcanzado',            check: s => s.level >= 70,                                   icon: '🌟' },
+        { id: 'immortal',    name: 'Inmortal',          desc: 'Nivel 100 alcanzado',           check: s => s.level >= 100,                                  icon: '♾️' },
+        { id: 'allgames',    name: 'Explorador',        desc: 'Juega todos los 25 juegos',     check: s => Object.keys(s.highScores||{}).length >= 25,      icon: '🗺️' },
+        { id: 'rankS_5',     name: 'Perfeccionista Pro',desc: 'Rango S en 5 juegos distintos', check: s => (s.rankSCount||0) >= 5,                          icon: '🎯' },
+        { id: 'nightowl2',   name: 'Fantasma',          desc: 'Juega 50 veces de madrugada',   check: s => (s.lateGames||0) >= 50,                          icon: '🦉' },
+        { id: 'konami',      name: 'El Código',         desc: 'Activa el código Konami',       check: s => !!s.konamiUsed,                                  icon: '🕹️' },
+        { id: 'investor',    name: 'Corredor de Bolsa', desc: 'Realiza 30 inversiones',        check: s => (s.investCount||0) >= 30,                        icon: '📊' },
+        { id: 'tourney3',    name: 'Campeón de Torneos',desc: 'Entra al Top 3 en 3 torneos',   check: s => (s.tournamentTop3||0) >= 3,                      icon: '🥊' },
+
+        { id: 'investor_t',  name: 'El Especulador',  unlock: 'inv_first',   desc: 'El mercado es tu campo de batalla' },
+        { id: 'champion',    name: 'El Campeón',      unlock: 'top3',        desc: 'Pódio en los torneos' },
+        { id: 'wordsmith',   name: 'El Lexicón',      unlock: 'wr_streak',   desc: 'Las palabras obedecen' },
+        { id: 'pixel_lord',  name: 'El Artista',      unlock: 'pd_perfect',  desc: 'Precisión al píxel' },
+        { id: 'immortal_t',  name: 'El Inmortal',     unlock: 'immortal',    desc: 'Nivel 100. Más allá del sistema' },
+        { id: 'konami_t',    name: 'El Truquista',    unlock: 'konami',      desc: '↑↑↓↓←→←→BA' },
+        { id: 'grandmaster_t',name:'El Gran Maestro', unlock: 'grandmaster', desc: 'Nivel 70. Leyenda viviente' },
+
+        { id: 'duelist',     name: 'El Duelista',     unlock: 'vs_first',    desc: 'Nadie se le resiste en el 1v1' },
+        { id: 'simon_t',     name: 'El Eco',          unlock: 'ss_first',    desc: 'Repite lo que el sistema ordena' },
+        { id: 'seasonal',    name: 'El Eterno',       unlock: 'season_vet',  desc: 'Tres temporadas. El sistema lo recuerda' },
         { id: 'architect',   name: 'El Architecto',       unlock: 'architect',    desc: 'Lo ha conseguido todo' },
     ],
 

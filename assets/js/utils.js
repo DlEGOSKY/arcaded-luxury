@@ -45,20 +45,39 @@ export class CanvasManager {
     }
 
     setMood(styleId) {
-        if(styleId && styleId.startsWith('#')) { 
-            this.themeColor = this.hexToRgb(styleId); 
-        } 
-        else if (styleId === 't_matrix') { this.themeColor = { r: 0, g: 255, b: 65 }; this.activeMood = 'MATRIX'; } 
-        else if (styleId === 't_gold') { this.themeColor = { r: 255, g: 215, b: 0 }; this.activeMood = 'GOLD'; } 
-        else if (styleId === 't_hot') { this.themeColor = { r: 255, g: 0, b: 255 }; this.activeMood = 'HOT'; }
-        else if (styleId === 't_void') { this.themeColor = { r: 100, g: 100, b: 255 }; this.activeMood = 'VOID'; }
-        else if (styleId === 't_retro') { this.themeColor = { r: 132, g: 204, b: 22 }; this.activeMood = 'RETRO'; }
-        // NUEVOS
-        else if (styleId === 't_crimson') { this.themeColor = { r: 239, g: 68, b: 68 }; this.activeMood = 'DANGER'; }
-        else if (styleId === 't_blueprint') { this.themeColor = { r: 255, g: 255, b: 255 }; this.activeMood = 'TECH'; }
-        else if (styleId === 't_win95') { this.themeColor = { r: 0, g: 0, b: 128 }; this.activeMood = 'OS'; }
-        
-        else { this.themeColor = { r: 59, g: 130, b: 246 }; this.activeMood = null; }
+        // Mapeo tema → mood visual del fondo
+        const THEME_MOODS = {
+            't_hack':       { c:[0,255,65],    mood:'MATRIX'       },
+            't_matrix':     { c:[0,255,65],    mood:'MATRIX'       },
+            't_gameby':     { c:[132,204,22],  mood:'RETRO'        },
+            't_retro':      { c:[132,204,22],  mood:'RETRO'        },
+            't_starcraft':  { c:[59,130,246],  mood:'STARS'        },
+            't_vhs':        { c:[255,0,128],   mood:'SCANLINES'    },
+            't_outrun':     { c:[255,0,255],   mood:'GRID'         },
+            't_diablo':     { c:[185,28,28],   mood:'EMBERS'       },
+            't_xperror':    { c:[21,96,189],   mood:'STATIC'       },
+            't_blueprint':  { c:[255,255,255], mood:'TECH'         },
+            't_crimson':    { c:[239,68,68],   mood:'DANGER'       },
+            't_gold':       { c:[255,215,0],   mood:'GOLD'         },
+            't_hot':        { c:[255,0,255],   mood:'HOT'          },
+            't_void':       { c:[100,100,255], mood:'VOID'         },
+            't_doom':       { c:[220,38,38],   mood:'EMBERS'       },
+            't_cs16':       { c:[74,124,89],   mood:'RETRO'        },
+            't_quake':      { c:[217,119,6],   mood:'EMBERS'       },
+        };
+
+        if(styleId && styleId.startsWith('#')) {
+            this.themeColor = this.hexToRgb(styleId);
+            this.activeMood = null;
+        } else if(THEME_MOODS[styleId]) {
+            const m = THEME_MOODS[styleId];
+            this.themeColor = { r:m.c[0], g:m.c[1], b:m.c[2] };
+            this.activeMood = m.mood;
+        } else {
+            this.themeColor = { r:59, g:130, b:246 };
+            this.activeMood = null;
+        }
+        this.initBackground();
     }
 
     initBackground() {
@@ -211,38 +230,152 @@ export class CanvasManager {
         }
         // Limpiar
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        // Color Base (del tema actual)
+
+        // 1. DIBUJAR FONDO adaptativo según mood
         const c = this.themeColor;
-        this.ctx.fillStyle = `rgba(${c.r}, ${c.g}, ${c.b}, 0.4)`; // Partículas semi-transparentes
-        this.ctx.strokeStyle = `rgba(${c.r}, ${c.g}, ${c.b}, 0.1)`;
-        this.ctx.lineWidth = 1;
+        const mood = this.activeMood;
+        const W = this.canvas.width, H = this.canvas.height;
+        const t = Date.now() * 0.001;
 
-        // 1. DIBUJAR FONDO (Red Neuronal)
-        const DIST_SQ = 9000; // 100px² — evitar Math.sqrt en el inner loop
-        for (let i = 0; i < this.bgParticles.length; i++) {
-            let p = this.bgParticles[i];
-            p.x += p.vx; p.y += p.vy;
-            if (p.x < 0 || p.x > this.canvas.width)  p.vx *= -1;
-            if (p.y < 0 || p.y > this.canvas.height) p.vy *= -1;
-            this.drawParticle(this.ctx, p);
+        if(mood === 'MATRIX') {
+            // Matrix rain — columnas de caracteres verdes cayendo
+            this.ctx.font = '12px monospace';
+            this.ctx.fillStyle = 'rgba(0,255,65,0.7)';
+            for(let i = 0; i < this.bgParticles.length; i++) {
+                let p = this.bgParticles[i];
+                p.y += 1.5 + p.size;
+                if(p.y > H) { p.y = -20; p.x = Math.random() * W; }
+                this.ctx.globalAlpha = 0.15 + Math.random() * 0.25;
+                this.ctx.fillText(Math.random() > 0.5 ? '1' : '0', p.x, p.y);
+            }
+            this.ctx.globalAlpha = 1;
 
-            if (this.activeMood !== 'MATRIX') {
-                for (let j = i + 1; j < this.bgParticles.length; j++) {
+        } else if(mood === 'STARS') {
+            // Constelaciones — puntos conectados estilo StarCraft
+            const DIST_SQ = 14000;
+            for(let i = 0; i < this.bgParticles.length; i++) {
+                let p = this.bgParticles[i];
+                p.x += p.vx * 0.3; p.y += p.vy * 0.3;
+                if(p.x < 0 || p.x > W) p.vx *= -1;
+                if(p.y < 0 || p.y > H) p.vy *= -1;
+                const twinkle = 0.3 + Math.sin(t * 2 + i) * 0.2;
+                this.ctx.globalAlpha = twinkle;
+                this.ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},1)`;
+                this.ctx.beginPath(); this.ctx.arc(p.x, p.y, p.size * 0.8, 0, Math.PI*2); this.ctx.fill();
+                for(let j = i+1; j < this.bgParticles.length; j++) {
                     let p2 = this.bgParticles[j];
-                    const dx = p.x - p2.x, dy = p.y - p2.y;
-                    const dSq = dx*dx + dy*dy;
-                    if (dSq < DIST_SQ) {
+                    const dx = p.x-p2.x, dy = p.y-p2.y;
+                    const dSq = dx*dx+dy*dy;
+                    if(dSq < DIST_SQ) {
                         this.ctx.beginPath();
-                        this.ctx.globalAlpha = (1 - dSq / DIST_SQ) * 0.5;
-                        this.ctx.moveTo(p.x, p.y);
-                        this.ctx.lineTo(p2.x, p2.y);
-                        this.ctx.stroke();
+                        this.ctx.globalAlpha = (1-dSq/DIST_SQ)*0.2;
+                        this.ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},1)`;
+                        this.ctx.lineWidth = 0.5;
+                        this.ctx.moveTo(p.x,p.y); this.ctx.lineTo(p2.x,p2.y); this.ctx.stroke();
                     }
                 }
             }
+            this.ctx.globalAlpha = 1;
+
+        } else if(mood === 'RETRO') {
+            // Píxeles estilo Game Boy — cuadrados verdes sobre fondo oscuro
+            for(let i = 0; i < this.bgParticles.length; i++) {
+                let p = this.bgParticles[i];
+                p.x += p.vx * 0.5; p.y += p.vy * 0.5;
+                if(p.x < 0 || p.x > W) p.vx *= -1;
+                if(p.y < 0 || p.y > H) p.vy *= -1;
+                // Snap a grid de 4px
+                const gx = Math.round(p.x / 4) * 4;
+                const gy = Math.round(p.y / 4) * 4;
+                this.ctx.globalAlpha = 0.3;
+                this.ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},1)`;
+                this.ctx.fillRect(gx, gy, 3, 3);
+            }
+            this.ctx.globalAlpha = 1;
+
+        } else if(mood === 'EMBERS') {
+            // Brasas — partículas pequeñas subiendo y parpadeando
+            for(let i = 0; i < this.bgParticles.length; i++) {
+                let p = this.bgParticles[i];
+                p.y -= 0.8 + p.size * 0.5;
+                p.x += Math.sin(t + p.vx) * 0.5;
+                if(p.y < -10) { p.y = H + 10; p.x = Math.random() * W; }
+                const flicker = 0.1 + Math.sin(t*4 + i) * 0.15;
+                this.ctx.globalAlpha = flicker;
+                this.ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},1)`;
+                this.ctx.beginPath(); this.ctx.arc(p.x, p.y, p.size * 0.7, 0, Math.PI*2); this.ctx.fill();
+            }
+            this.ctx.globalAlpha = 1;
+
+        } else if(mood === 'STATIC') {
+            // Estático estilo XP Error — ruido aleatorio
+            if(!this._staticFrame || Math.random() < 0.3) {
+                this._staticFrame = true;
+                for(let i = 0; i < this.bgParticles.length * 2; i++) {
+                    const sx = Math.random() * W;
+                    const sy = Math.random() * H;
+                    const sw = Math.random() * 4 + 1;
+                    this.ctx.globalAlpha = Math.random() * 0.08;
+                    this.ctx.fillStyle = Math.random() > 0.5 ? 'white' : `rgba(${c.r},${c.g},${c.b},1)`;
+                    this.ctx.fillRect(sx, sy, sw, 2);
+                }
+            }
+            this.ctx.globalAlpha = 1;
+
+        } else if(mood === 'GRID') {
+            // Cuadrícula perspectiva OutRun
+            this.ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},0.15)`;
+            this.ctx.lineWidth = 1;
+            const cols = 12, rows = 8;
+            const vanX = W/2, vanY = H*0.4;
+            for(let col = 0; col <= cols; col++) {
+                const bx = (col/cols) * W;
+                this.ctx.globalAlpha = 0.15;
+                this.ctx.beginPath(); this.ctx.moveTo(vanX, vanY); this.ctx.lineTo(bx, H); this.ctx.stroke();
+            }
+            for(let row = 1; row <= rows; row++) {
+                const ry = vanY + (H - vanY) * (row/rows);
+                const spread = (ry - vanY) / (H - vanY);
+                this.ctx.globalAlpha = 0.1 * (row/rows);
+                this.ctx.beginPath(); this.ctx.moveTo(vanX - spread*W*0.5, ry); this.ctx.lineTo(vanX + spread*W*0.5, ry); this.ctx.stroke();
+            }
+            for(let i = 0; i < this.bgParticles.length; i++) {
+                let p = this.bgParticles[i];
+                p.x += p.vx; p.y += p.vy;
+                if(p.x < 0 || p.x > W) p.vx *= -1;
+                if(p.y < 0 || p.y > H) p.vy *= -1;
+                this.ctx.globalAlpha = 0.2;
+                this.ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},1)`;
+                this.ctx.beginPath(); this.ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); this.ctx.fill();
+            }
+            this.ctx.globalAlpha = 1;
+
+        } else {
+            // Default — red neuronal conectada
+            const DIST_SQ = 9000;
+            this.ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},0.4)`;
+            this.ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},0.1)`;
+            this.ctx.lineWidth = 1;
+            for(let i = 0; i < this.bgParticles.length; i++) {
+                let p = this.bgParticles[i];
+                p.x += p.vx; p.y += p.vy;
+                if(p.x < 0 || p.x > W) p.vx *= -1;
+                if(p.y < 0 || p.y > H) p.vy *= -1;
+                this.ctx.globalAlpha = 0.4;
+                this.drawParticle(this.ctx, p);
+                for(let j = i+1; j < this.bgParticles.length; j++) {
+                    let p2 = this.bgParticles[j];
+                    const dx = p.x-p2.x, dy = p.y-p2.y;
+                    const dSq = dx*dx+dy*dy;
+                    if(dSq < DIST_SQ) {
+                        this.ctx.beginPath();
+                        this.ctx.globalAlpha = (1-dSq/DIST_SQ)*0.3;
+                        this.ctx.moveTo(p.x,p.y); this.ctx.lineTo(p2.x,p2.y); this.ctx.stroke();
+                    }
+                }
+            }
+            this.ctx.globalAlpha = 1;
         }
-        this.ctx.globalAlpha = 1;
 
         // 2. DIBUJAR EXPLOSIONES (FX)
         for (let i = this.fxParticles.length - 1; i >= 0; i--) {

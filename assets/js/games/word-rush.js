@@ -103,6 +103,7 @@ export class WordRushGame {
                 const el = document.getElementById('wr-timer');
                 if(el) el.innerText = this.timeLeft + 's';
                 if(el) el.style.color = this.timeLeft < 30 ? '#ef4444' : '#f59e0b';
+                if(this.timeLeft === 15) { try{window.app.audio.setTension(true);}catch(e){} }
                 if(this.timeLeft <= 0) { clearInterval(this.timerInt); this.endGame(true); }
             }, 1000);
         }

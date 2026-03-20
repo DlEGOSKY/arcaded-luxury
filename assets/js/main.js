@@ -29,7 +29,10 @@ import { SnakePlusGame }  from './games/snake-plus.js';
 import { CipherDecodeGame } from './games/cipher-decode.js';
 import { PixelDrawGame }    from './games/pixel-draw.js';
 import { NumberGridGame }   from './games/number-grid.js';
-import { WordRushGame }     from './games/word-rush.js';
+import { SimonSaysGame }     from './games/simon-says.js';
+import { PatternRushGame }   from './games/pattern-rush.js';
+import { ReactionChainGame } from './games/reaction-chain.js';
+import { WordRushGame }      from './games/word-rush.js';
 
 const app = {
     state: CONFIG.STATES.WELCOME,
@@ -47,6 +50,9 @@ const app = {
     invest: { date: '', amount: 0, risk: '', resolved: false, result: 0, history: [] },
     favorites: [],
     tournament: null,
+    season: null,
+    notifLog: [],
+    agentName: 'AGENTE',
     settings: { 
         audio: { master: 0.5, sfx: 1.0, music: 0.5 },
         performance: true 
@@ -75,6 +81,9 @@ const app = {
             'cipher-decode': CipherDecodeGame,
             'pixel-draw':     PixelDrawGame,
             'number-grid':    NumberGridGame,
+            'simon-says':     SimonSaysGame,
+            'pattern-rush':   PatternRushGame,
+            'reaction-chain': ReactionChainGame,
             'word-rush':      WordRushGame
         };
 
@@ -104,6 +113,15 @@ const app = {
                 if(d.invest)     this.invest     = d.invest;
                 if(d.favorites)   this.favorites   = d.favorites;
                 if(d.tournament)  this.tournament  = d.tournament;
+                if(d.notifLog)    this.notifLog    = d.notifLog;
+                if(d.agentName)   this.agentName   = d.agentName;
+                if(d.season)      this.season      = d.season;
+                // Badge de notificaciones
+                const unread = (this.notifLog||[]).filter(n=>!n.read).length;
+                setTimeout(() => {
+                    const badge = document.getElementById('notif-badge');
+                    if(badge && unread > 0) { badge.textContent = unread; badge.style.display = 'flex'; }
+                }, 500);
                 if(d.settings) {
                     if(d.settings.audio) this.audio.vol = d.settings.audio;
                     if(d.settings.performance !== undefined) this.settings.performance = d.settings.performance;
@@ -119,7 +137,24 @@ const app = {
         this.checkWeeklyReset();
         this.checkStreakUpdate();
         this.checkInvestment();
+        this.initEasterEggs();
+        this.initSeason();
         this.initTournament();
+        // Notif si el torneo termina pronto (2 días o menos)
+        setTimeout(() => {
+            try {
+                const t = this.tournament;
+                if(t && t.endDate) {
+                    const end  = new Date(t.endDate.split('/').reverse().join('-'));
+                    const diff = Math.ceil((end - new Date()) / (1000*60*60*24));
+                    if(diff <= 2 && diff >= 0) {
+                        const game = CONFIG.GAMES_LIST.find(g=>g.id===t.gameId);
+                        this.addNotif('🏆', 'TORNEO TERMINA EN ' + diff + ' DÍA' + (diff===1?'':'S'),
+                            (game?.name||t.gameId) + ' · Tu mejor: ' + (t.best||0).toLocaleString(), 'gold');
+                    }
+                }
+            } catch(e) {}
+        }, 3000);
         this.renderMenu();
         this.updateUI();
         
@@ -221,6 +256,21 @@ const app = {
                 if(shakeCheck) shakeCheck.checked = this.settings.shake !== false;
                 const reduceCheck = document.getElementById('chk-reduce-motion');
                 if(reduceCheck) reduceCheck.checked = this.settings.reduceMotion || false;
+                // Theme quick picker
+                const themeQuick = document.getElementById('settings-theme-quick');
+                if(themeQuick) {
+                    const quickThemes = CONFIG.SHOP.filter(i => i.type === 'THEME').slice(0,8);
+                    themeQuick.innerHTML = quickThemes.map(t => {
+                        const owned   = this.shop.inventory.includes(t.id);
+                        const active  = this.shop.equipped.theme === t.id;
+                        return '<div title="' + t.name + '" onclick="' + (owned ? 'window.app.shop.equipped.theme=\'' + t.id + '\';window.app.applyTheme(\'' + t.id + '\');window.app.save();this.parentElement.querySelectorAll(\"div\").forEach(d=>d.style.boxShadow=\"\");this.style.boxShadow=\"0 0 0 2px white\";' : '') + '" ' +
+                            'style="width:26px;height:26px;border-radius:6px;background:var(--primary);cursor:' + (owned?'pointer':'not-allowed') + ';opacity:' + (owned?'1':'0.3') + ';box-shadow:' + (active?'0 0 0 2px white':'none') + ';border:1px solid rgba(255,255,255,0.1);transition:all 0.15s;' +
+                            '"></div>';
+                    }).join('');
+                }
+                // Notif toggle
+                const notifCheck = document.getElementById('chk-notifs');
+                if(notifCheck) notifCheck.checked = this.settings.showNotifs !== false;
                 // Info del sistema
                 const sysGames = document.getElementById('sys-games'); if(sysGames) sysGames.innerText = this.stats.gamesPlayed || 0;
                 const sysLevel = document.getElementById('sys-level');  if(sysLevel) sysLevel.innerText = this.stats.level || 1;
@@ -231,14 +281,25 @@ const app = {
             this.audio.playClick();
             const modal = document.getElementById('modal-settings');
             if(modal) modal.classList.add('hidden');
+            const notifCheck = document.getElementById('chk-notifs');
+            if(notifCheck) this.settings.showNotifs = notifCheck.checked;
             this.save();
         });
 
         safeBind('btn-reset-data', () => {
-            if(confirm('¿Borrar todos los datos? Esta acción no se puede deshacer.')) {
-                localStorage.removeItem('arcade_save');
-                location.reload();
-            }
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;';
+            modal.innerHTML = '<div style="background:#0a0e1a;border:1px solid rgba(239,68,68,0.4);border-radius:14px;padding:28px 32px;text-align:center;max-width:300px;">' +
+                '<div style="font-size:1.5rem;margin-bottom:10px;">⚠️</div>' +
+                '<div style="font-family:var(--font-display);font-size:0.85rem;color:white;letter-spacing:2px;margin-bottom:8px;">BORRAR DATOS</div>' +
+                '<div style="font-size:0.65rem;color:#64748b;margin-bottom:20px;">Se perderán todos los créditos, récords, logros y progreso. Esta acción no se puede deshacer.</div>' +
+                '<div style="display:flex;gap:8px;">' +
+                '<button id="reset-cancel" style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#64748b;border-radius:8px;padding:9px;font-family:var(--font-display);font-size:0.65rem;cursor:pointer;">CANCELAR</button>' +
+                '<button id="reset-confirm" style="flex:1;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#ef4444;border-radius:8px;padding:9px;font-family:var(--font-display);font-size:0.65rem;cursor:pointer;">BORRAR TODO</button>' +
+                '</div></div>';
+            document.body.appendChild(modal);
+            modal.querySelector('#reset-cancel').onclick  = () => modal.remove();
+            modal.querySelector('#reset-confirm').onclick = () => { localStorage.removeItem('arcade_save'); location.reload(); };
         });
 
         // Sliders de Audio
@@ -295,7 +356,7 @@ const app = {
                         const gid  = target.dataset.gameId;
                         const game = gid && CONFIG.GAMES_LIST.find(g => g.id === gid);
                         const freq = (game && game.cat) ? (CAT_FREQS[game.cat] || 400) : 400;
-                        try { this.audio.playTone(freq, 'sine', 0.04, 0.08); } catch(err) {}
+                        const sfx = this._themeSFX; try { this.audio.playTone(sfx?sfx.hover.freq:freq, sfx?sfx.hover.type:'sine', 0.04, 0.08); } catch(err) {}
                     } else {
                         this.audio.playHover();
                     }
@@ -415,6 +476,8 @@ const app = {
             nextScreen.classList.remove('hidden');
             
             if(newState === CONFIG.STATES.GAME) {
+                // Parar música de lobby al iniciar partida
+                try { this.audio.stopAmbience(); } catch(e) {}
                 // Resetear HUD al entrar en juego
                 const valCr = document.getElementById('val-credits');
                 if(valCr) valCr.innerText = this.credits;
@@ -436,13 +499,28 @@ const app = {
                     if(newState === CONFIG.STATES.MENU) {
                         this.renderMenu();
                         this.updateUI();
-                        // Notificación de racha
+                        // Música generativa de lobby
+                        try {
+                            const theme = this.shop && this.shop.equipped && this.shop.equipped.theme;
+                            this.audio.setAmbience(theme || null);
+                        } catch(e) {}
+                        // Notificación de racha con animación especial
                         if(this.streak && this.streak.days >= 3) {
+                            if(this.streak.days >= 7) {
+                                const streakOverlay = document.createElement('div');
+                                streakOverlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9998;pointer-events:none;animation:wFadeIn 0.3s ease;';
+                                streakOverlay.innerHTML = '<div style="text-align:center;animation:luPop 0.5s cubic-bezier(0.2,0,0,1.5) both;">' +
+                                    '<div style="font-size:3rem;filter:drop-shadow(0 0 20px #fbbf24);">🔥</div>' +
+                                    '<div style="font-family:var(--font-display);font-size:1.2rem;color:#fbbf24;letter-spacing:3px;">' + this.streak.days + ' DÍAS</div>' +
+                                    '</div>';
+                                document.body.appendChild(streakOverlay);
+                                setTimeout(() => streakOverlay.remove(), 2000);
+                            }
                             setTimeout(() => {
                                 const fire = this.streak.days >= 7 ? '🔥🔥' : '🔥';
                                 this.showToast(fire + ' RACHA: ' + this.streak.days + ' DÍAS', 'Bonus XP activo · +' + Math.min(50, this.streak.days*5) + ' XP por partida', 'gold');
                             }, 600);
-                        } 
+                        }
                     }
                 }, 50); 
             });
@@ -703,12 +781,22 @@ const app = {
                 </div>
             </div>
 
-            <!-- Botón -->
-            <button class="gi-play-btn" style="--gc:${color};"
-                    onclick="document.getElementById('modal-info').classList.add('hidden'); window.app.launch('${gameId}');">
-                <i class="fa-solid fa-play"></i>
-                JUGAR AHORA
-            </button>
+            <!-- Botones -->
+            <div style="display:flex;gap:8px;">
+                <button class="gi-play-btn" style="--gc:${color};flex:1;"
+                        onclick="document.getElementById('modal-info').classList.add('hidden'); window.app.launch('${gameId}');">
+                    <i class="fa-solid fa-play"></i>
+                    JUGAR
+                </button>
+                <button style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);color:#f87171;
+                        border-radius:12px;padding:12px 18px;font-family:var(--font-display);font-size:0.72rem;
+                        letter-spacing:2px;cursor:pointer;transition:all 0.15s;flex-shrink:0;"
+                        onmouseenter="this.style.background='rgba(239,68,68,0.22)'"
+                        onmouseleave="this.style.background='rgba(239,68,68,0.1)'"
+                        onclick="document.getElementById('modal-info').classList.add('hidden'); window.app.startVsMode('${gameId}');">
+                    <i class="fa-solid fa-users"></i> VS
+                </button>
+            </div>
         </div>`;
 
         modal.classList.remove('hidden');
@@ -743,6 +831,46 @@ const app = {
         this.renderMenu();
     },
 
+
+
+    // ─── EASTER EGGS ────────────────────────────────────────
+    initEasterEggs() {
+        const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+        let seq = [];
+        window.addEventListener('keydown', (e) => {
+            seq.push(e.key);
+            if(seq.length > KONAMI.length) seq.shift();
+            if(seq.join(',') === KONAMI.join(',')) {
+                seq = [];
+                this.activateKonami();
+            }
+        });
+    },
+
+    activateKonami() {
+        // +30 vida al agente — créditos gratis
+        const bonus = 3000;
+        this.credits += bonus;
+        this.save(); this.updateUI();
+        this.showToast('↑↑↓↓←→←→BA', '+' + bonus + ' CR — Código activado', 'gold');
+        try { this.audio.playWin(15); } catch(e) {}
+        // Efecto visual — lluvia de colores
+        try {
+            for(let i = 0; i < 5; i++) {
+                const colors = ['#ef4444','#f97316','#fbbf24','#10b981','#3b82f6','#a855f7','#ec4899'];
+                setTimeout(() => this.canvas.explode(
+                    Math.random() * window.innerWidth,
+                    Math.random() * window.innerHeight,
+                    colors[Math.floor(Math.random()*colors.length)]
+                ), i * 150);
+            }
+        } catch(e) {}
+        // Logro especial
+        if(!this.stats.konamiUsed) {
+            this.stats.konamiUsed = true;
+            this.showToast('CÓDIGO KONAMI', '¡El clásico de los clásicos!', 'purple');
+        }
+    },
 
     // ─── TUTORIAL INTERACTIVO ───────────────────────────────
     startTutorial() {
@@ -1036,12 +1164,14 @@ const app = {
             
             this.gainXP(xpGain);
         this.submitTournamentScore(gameId, score);
+        this.updateSeasonStats(gameId, score);
             if (typeof this.game.score === 'number' && this.activeGameId) {
                 // Marcar misión diaria
                 const task = this.daily.tasks.find(t => t.gameId === this.activeGameId);
                 if (task && !task.done && this.game.score >= task.target) {
                     task.done = true;
                     this.showToast('¡MISIÓN CUMPLIDA!', 'Objetivo alcanzado', 'daily');
+                    try { for(let i=0;i<3;i++) setTimeout(()=>this.canvas.explode(Math.random()*window.innerWidth, window.innerHeight*0.3, '#f97316'), i*200); } catch(e) {}
                     this.audio.playWin(5);
                     this.save();
                 }
@@ -1063,6 +1193,7 @@ const app = {
         }
         this.game = null;
         this.activeGameId = null;
+        try { this.audio.setTension(false); } catch(e) {}
         this.canvas.setMood(0);
         this.changeState(CONFIG.STATES.MENU);
     },
@@ -1163,8 +1294,39 @@ const app = {
         if (prize > 0) { this.credits += prize; this.save(); }
         // Tracking para logros
         if(prize > (this.stats.bestPrize||0)) this.stats.bestPrize = prize;
-        if(rank === 'S') this.stats.hasRankS = true;
-        if(new Date().getHours() >= 0 && new Date().getHours() < 4) this.stats.playedLate = true;
+        if(rank === 'S') {
+            this.stats.hasRankS = true;
+            this.stats.rankSCount = (this.stats.rankSCount||0) + 1;
+        }
+        if(new Date().getHours() >= 0 && new Date().getHours() < 4) {
+            this.stats.lateGames = (this.stats.lateGames||0) + 1;
+        }
+        // Trackear stats de juegos nuevos para logros
+        if(gameId === 'word-rush') {
+            if(score > 0) this.stats.wordRushWins = (this.stats.wordRushWins||0) + 1;
+            if(score > (this.stats.wordRushBest||0)) this.stats.wordRushBest = score;
+        }
+        if(gameId === 'pixel-draw') {
+            if(score > 0) this.stats.pixelDrawDone = (this.stats.pixelDrawDone||0) + 1;
+            if(score > (this.stats.pixelDrawBest||0)) this.stats.pixelDrawBest = score;
+        }
+        if(gameId === 'simon-says') {
+            if(score > 0) this.stats.simonDone = (this.stats.simonDone||0) + 1;
+            if(score > (this.stats.simonBest||0)) this.stats.simonBest = score;
+        }
+        if(gameId === 'pattern-rush') {
+            if(score > 0) this.stats.prDone = (this.stats.prDone||0) + 1;
+            if(score > (this.stats.prBest||0)) this.stats.prBest = score;
+        }
+        if(gameId === 'reaction-chain') {
+            if(score > 0) this.stats.rcDone = (this.stats.rcDone||0) + 1;
+            if(score > (this.stats.rcBest||0)) this.stats.rcBest = score;
+        }
+        if(gameId === 'number-grid') {
+            if(score > 0) this.stats.numberGridDone = (this.stats.numberGridDone||0) + 1;
+            if(score > (this.stats.numberGridBest||0)) this.stats.numberGridBest = score;
+        }
+        // lateGames se trackea en saveHighScore
 
         // XP ganado
         let xpGain = 10 + Math.min(100, Math.floor(score));
@@ -1221,7 +1383,7 @@ const app = {
                         <i class="fa-solid ${this.stats.avatar || 'fa-user-astronaut'}" style="color:${gameColor};"></i>
                     </div>
                     <div class="cod-agent-info">
-                        <div class="cod-agent-name">AGENTE</div>
+                        <div class="cod-agent-name">${this.agentName||'AGENTE'}</div>
                         <div class="cod-agent-rank">${this.getRankName(this.stats.level)}</div>
                         ${(() => {
                             const t = CONFIG.TITLES && CONFIG.TITLES.find(t => t.id === this.stats.equippedTitle);
@@ -1284,6 +1446,10 @@ const app = {
                 <div class="cod-actions">
                     <button class="cod-btn cod-btn-secondary" id="univ-quit">
                         <i class="fa-solid fa-arrow-left"></i> SALIR
+                    </button>
+                    <button class="cod-btn cod-btn-secondary" id="univ-share" title="Copiar resultado"
+                            style="padding:10px 14px;">
+                        <i class="fa-solid fa-share-nodes"></i>
                     </button>
                     <button class="cod-btn cod-btn-primary" id="univ-retry"
                             style="border-color:${rd.color}; color:${rd.color}; background:${rd.color}12;">
@@ -1480,6 +1646,7 @@ const app = {
             const rankChanged  = prevRankName !== newRankName;
             this.credits += this.stats.level * 10;
             setTimeout(() => this.showLevelUpAnimation(this.stats.level, newRankName, rankChanged), 800);
+            this.addNotif('⬆️', 'NIVEL ' + this.stats.level, rankChanged ? 'Nuevo rango: ' + newRankName : 'Sigue así', 'purple');
         } 
         this.save(); 
         this.updateUI(); 
@@ -1610,7 +1777,7 @@ const app = {
                         '</svg>';
                 }
                 return `
-                    <div class="pv2-record-row">
+                    <div class="pv2-record-row" onclick="(function(el){const h=el.nextElementSibling;if(h)h.classList.toggle('open');})(this)">
                         <div class="pv2-rec-icon" style="background:${gColor}15;color:${gColor};">
                             <i class="${g.icon}"></i>
                         </div>
@@ -1619,7 +1786,12 @@ const app = {
                         <div style="display:flex;align-items:center;gap:5px;">
                             <span style="font-family:var(--font-display);font-size:0.6rem;color:${rankColor};">${rank}</span>
                             <div class="pv2-rec-score" style="color:${gColor};">${best.toLocaleString()}</div>
+                            ${hist.length > 0 ? '<i class="fa-solid fa-chevron-down" style="font-size:0.5rem;color:#334155;margin-left:2px;"></i>' : ''}
                         </div>
+                    </div>
+                    <div class="pv2-record-history">
+                        ${hist.slice(0,10).map(h => '<div class="pv2-hist-item"><span>' + (h.date||'?') + '</span><span style="color:' + gColor + ';">' + (h.score||0).toLocaleString() + '</span></div>').join('')}
+                        ${hist.length === 0 ? '<div style="font-size:0.55rem;color:#1e293b;font-family:monospace;padding:4px 0;">Sin historial aún</div>' : ''}
                     </div>`;
             }).join('') || '<div style="color:#334155;font-size:0.78rem;padding:8px 0;">Sin récords todavía</div>';
 
@@ -1646,7 +1818,7 @@ const app = {
                     <div class="pv2-avatar-ring">
                         <i class="fa-solid ${this.stats.avatar || 'fa-user-astronaut'}"></i>
                     </div>
-                    <div class="pv2-name">AGENTE</div>
+                    <div class="pv2-name" id="pv2-agent-name" onclick="window.app.editAgentName()" style="cursor:pointer;" title="Click para editar">${this.agentName||'AGENTE'} <i class='fa-solid fa-pen-to-square' style='font-size:0.5rem;opacity:0.4;margin-left:4px;'></i></div>
                     <div class="pv2-rank">${this.getRankName(this.stats.level)}</div>
                 </div>
 
@@ -1667,6 +1839,11 @@ const app = {
                         <span class="s-label">LOGROS</span>
                         <span class="s-val">${unlockedCount}/${CONFIG.ACHIEVEMENTS.length}</span>
                     </div>
+                </div>
+
+                <div class="pv2-section">
+                    <div class="pv2-section-title">ESTADÍSTICAS GLOBALES</div>
+                    <div class="pv2-global-stats">${globalStatsHTML}</div>
                 </div>
 
                 <div class="pv2-section">
@@ -2153,6 +2330,97 @@ const app = {
                     ctx.fillText(p.sym,p.x,p.y);
                 });
                 ctx.globalAlpha=1; ctx.textAlign='left';
+            },
+            // HALF-LIFE — Lambda verde con partículas de radiación
+            halflife() {
+                ctx.fillStyle='rgba(0,10,0,0.18)'; ctx.fillRect(0,0,W,H);
+                const t=Date.now()*0.001;
+                // Símbolo lambda en el centro
+                ctx.save(); ctx.translate(W/2,H*0.42);
+                ctx.globalAlpha=0.06+Math.sin(t*0.5)*0.03;
+                ctx.font='bold 120px monospace'; ctx.fillStyle='#00aa33';
+                ctx.textAlign='center'; ctx.fillText('λ',0,0);
+                ctx.restore(); ctx.textAlign='left';
+                // Partículas de radiación
+                P.forEach(p=>{
+                    p.y+=0.6+p.size*0.2; p.x+=Math.sin(t*0.8+p.vx)*0.8;
+                    if(p.y>H){p.y=-10;p.x=Math.random()*W;}
+                    ctx.globalAlpha=p.alpha*0.5;
+                    const col=Math.random()<0.7?'#00ff41':'#ffff00';
+                    ctx.fillStyle=col;
+                    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*0.5,0,Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha=1;
+            },
+
+            // PORTAL — portales naranja y azul orbitando
+            portal() {
+                ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.fillRect(0,0,W,H);
+                const t=Date.now()*0.001;
+                const cx=W/2, cy=H*0.44;
+                // Portal naranja
+                const ox=cx+Math.cos(t*0.5)*80, oy=cy+Math.sin(t*0.5)*40;
+                const gO=ctx.createRadialGradient(ox,oy,2,ox,oy,28);
+                gO.addColorStop(0,'rgba(255,120,0,0.9)'); gO.addColorStop(1,'rgba(255,60,0,0)');
+                ctx.fillStyle=gO; ctx.beginPath(); ctx.ellipse(ox,oy,28,40,t*0.2,0,Math.PI*2); ctx.fill();
+                // Portal azul
+                const bx=cx-Math.cos(t*0.5)*80, by=cy-Math.sin(t*0.5)*40;
+                const gB=ctx.createRadialGradient(bx,by,2,bx,by,28);
+                gB.addColorStop(0,'rgba(0,120,255,0.9)'); gB.addColorStop(1,'rgba(0,60,255,0)');
+                ctx.fillStyle=gB; ctx.beginPath(); ctx.ellipse(bx,by,28,40,-t*0.2,0,Math.PI*2); ctx.fill();
+                // Partículas viajando
+                P.forEach(p=>{
+                    if(!p.phase) p.phase=Math.random()*Math.PI*2;
+                    p.phase+=0.02+p.size*0.01;
+                    const progress=(Math.sin(p.phase)+1)/2;
+                    p.x=ox+(bx-ox)*progress+(Math.sin(p.phase*3)*10);
+                    p.y=oy+(by-oy)*progress+(Math.cos(p.phase*3)*10);
+                    ctx.globalAlpha=p.alpha*Math.sin(p.phase);
+                    ctx.fillStyle=progress<0.5?'#ff7800':'#0078ff';
+                    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*0.5,0,Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha=1;
+            },
+
+            // MINECRAFT — bloques pixelados cayendo
+            minecraft() {
+                ctx.fillStyle='rgba(2,8,2,0.2)'; ctx.fillRect(0,0,W,H);
+                const t=Date.now()*0.001;
+                const COLORS=['#5da832','#8B6914','#7c7c7c','#6bb5ff','#ff6600'];
+                P.forEach(p=>{
+                    if(!p.col) p.col=COLORS[Math.floor(Math.random()*COLORS.length)];
+                    p.y+=1+p.size*0.3;
+                    if(p.y>H){p.y=-12;p.x=Math.floor(Math.random()*(W/12))*12;}
+                    // Snap a 12px grid
+                    const gx=Math.floor(p.x/12)*12, gy=Math.floor(p.y/12)*12;
+                    ctx.globalAlpha=p.alpha*0.6;
+                    ctx.fillStyle=p.col;
+                    ctx.fillRect(gx,gy,10,10);
+                    // Highlight pixel
+                    ctx.fillStyle='rgba(255,255,255,0.3)';
+                    ctx.fillRect(gx,gy,10,2); ctx.fillRect(gx,gy,2,10);
+                });
+                ctx.globalAlpha=1;
+            },
+
+            // CELESTE — cristales de hielo y estrellas
+            celeste() {
+                ctx.fillStyle='rgba(2,8,22,0.18)'; ctx.fillRect(0,0,W,H);
+                const t=Date.now()*0.001;
+                P.forEach(p=>{
+                    p.y-=0.4+p.size*0.1; p.x+=Math.sin(t*0.6+p.vx)*0.4;
+                    if(p.y<-10){p.y=H+10;p.x=Math.random()*W;}
+                    const flicker=0.4+Math.sin(t*2+p.vx*3)*0.3;
+                    ctx.globalAlpha=p.alpha*flicker;
+                    // Cristal — líneas cruzadas
+                    ctx.strokeStyle=Math.random()<0.5?'#4fc3f7':'#ffffff';
+                    ctx.lineWidth=1;
+                    const s=p.size*2;
+                    ctx.beginPath(); ctx.moveTo(p.x-s,p.y); ctx.lineTo(p.x+s,p.y); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(p.x,p.y-s); ctx.lineTo(p.x,p.y+s); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(p.x-s*.7,p.y-s*.7); ctx.lineTo(p.x+s*.7,p.y+s*.7); ctx.stroke();
+                });
+                ctx.globalAlpha=1;
             }
         };
 
@@ -2184,7 +2452,7 @@ const app = {
         this.save();
     },
     closeProfile() { document.getElementById('modal-profile').classList.add('hidden'); },
-    save() { localStorage.setItem('arcade_save', JSON.stringify({ credits: this.credits, stats: this.stats, highScores: this.highScores, shop: { inventory: this.shop.inventory, equipped: this.shop.equipped }, daily: this.daily, weekly: this.weekly, streak: this.streak, invest: this.invest, favorites: this.favorites, tournament: this.tournament, settings: { audio: this.audio.vol, performance: this.settings.performance } })); },
+    save() { localStorage.setItem('arcade_save', JSON.stringify({ credits: this.credits, stats: this.stats, highScores: this.highScores, shop: { inventory: this.shop.inventory, equipped: this.shop.equipped }, daily: this.daily, weekly: this.weekly, streak: this.streak, invest: this.invest, favorites: this.favorites, tournament: this.tournament, notifLog: this.notifLog, agentName: this.agentName, season: this.season, settings: { audio: this.audio.vol, performance: this.settings.performance } })); },
     checkDailyReset() { const today = new Date().toDateString(); if (this.daily.date !== today || this.daily.tasks.length === 0) { this.daily.date = today; this.daily.claimed = false; this.daily.tasks = []; const rng = new SeededRandom(parseInt(today.replace(/\D/g,'')) || Date.now()); const gameIds = Object.keys(this.gameClasses); while(this.daily.tasks.length < 3) { const gid = gameIds[Math.floor(rng.next() * gameIds.length)]; if (!this.daily.tasks.find(t => t.gameId === gid)) this.daily.tasks.push({ gameId: gid, target: CONFIG.DAILY_TARGETS[gid] || 10, done: false }); } this.save(); } },
 
     checkWeeklyReset() {
@@ -2261,6 +2529,336 @@ const app = {
         this.save();
     },
 
+
+    // ─── SISTEMA DE NOTIFICACIONES ──────────────────────────
+    addNotif(icon, title, body, type) {
+        if(!this.notifLog) this.notifLog = [];
+        this.notifLog.unshift({
+            icon, title, body, type: type||'info',
+            time: new Date().toLocaleTimeString('es', {hour:'2-digit',minute:'2-digit'}),
+            date: new Date().toLocaleDateString('es', {day:'2-digit',month:'2-digit'}),
+            read: false,
+        });
+        if(this.notifLog.length > 30) this.notifLog.pop();
+        // Badge en el botón de perfil
+        const unread = this.notifLog.filter(n => !n.read).length;
+        const badge = document.getElementById('notif-badge');
+        if(badge) { badge.textContent = unread; badge.style.display = unread > 0 ? 'flex' : 'none'; }
+        this.save();
+    },
+
+
+
+    updateFavicon(themeId) {
+        const FAVICONS = {
+            't_diablo':    '#b91c1c', 't_xperror':   '#1560bd',
+            't_starcraft': '#3b82f6', 't_matrix':    '#00ff41',
+            't_hack':      '#00ff41', 't_synthwave':  '#f72585',
+            't_celeste':   '#4fc3f7', 't_portal':    '#ff6600',
+            't_terminal':  '#00ff41', 't_gameby':    '#5da832',
+        };
+        const col = FAVICONS[themeId] || '#3b82f6';
+        const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>
+            <rect width='32' height='32' rx='6' fill='#040810'/>
+            <text x='50%' y='58%' font-size='18' font-family='monospace' font-weight='bold'
+                  fill='${col}' text-anchor='middle' dominant-baseline='middle'>A</text>
+        </svg>`;
+        const blob  = new Blob([svg], {type:'image/svg+xml'});
+        const url   = URL.createObjectURL(blob);
+        let link    = document.querySelector("link[rel~='icon']");
+        if(!link)   { link = document.createElement('link'); link.rel='icon'; document.head.appendChild(link); }
+        link.href   = url;
+    },
+
+    editAgentName() {
+        const current = this.agentName || 'AGENTE';
+        const name = prompt('Nombre de agente (máx. 16 caracteres):', current);
+        if(name === null) return;
+        const clean = name.trim().toUpperCase().slice(0, 16) || 'AGENTE';
+        this.agentName = clean;
+        this.save();
+        this.showProfile(); // re-renderizar
+        this.showToast('IDENTIDAD ACTUALIZADA', clean, 'purple');
+        try { this.audio.playWin(3); } catch(e) {}
+    },
+
+    markNotifsRead() {
+        (this.notifLog||[]).forEach(n => n.read = true);
+        const badge = document.getElementById('notif-badge');
+        if(badge) badge.style.display = 'none';
+        this.save();
+    },
+
+    renderNotifPanel() {
+        const log = this.notifLog || [];
+        const typeColors = { gold:'#fbbf24', success:'#10b981', danger:'#ef4444', info:'#3b82f6', purple:'#a855f7' };
+
+        if(!log.length) return '<div style="text-align:center;padding:24px;color:#334155;font-family:monospace;font-size:0.65rem;">SIN NOTIFICACIONES</div>';
+
+        return log.map(n => {
+            const col = typeColors[n.type] || '#3b82f6';
+            return '<div style="display:flex;gap:10px;padding:9px 12px;border-bottom:1px solid rgba(255,255,255,0.04);' + (n.read?'opacity:0.5;':'') + '">' +
+                '<div style="font-size:1rem;flex-shrink:0;">' + n.icon + '</div>' +
+                '<div style="flex:1;min-width:0;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:baseline;">' +
+                '<div style="font-family:var(--font-display);font-size:0.68rem;color:' + col + ';letter-spacing:1px;">' + n.title + '</div>' +
+                '<div style="font-size:0.5rem;color:#334155;font-family:monospace;flex-shrink:0;margin-left:6px;">' + n.date + ' ' + n.time + '</div>' +
+                '</div>' +
+                '<div style="font-size:0.6rem;color:#64748b;margin-top:1px;">' + n.body + '</div>' +
+                '</div></div>';
+        }).join('');
+    },
+
+    showNotifPanel() {
+        this.markNotifsRead();
+        const existing = document.getElementById('notif-panel');
+        if(existing) { existing.remove(); return; }
+
+        const panel = document.createElement('div');
+        panel.id = 'notif-panel';
+        panel.style.cssText = [
+            'position:fixed','top:48px','right:8px','width:300px','max-height:400px',
+            'background:rgba(8,14,26,0.98)','border:1px solid rgba(255,255,255,0.08)',
+            'border-radius:12px','z-index:9999','overflow-y:auto',
+            'box-shadow:0 20px 60px rgba(0,0,0,0.6)',
+            'animation:wFadeIn 0.2s ease',
+        ].join(';');
+
+        panel.innerHTML =
+            '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.06);">' +
+            '<div style="font-family:var(--font-display);font-size:0.65rem;color:white;letter-spacing:2px;">NOTIFICACIONES</div>' +
+            '<button onclick="document.getElementById(\\"notif-panel\\").remove()" style="background:none;border:none;color:#334155;cursor:pointer;font-size:0.7rem;padding:2px 6px;">✕</button>' +
+            '</div>' +
+            this.renderNotifPanel();
+
+        document.body.appendChild(panel);
+        // Cerrar al click fuera
+        setTimeout(() => {
+            document.addEventListener('click', function close(e) {
+                if(!panel.contains(e.target) && e.target.id !== 'notif-btn') {
+                    panel.remove(); document.removeEventListener('click', close);
+                }
+            });
+        }, 100);
+    },
+
+
+
+    // ─── MODO 2 JUGADORES LOCAL ────────────────────────────
+    startVsMode(gameId) {
+        if(!this.gameClasses[gameId]) return;
+        this.vsMode = {
+            gameId,
+            player1: { name: this.agentName || 'AGENTE', score: 0, done: false },
+            player2: { name: 'JUGADOR 2',               score: 0, done: false },
+            turn: 1,
+        };
+        this.showVsIntro();
+    },
+
+    showVsIntro() {
+        const vs = this.vsMode;
+        const modal = document.createElement('div');
+        modal.id = 'vs-intro';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99997;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);';
+        const game = CONFIG.GAMES_LIST.find(g => g.id === vs.gameId);
+        const color = CONFIG.COLORS[game?.color] || 'var(--primary)';
+        modal.innerHTML = '<div style="text-align:center;padding:40px;">' +
+            '<div style="font-size:0.6rem;color:#334155;font-family:monospace;letter-spacing:4px;margin-bottom:12px;">MODO VS</div>' +
+            '<div style="font-family:var(--font-display);font-size:1.6rem;color:white;letter-spacing:4px;margin-bottom:6px;">' + (game?.name||vs.gameId) + '</div>' +
+            '<div style="display:flex;align-items:center;justify-content:center;gap:24px;margin:24px 0;">' +
+            '<div style="text-align:center;"><div style="font-family:var(--font-display);font-size:1.1rem;color:' + color + ';">' + vs.player1.name + '</div><div style="font-size:0.55rem;color:#334155;font-family:monospace;">JUGADOR 1</div></div>' +
+            '<div style="font-family:var(--font-display);font-size:1.8rem;color:#334155;">VS</div>' +
+            '<div style="text-align:center;"><div style="font-family:var(--font-display);font-size:1.1rem;color:#ef4444;">' + vs.player2.name + '</div><div style="font-size:0.55rem;color:#334155;font-family:monospace;">JUGADOR 2</div></div>' +
+            '</div>' +
+            '<div style="font-size:0.7rem;color:#475569;margin-bottom:24px;">Turnos alternados · Mayor puntuación gana</div>' +
+            '<button onclick="(function(){document.getElementById(\"vs-intro\").remove();window.app.vsPlayTurn(1);})()" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);color:#60a5fa;border-radius:10px;padding:12px 32px;font-family:var(--font-display);font-size:0.8rem;letter-spacing:3px;cursor:pointer;">EMPEZAR — ' + vs.player1.name.toUpperCase() + ' PRIMERO</button>' +
+            '</div>';
+        document.body.appendChild(modal);
+    },
+
+    vsPlayTurn(playerNum) {
+        const vs = this.vsMode;
+        vs.turn = playerNum;
+
+        // Mostrar aviso de turno
+        const notice = document.createElement('div');
+        notice.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99997;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+        const p = playerNum === 1 ? vs.player1 : vs.player2;
+        const col = playerNum === 1 ? 'var(--primary)' : '#ef4444';
+        notice.innerHTML = '<div style="text-align:center;">' +
+            '<div style="font-size:0.6rem;color:#334155;font-family:monospace;letter-spacing:4px;margin-bottom:8px;">TURNO ' + playerNum + '</div>' +
+            '<div style="font-family:var(--font-display);font-size:2rem;color:' + col + ';letter-spacing:4px;">' + p.name + '</div>' +
+            '<div style="font-size:0.65rem;color:#475569;margin:12px 0 24px;">¡Es tu turno! Prepárate...</div>' +
+            '<button id="vs-go" style="background:' + col.replace('var(--primary)','rgba(59,130,246,0.15)') + ';border:1px solid ' + col + ';color:' + col + ';border-radius:10px;padding:12px 32px;font-family:var(--font-display);font-size:0.8rem;letter-spacing:3px;cursor:pointer;">¡A JUGAR!</button>' +
+            '</div>';
+        document.body.appendChild(notice);
+
+        document.getElementById('vs-go').onclick = () => {
+            notice.remove();
+            this._vsOnGameOver = (score) => this.vsRecordScore(playerNum, score);
+            this.launch(vs.gameId);
+        };
+    },
+
+    vsRecordScore(playerNum, score) {
+        const vs = this.vsMode;
+        if(!vs) return;
+        if(playerNum === 1) {
+            vs.player1.score = score;
+            vs.player1.done  = true;
+            // Pasar turno a jugador 2
+            setTimeout(() => this.vsPlayTurn(2), 500);
+        } else {
+            vs.player2.score = score;
+            vs.player2.done  = true;
+            // Mostrar resultado final
+            setTimeout(() => this.vsShowResult(), 500);
+        }
+    },
+
+    vsShowResult() {
+        const vs = this.vsMode;
+        const winner = vs.player1.score >= vs.player2.score ? vs.player1 : vs.player2;
+        const isDraw = vs.player1.score === vs.player2.score;
+        const winCol = winner === vs.player1 ? 'var(--primary)' : '#ef4444';
+
+        const modal = document.createElement('div');
+        modal.id = 'vs-result';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99997;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);';
+
+        const title   = isDraw ? '¡EMPATE!' : '¡' + winner.name + ' GANA!';
+        const titleCol= isDraw ? '#fbbf24' : winCol;
+
+        const div = document.createElement('div');
+        div.style.cssText = 'text-align:center;padding:40px;max-width:340px;';
+        div.innerHTML =
+            '<div style="font-size:0.6rem;color:#334155;font-family:monospace;letter-spacing:4px;margin-bottom:12px;">RESULTADO FINAL</div>' +
+            '<div style="font-family:var(--font-display);font-size:1.8rem;color:' + titleCol + ';letter-spacing:3px;margin-bottom:6px;">' + title + '</div>' +
+            '<div style="display:flex;justify-content:center;gap:32px;margin:20px 0;">' +
+                '<div><div style="font-family:var(--font-display);font-size:1.4rem;color:var(--primary);">' + vs.player1.score.toLocaleString() + '</div>' +
+                '<div style="font-size:0.55rem;color:#334155;font-family:monospace;">' + vs.player1.name + '</div></div>' +
+                '<div style="font-size:1.4rem;color:#1e293b;font-family:var(--font-display);">VS</div>' +
+                '<div><div style="font-family:var(--font-display);font-size:1.4rem;color:#ef4444;">' + vs.player2.score.toLocaleString() + '</div>' +
+                '<div style="font-size:0.55rem;color:#334155;font-family:monospace;">' + vs.player2.name + '</div></div>' +
+            '</div>';
+
+        const actDiv = document.createElement('div');
+        actDiv.style.cssText = 'display:flex;gap:10px;justify-content:center;margin-top:20px;';
+
+        const btnSalir = document.createElement('button');
+        btnSalir.textContent = 'SALIR';
+        btnSalir.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#64748b;border-radius:8px;padding:10px 20px;font-family:var(--font-display);font-size:0.7rem;cursor:pointer;';
+        btnSalir.onclick = () => { this.vsMode=null; modal.remove(); this.changeState('menu'); };
+
+        const btnRevan = document.createElement('button');
+        btnRevan.textContent = 'REVANCHA';
+        btnRevan.style.cssText = 'background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.4);color:#60a5fa;border-radius:8px;padding:10px 20px;font-family:var(--font-display);font-size:0.7rem;cursor:pointer;';
+        btnRevan.onclick = () => { const gid = vs.gameId; modal.remove(); this.startVsMode(gid); };
+
+        actDiv.appendChild(btnSalir);
+        actDiv.appendChild(btnRevan);
+        div.appendChild(actDiv);
+        modal.appendChild(div);
+        document.body.appendChild(modal);
+        // Tracking VS stats
+        const vsWinner = vs.player1.score >= vs.player2.score ? 1 : 2;
+        this.stats.vsWins = (this.stats.vsWins||0) + (vsWinner === 1 ? 1 : 0);
+        this.stats.vsGames = (this.stats.vsGames||0) + 1;
+        if(vsWinner === 1) {
+            this.stats.vsStreak = (this.stats.vsStreak||0) + 1;
+        } else {
+            this.stats.vsStreak = 0;
+        }
+        this.vsMode = null;
+        try { this.audio.playWin(10); } catch(e) {}
+    },
+
+
+    // ─── TEMPORADAS MENSUALES ───────────────────────────────
+    initSeason() {
+        const now    = new Date();
+        const key    = now.getFullYear() + '-' + (now.getMonth() + 1);
+        if(!this.season) this.season = {};
+
+        if(this.season.key !== key) {
+            // Nueva temporada — resolver la anterior si existe
+            if(this.season.key) this.resolveSeason();
+            this.season = {
+                key,
+                name:      'TEMPORADA ' + now.toLocaleString('es', {month:'long'}).toUpperCase() + ' ' + now.getFullYear(),
+                startLevel: this.stats.level,
+                startXP:    ((this.stats.level-1)*100) + (this.stats.xp||0),
+                peakLevel:  this.stats.level,
+                gamesPlayed: 0,
+                wins:        0,
+                endDate:     new Date(now.getFullYear(), now.getMonth()+1, 0).toLocaleDateString('es',{day:'2-digit',month:'2-digit',year:'numeric'}),
+            };
+            this.save();
+            setTimeout(() => this.showToast('NUEVA TEMPORADA', this.season.name, 'gold'), 2000);
+        }
+    },
+
+    resolveSeason() {
+        if(!this.season || !this.season.key) return;
+        const xpGained = ((this.stats.level-1)*100+(this.stats.xp||0)) - this.season.startXP;
+        const reward   = Math.max(500, Math.round(xpGained * 2));
+        this.credits  += reward;
+        this.addNotif('🏅', 'TEMPORADA FINALIZADA', this.season.name + ' · +' + reward.toLocaleString() + ' CR', 'gold');
+        this.season.resolved = true;
+        if(!this.season.history) this.season.history = [];
+        this.season.history.unshift({ key: this.season.key, name: this.season.name, xpGained, reward, peakLevel: this.season.peakLevel });
+        if(this.season.history.length > 6) this.season.history.pop();
+    },
+
+    updateSeasonStats(gameId, score) {
+        if(!this.season) return;
+        this.season.gamesPlayed = (this.season.gamesPlayed||0) + 1;
+        if(score > 0) this.season.wins = (this.season.wins||0) + 1;
+        if(this.stats.level > (this.season.peakLevel||0)) this.season.peakLevel = this.stats.level;
+        this.save();
+    },
+
+    renderSeasonPanel() {
+        if(!this.season) return '';
+        const s   = this.season;
+        const xpNow   = (this.stats.level-1)*100 + (this.stats.xp||0);
+        const xpStart = s.startXP || 0;
+        const xpDiff  = xpNow - xpStart;
+        const hist    = s.history || [];
+
+        let html = '<div style="margin:0 0 6px;padding:12px 14px;background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.2);border-radius:10px;">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+        html += '<div style="font-size:0.55rem;color:#fbbf24;font-family:monospace;letter-spacing:2px;"><i class="fa-solid fa-calendar-days"></i> ' + (s.name||'TEMPORADA') + '</div>';
+        html += '<div style="font-size:0.52rem;color:#334155;font-family:monospace;">hasta ' + (s.endDate||'?') + '</div>';
+        html += '</div>';
+        html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">';
+        const stats = [
+            { label:'XP GANADO', val: xpDiff.toLocaleString() },
+            { label:'PARTIDAS',  val: (s.gamesPlayed||0).toLocaleString() },
+            { label:'PICO LVL',  val: s.peakLevel||this.stats.level },
+        ];
+        stats.forEach(st => {
+            html += '<div style="background:rgba(255,255,255,0.02);border-radius:7px;padding:6px 8px;text-align:center;">';
+            html += '<div style="font-family:var(--font-display);font-size:0.85rem;color:#fbbf24;">' + st.val + '</div>';
+            html += '<div style="font-size:0.5rem;color:#334155;font-family:monospace;">' + st.label + '</div>';
+            html += '</div>';
+        });
+        html += '</div>';
+        // Historial de temporadas
+        if(hist.length > 0) {
+            html += '<div style="font-size:0.5rem;color:#1e293b;font-family:monospace;letter-spacing:2px;margin-bottom:4px;">TEMPORADAS ANTERIORES</div>';
+            hist.slice(0,3).forEach(h => {
+                html += '<div style="display:flex;justify-content:space-between;font-size:0.56rem;font-family:monospace;color:#334155;padding:2px 0;border-top:1px solid rgba(255,255,255,0.03);">';
+                html += '<span>' + (h.name||h.key) + '</span>';
+                html += '<span style="color:#fbbf24;">+' + (h.reward||0).toLocaleString() + ' CR</span>';
+                html += '</div>';
+            });
+        }
+        html += '</div>';
+        return html;
+    },
+
     // ─── TORNEOS SEMANALES ──────────────────────────────────
     initTournament() {
         const today = new Date();
@@ -2307,8 +2905,10 @@ const app = {
             this.tournament.scores.push(entry);
             this.tournament.scores.sort((a,b) => b.score - a.score);
             this.save();
+            this.stats.tournamentsPlayed = (this.stats.tournamentsPlayed||0) + 1;
             const pos = this.tournament.scores.findIndex(s => s.isPlayer) + 1;
             if(pos <= 3) {
+                this.stats.tournamentTop3 = (this.stats.tournamentTop3||0) + 1;
                 this.showToast('TOP ' + pos + ' EN EL TORNEO', 'Puntuación: ' + score.toLocaleString(), 'gold');
             }
         }
@@ -2421,6 +3021,7 @@ const app = {
                 <div class="dp-label">${pct}% · ${claimed ? 'COMPLETADO HOY' : 'RENUEVA EN MEDIANOCHE'}</div>
             </div>
             <div class="daily-tasks-v3">${tasksHTML}</div>
+            ${this.renderSeasonPanel()}
             ${this.renderTournamentPanel()}
             ${this.renderInvestPanel()}
                         <div class="daily-claim-v3">
@@ -2515,11 +3116,11 @@ const app = {
         if(!this.stats.unlockedAchs) this.stats.unlockedAchs = [];
         const reflexRaw  = this.highScores['hyper-reflex'];
         const reflexBest = reflexRaw ? (typeof reflexRaw === 'number' ? reflexRaw : reflexRaw.best) : 0;
-        const ctx = Object.assign({ credits: this.credits, bestReflex: reflexBest }, this.stats);
+        const ctx = Object.assign({ credits: this.credits, bestReflex: reflexBest, highScores: this.highScores }, this.stats);
 
         const newlyUnlocked = [];
         CONFIG.ACHIEVEMENTS.forEach(ach => {
-            if(!this.stats.unlockedAchs.includes(ach.id) && ach.check(ctx)) {
+            if(!this.stats.unlockedAchs.includes(ach.id) && ach.check(ctx, this)) {
                 this.stats.unlockedAchs.push(ach.id);
                 newlyUnlocked.push(ach);
             }
@@ -2527,6 +3128,7 @@ const app = {
         if(!newlyUnlocked.length) return;
         this.save();
         newlyUnlocked.forEach((ach, i) => {
+            this.addNotif(ach.icon, ach.name, ach.desc, 'gold');
             setTimeout(() => { this.showAchievementToast(ach); try{this.audio.playWin(8);}catch(e){} }, i * 2000);
         });
     },
@@ -2560,6 +3162,7 @@ const app = {
         const result = Math.round(this.invest.amount * pct);
         this.invest.result = result; this.invest.resolved = true;
         this.credits += result;
+        if(result > 0) this.stats.investProfit = (this.stats.investProfit||0) + result;
         // Guardar en historial
         if(!this.invest.history) this.invest.history = [];
         this.invest.history.unshift({ date: inv.date, amount: inv.amount, risk: inv.risk, result });
@@ -2579,6 +3182,8 @@ const app = {
             this.showToast('YA INVERTISTE HOY', 'Espera el resultado de mañana', 'danger'); return;
         }
         this.credits -= amount;
+        this.stats.investCount = (this.stats.investCount||0) + 1;
+        if(risk === 'HIGH') this.stats.investHighStake = (this.stats.investHighStake||0) + amount;
         this.invest = { date: new Date().toDateString(), amount, risk, resolved: false, result: 0 };
         this.save(); this.updateUI(); this.renderDailyScreen();
         this.showToast('INVERSIÓN REGISTRADA', amount.toLocaleString() + ' CR · ' + risk, 'purple');
@@ -2620,13 +3225,22 @@ const app = {
             var col  = inv.result >= 0 ? '#10b981' : '#ef4444';
             var sign = inv.result >= 0 ? '+' : '';
             var pct  = inv.amount > 0 ? Math.round((inv.result/inv.amount)*100) : 0;
+            var reinvestBtns = '';
+            if(inv.amount <= this.credits) {
+                reinvestBtns = '<div style="display:flex;gap:6px;margin-top:8px;">' +
+                    '<div style="font-size:0.5rem;color:#334155;font-family:monospace;letter-spacing:1px;align-self:center;">REINVERTIR:</div>' +
+                    '<button onclick="window.app.makeInvestment(' + inv.amount + ',\'' + inv.risk + '\')" ' +
+                    'style="background:' + col + '15;border:1px solid ' + col + '30;border-radius:5px;padding:3px 8px;font-size:0.55rem;color:' + col + ';font-family:monospace;cursor:pointer;">' +
+                    inv.amount.toLocaleString() + ' CR · ' + inv.risk + '</button>' +
+                    '</div>';
+            }
             return '<div style="margin:0 0 6px;padding:12px 14px;background:' + col + '0a;border:1px solid ' + col + '30;border-radius:10px;">' +
                 '<div style="display:flex;justify-content:space-between;margin-bottom:4px;">' +
                 '<div style="font-size:0.58rem;color:' + col + ';font-family:monospace;"><i class=\"fa-solid fa-chart-line\"></i> RESULTADO DE AYER</div>' +
                 '<div style="font-size:0.58rem;color:' + col + ';font-family:monospace;">' + sign + pct + '%</div></div>' +
                 '<div style="font-family:var(--font-display);font-size:0.95rem;color:' + col + ';">' + sign + inv.result.toLocaleString() + ' CR</div>' +
                 '<div style="font-size:0.52rem;color:#334155;font-family:monospace;">sobre ' + inv.amount.toLocaleString() + ' CR invertidos</div>' +
-                histHTML + '</div>';
+                reinvestBtns + histHTML + '</div>';
         }
 
         // Panel de nueva inversión
@@ -2789,7 +3403,22 @@ const app = {
         if(parts[0] === 'clear') { document.getElementById('console-output').innerHTML = ''; }
     },
     setCritical(active) { const vign = document.querySelector('.vignette'); if(vign) { if(active) vign.classList.add('critical'); else vign.classList.remove('critical'); } },
-    applyTheme(themeId) { document.body.className = document.body.className.replace(/t_[a-z0-9_]+/g, '').trim(); if (themeId && themeId !== 't_default') document.body.classList.add(themeId); }
+    applyTheme(themeId) {
+        document.body.className = document.body.className.replace(/t_[a-z0-9_]+/g, '').trim();
+        if(themeId && themeId !== 't_default') document.body.classList.add(themeId);
+        // Actualizar fondo adaptativo
+        try { if(this.canvas) this.canvas.setMood(themeId || null); } catch(e) {}
+        try { this.updateFavicon(themeId); } catch(e) {}
+        // SFX de UI según tema
+        const THEME_SFX = {
+            't_gameby':  { click:{ freq:440, type:'square', dur:0.04 }, hover:{ freq:330, type:'square', dur:0.03 } },
+            't_hack':    { click:{ freq:800, type:'square', dur:0.03 }, hover:{ freq:400, type:'square', dur:0.02 } },
+            't_matrix':  { click:{ freq:800, type:'square', dur:0.03 }, hover:{ freq:400, type:'square', dur:0.02 } },
+            't_terminal':{ click:{ freq:600, type:'square', dur:0.03 }, hover:{ freq:300, type:'square', dur:0.02 } },
+            't_diablo':  { click:{ freq:120, type:'sawtooth',dur:0.08},hover:{ freq:80,  type:'sine',   dur:0.04 } },
+        };
+        this._themeSFX = THEME_SFX[themeId] || null;
+    }
 };
 
 window.onload = () => app.init();

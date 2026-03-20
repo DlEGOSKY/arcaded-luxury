@@ -160,6 +160,7 @@ export class ShopSystem {
                     </div>
                     <div class="scv2-name">${item.name}</div>
                     <div class="scv2-desc">${item.desc}</div>
+                    ${item.lore ? '<div style="font-size:0.52rem;color:#1e293b;font-family:monospace;margin:2px 0 4px;font-style:italic;">' + item.lore + '</div>' : ''}
                     <div class="scv2-action">${actionHTML}</div>`;
 
                 grid.appendChild(card);
@@ -199,24 +200,93 @@ export class ShopSystem {
     // Previsualiza un tema durante 5 segundos sin comprarlo
     preview(itemId) {
         const item = CONFIG.SHOP.find(i => i.id === itemId);
-        if (!item || item.type !== 'THEME') return;
-        
+        if(!item || item.type !== 'THEME') return;
         window.app.audio.playClick();
-        
-        // Guardar tema actual
+
         const previousTheme = this.equipped.theme;
-        
-        // Aplicar temporalmente
+        const isOwned = this.inventory.includes(itemId);
+
+        // Crear modal de preview
+        const existing = document.getElementById('theme-preview-modal');
+        if(existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'theme-preview-modal';
+        modal.style.cssText = [
+            'position:fixed','inset:0','z-index:99995',
+            'background:rgba(0,0,0,0.85)','backdrop-filter:blur(6px)',
+            'display:flex','align-items:center','justify-content:center',
+            'animation:wFadeIn 0.2s ease',
+        ].join(';');
+
+        // Aplicar tema inmediatamente para el preview
         window.app.applyTheme(itemId);
-        window.app.showToast("PREVIEW", `${item.name} — revierte en 5s`, "default");
-        
-        // Limpiar timer previo si existe
-        if (this._previewTimer) clearTimeout(this._previewTimer);
-        
-        this._previewTimer = setTimeout(() => {
+
+        const color = window.getComputedStyle(document.documentElement)
+            .getPropertyValue('--primary').trim() || '#3b82f6';
+
+        modal.innerHTML = '<div style="width:min(480px,92vw);background:var(--bg-dark,#040810);border:1px solid rgba(255,255,255,0.1);border-radius:16px;overflow:hidden;">' +
+            // Header
+            '<div style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between;">' +
+            '<div><div style="font-family:var(--font-display);font-size:0.85rem;color:white;letter-spacing:3px;">' + item.name.toUpperCase() + '</div>' +
+            (item.lore ? '<div style="font-size:0.58rem;color:#475569;font-family:monospace;margin-top:2px;font-style:italic;">' + item.lore + '</div>' : '') +
+            '</div>' +
+            '<button id="tpm-close" style="background:none;border:none;color:#475569;cursor:pointer;font-size:1rem;padding:4px 8px;">✕</button>' +
+            '</div>' +
+            // Mini lobby preview
+            '<div style="padding:12px 14px;background:var(--bg-dark,#040810);">' +
+            '<div style="font-size:0.5rem;color:#334155;font-family:monospace;letter-spacing:2px;margin-bottom:8px;">VISTA PREVIA</div>' +
+            '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">' +
+            ['fa-bolt','fa-brain','fa-globe','fa-palette'].map((icon,i) =>
+                '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:10px 6px;text-align:center;transition:all 0.15s;" ' +
+                'onmouseenter="this.style.borderColor=\'var(--primary)\';this.style.boxShadow=\'0 0 12px rgba(var(--primary-rgb,59,130,246),0.3)\'" ' +
+                'onmouseleave="this.style.borderColor=\'rgba(255,255,255,0.07)\';this.style.boxShadow=\'\'">' +
+                '<i class="fa-solid ' + icon + '" style="font-size:1.1rem;color:var(--primary);"></i>' +
+                '<div style="font-size:0.5rem;color:#334155;font-family:monospace;margin-top:4px;">JUEGO ' + (i+1) + '</div>' +
+                '</div>'
+            ).join('') +
+            '</div>' +
+            '<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:8px;">' +
+            '<div style="width:28px;height:28px;border-radius:50%;border:2px solid var(--primary);display:flex;align-items:center;justify-content:center;color:var(--primary);font-size:0.7rem;"><i class="fa-solid fa-user-astronaut"></i></div>' +
+            '<div><div style="font-family:var(--font-display);font-size:0.62rem;color:white;letter-spacing:2px;">AGENTE</div>' +
+            '<div style="font-size:0.5rem;color:#334155;font-family:monospace;">RANGO · LVL ' + (window.app.stats.level||1) + '</div></div>' +
+            '<div style="margin-left:auto;font-family:var(--font-display);font-size:0.7rem;color:var(--primary);">' + (window.app.credits||0).toLocaleString() + ' CR</div>' +
+            '</div></div>' +
+            // Acciones
+            '<div style="padding:12px 14px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:8px;">' +
+            '<button id="tpm-cancel" style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#64748b;border-radius:8px;padding:10px;font-family:var(--font-display);font-size:0.65rem;letter-spacing:2px;cursor:pointer;">CANCELAR</button>' +
+            (isOwned
+                ? '<button id="tpm-equip" style="flex:1;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.4);color:#60a5fa;border-radius:8px;padding:10px;font-family:var(--font-display);font-size:0.65rem;letter-spacing:2px;cursor:pointer;">EQUIPAR</button>'
+                : '<button id="tpm-buy" style="flex:1;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.4);color:#fbbf24;border-radius:8px;padding:10px;font-family:var(--font-display);font-size:0.65rem;letter-spacing:2px;cursor:pointer;"><i class=\\"fa-solid fa-coins\\"></i> ' + (item.price||0).toLocaleString() + ' CR</button>'
+            ) +
+            '</div></div>';
+
+        document.body.appendChild(modal);
+
+        const close = () => {
+            modal.remove();
             window.app.applyTheme(previousTheme);
-            this._previewTimer = null;
-        }, 5000);
+        };
+
+        modal.querySelector('#tpm-close').onclick = close;
+        modal.querySelector('#tpm-cancel').onclick = close;
+        modal.onclick = (e) => { if(e.target === modal) close(); };
+
+        if(isOwned) {
+            modal.querySelector('#tpm-equip').onclick = () => {
+                this.equipped.theme = itemId;
+                window.app.save();
+                modal.remove();
+                window.app.showToast('TEMA EQUIPADO', item.name, 'success');
+                this.init();
+            };
+        } else {
+            modal.querySelector('#tpm-buy').onclick = () => {
+                modal.remove();
+                window.app.applyTheme(previousTheme);
+                this.buy(itemId);
+            };
+        }
     }
 
     buyAndOpen(itemId) {

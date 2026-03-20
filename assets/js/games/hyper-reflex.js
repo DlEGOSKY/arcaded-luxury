@@ -202,6 +202,8 @@ export class GameReflex {
         this._paused = false;
         if(this.state === 'WAITING') this.prepareRound();
     }
+    triggerTension() { try{window.app.audio.setTension(true);}catch(e){} }
+
     finishGame(failed = false) {
         let score = 0;
         

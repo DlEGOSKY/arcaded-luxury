@@ -7008,3 +7008,208 @@ body.t_starcraft .vignette { background: radial-gradient(circle, transparent 30%
 .tut-dot { width: 6px; height: 6px; border-radius: 50%; background: #1e293b; transition: all 0.2s; }
 .tut-dot.active { background: var(--primary); }
 
+
+
+/* =====================================================
+   RESPONSIVE MÓVIL — Mejoras generales
+   ===================================================== */
+@media (max-width: 480px) {
+
+    /* Nav más compacto */
+    .main-nav { padding: 0 8px; gap: 2px; }
+    .nav-tab { padding: 6px 8px; font-size: 0.55rem; }
+    .nav-tab i { font-size: 0.9rem; }
+
+    /* Lobby grid — 2 columnas en móvil */
+    .menu-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; padding: 10px !important; }
+    .game-card-v2 { height: 130px !important; }
+    .gcv2-name { font-size: 0.62rem !important; }
+    .gcv2-desc { display: none; }
+
+    /* Status bar más compacto */
+    .status-bar { padding: 4px 8px; gap: 8px; }
+    .sb-rank-name { display: none; }
+    .sb-xp-bar { width: 60px !important; }
+
+    /* Lobby filters — scroll horizontal */
+    .lobby-filters { overflow-x: auto; flex-wrap: nowrap !important; padding: 6px 8px; gap: 4px; scrollbar-width: none; }
+    .lobby-filters::-webkit-scrollbar { display: none; }
+    .lf-btn { flex-shrink: 0; padding: 5px 10px; font-size: 0.55rem; }
+
+    /* Perfil modal — full width */
+    .modal-backdrop .modal { width: 98vw !important; max-width: 98vw !important; padding: 12px !important; }
+    .pv2-stats { grid-template-columns: repeat(2, 1fr) !important; }
+    .pv2-global-stats > div { grid-template-columns: 1fr 1fr; }
+
+    /* Daily/Weekly — más compacto */
+    .daily-panel-v3 { padding: 12px !important; gap: 6px !important; }
+    .daily-task-v3 { padding: 8px 10px !important; }
+
+    /* Shop cards — 2 columnas */
+    .shop-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .shop-card-v2 { padding: 10px 8px !important; }
+    .sc-name { font-size: 0.65rem !important; }
+    .sc-price { font-size: 0.6rem !important; }
+
+    /* Battle Pass — cards más pequeñas */
+    .np-card { min-width: 100px !important; padding: 10px 8px !important; }
+
+    /* Game UI overlay — padding reducido */
+    #game-ui-overlay { padding: 8px !important; }
+
+    /* Botones de acción en juegos */
+    .btn { padding: 10px 16px !important; font-size: 0.7rem !important; }
+
+    /* Notif panel — full width */
+    #notif-panel { width: calc(100vw - 16px) !important; right: 8px !important; left: 8px !important; }
+}
+
+@media (max-width: 360px) {
+    .menu-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
+    .gcv2-icon { font-size: 1.3rem !important; }
+    .nav-tab span { display: none; }
+}
+
+/* Touch — aumentar área de tap en elementos pequeños */
+@media (hover: none) and (pointer: coarse) {
+    .game-card-v2 { min-height: 110px; }
+    .lf-btn { min-height: 36px; }
+    .btn-claim-daily-v3 { min-height: 48px !important; }
+    .tut-btn-next, .tut-btn-skip { min-height: 40px; }
+    .wr-key { min-height: 42px !important; }
+    .pd-cell { min-width: 32px !important; min-height: 32px !important; }
+    .ng-cell { min-height: 44px !important; }
+}
+
+
+
+/* =====================================================
+   TEMAS V4 — Nuevos
+   ===================================================== */
+
+/* Celeste — azul montaña con detalles blancos */
+body.t_celeste {
+    --primary: #4fc3f7; --gold: #81d4fa; --accent: #0288d1;
+    --bg-dark: #050d18; --text-main: #b3e5fc;
+}
+body.t_celeste .main-nav { background: rgba(3,8,18,0.99); border-bottom-color: rgba(79,195,247,0.25); }
+body.t_celeste .game-card-v2 { background: rgba(5,12,25,0.95); border-color: rgba(79,195,247,0.12); }
+body.t_celeste .game-card-v2:hover { border-color: #4fc3f7; box-shadow: 0 0 20px rgba(79,195,247,0.3); }
+body.t_celeste .lobby-grid { background: radial-gradient(ellipse at top, #06101e 0%, #050d18 70%); }
+body.t_celeste .btn { background: rgba(79,195,247,0.1); border-color: rgba(79,195,247,0.4); color: #81d4fa; }
+body.t_celeste .btn:hover { background: rgba(79,195,247,0.22); }
+body.t_celeste .status-bar { background: rgba(3,8,18,0.99); border-top-color: rgba(79,195,247,0.25); }
+
+/* Portal — naranja y azul Aperture */
+body.t_portal {
+    --primary: #ff6600; --gold: #0066ff; --accent: #cc5200;
+    --bg-dark: #080808; --text-main: #e0e0e0;
+}
+body.t_portal .main-nav { background: rgba(6,6,6,0.99); border-bottom-color: rgba(255,102,0,0.3); }
+body.t_portal .game-card-v2 { background: rgba(10,8,8,0.96); border-color: rgba(255,102,0,0.12); border-radius: 4px; }
+body.t_portal .game-card-v2:nth-child(even) { border-color: rgba(0,102,255,0.12); }
+body.t_portal .game-card-v2:hover { border-color: #ff6600; box-shadow: 0 0 18px rgba(255,102,0,0.35); }
+body.t_portal .lobby-grid { background: #080808; }
+body.t_portal .btn { background: rgba(255,102,0,0.1); border-color: rgba(255,102,0,0.45); color: #ff8833; border-radius: 4px; }
+body.t_portal .btn:hover { background: rgba(255,102,0,0.25); }
+body.t_portal .status-bar { background: rgba(6,6,6,0.99); border-top-color: rgba(0,102,255,0.3); }
+
+/* Minecraft — verde pixelado */
+body.t_minecraft {
+    --primary: #5da832; --gold: #f9a825; --accent: #3d7a1e;
+    --bg-dark: #050e02; --text-main: #c8e6c9;
+    --font-ui: 'Courier New', monospace;
+}
+body.t_minecraft .main-nav { background: rgba(4,10,2,0.99); border-bottom-color: rgba(93,168,50,0.3); }
+body.t_minecraft .game-card-v2 { background: rgba(6,14,3,0.95); border-color: rgba(93,168,50,0.15); border-radius: 2px; }
+body.t_minecraft .game-card-v2:hover { border-color: #5da832; box-shadow: 0 0 0 2px rgba(93,168,50,0.4); }
+body.t_minecraft .lobby-grid { background: #050e02; }
+body.t_minecraft .btn { background: rgba(93,168,50,0.1); border-color: rgba(93,168,50,0.45); color: #7bc043; border-radius: 2px; }
+body.t_minecraft .btn:hover { background: rgba(93,168,50,0.25); }
+body.t_minecraft .status-bar { background: rgba(4,10,2,0.99); }
+body.t_minecraft .scanlines { opacity: 0.3; }
+
+/* Limbo — blanco sobre negro absoluto */
+body.t_limbo {
+    --primary: #e0e0e0; --gold: #bdbdbd; --accent: #9e9e9e;
+    --bg-dark: #000000; --text-main: #e0e0e0;
+}
+body.t_limbo .main-nav { background: rgba(0,0,0,0.99); border-bottom-color: rgba(200,200,200,0.15); }
+body.t_limbo .game-card-v2 { background: rgba(5,5,5,0.98); border-color: rgba(200,200,200,0.08); filter: grayscale(1); }
+body.t_limbo .game-card-v2:hover { border-color: #e0e0e0; box-shadow: none; filter: grayscale(0); }
+body.t_limbo .lobby-grid { background: #000000; }
+body.t_limbo .btn { background: rgba(200,200,200,0.06); border-color: rgba(200,200,200,0.3); color: #bdbdbd; }
+body.t_limbo .btn:hover { background: rgba(200,200,200,0.14); }
+body.t_limbo .status-bar { background: rgba(0,0,0,0.99); border-top-color: rgba(200,200,200,0.1); }
+body.t_limbo .vignette { background: radial-gradient(circle, transparent 20%, rgba(0,0,0,0.85) 100%); opacity: 1; }
+
+/* Synthwave — rosa/morado neón */
+body.t_synthwave {
+    --primary: #f72585; --gold: #b5179e; --accent: #7209b7;
+    --bg-dark: #06000e; --text-main: #f8b4d9;
+}
+body.t_synthwave .main-nav { background: rgba(4,0,10,0.99); border-bottom-color: rgba(247,37,133,0.3); }
+body.t_synthwave .game-card-v2 { background: rgba(6,0,14,0.96); border-color: rgba(247,37,133,0.12); }
+body.t_synthwave .game-card-v2:hover { border-color: #f72585; box-shadow: 0 0 24px rgba(247,37,133,0.4), 0 0 6px rgba(114,9,183,0.3); }
+body.t_synthwave .lobby-grid { background: radial-gradient(ellipse at bottom, #0d0020 0%, #06000e 70%); }
+body.t_synthwave .btn { background: rgba(247,37,133,0.1); border-color: rgba(247,37,133,0.45); color: #f72585; }
+body.t_synthwave .btn:hover { background: rgba(247,37,133,0.25); box-shadow: 0 0 14px rgba(247,37,133,0.3); }
+body.t_synthwave .status-bar { background: rgba(4,0,10,0.99); border-top-color: rgba(114,9,183,0.4); }
+body.t_synthwave .vignette { opacity: 1; background: radial-gradient(circle, transparent 20%, rgba(50,0,80,0.6) 100%); }
+
+/* Terminal — verde puro monocromático */
+body.t_terminal {
+    --primary: #00ff41; --gold: #00cc33; --accent: #009922;
+    --bg-dark: #000300; --text-main: #00ff41;
+    --font-ui: 'Courier New', monospace;
+}
+body.t_terminal .main-nav { background: rgba(0,2,0,0.99); border-bottom-color: rgba(0,255,65,0.2); }
+body.t_terminal .game-card-v2 { background: rgba(0,4,0,0.96); border-color: rgba(0,255,65,0.1); border-radius: 2px; color: #00ff41; }
+body.t_terminal .game-card-v2:hover { border-color: #00ff41; box-shadow: 0 0 12px rgba(0,255,65,0.3); background: rgba(0,20,0,0.96); }
+body.t_terminal .lobby-grid { background: #000300; }
+body.t_terminal .btn { background: rgba(0,255,65,0.08); border-color: rgba(0,255,65,0.35); color: #00ff41; border-radius: 2px; }
+body.t_terminal .btn:hover { background: rgba(0,255,65,0.18); }
+body.t_terminal .status-bar { background: rgba(0,2,0,0.99); border-top-color: rgba(0,255,65,0.2); }
+body.t_terminal .scanlines { opacity: 0.5; }
+
+
+
+/* =====================================================
+   ANIMACIÓN CASCADA LOBBY
+   ===================================================== */
+@keyframes cardCascade {
+    from { opacity: 0; transform: translateY(16px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+.menu-grid .game-card-v2 {
+    animation: cardCascade 0.35s cubic-bezier(0.2, 0, 0, 1) both;
+}
+.menu-grid .game-card-v2:nth-child(1)  { animation-delay: 0.02s; }
+.menu-grid .game-card-v2:nth-child(2)  { animation-delay: 0.04s; }
+.menu-grid .game-card-v2:nth-child(3)  { animation-delay: 0.06s; }
+.menu-grid .game-card-v2:nth-child(4)  { animation-delay: 0.08s; }
+.menu-grid .game-card-v2:nth-child(5)  { animation-delay: 0.10s; }
+.menu-grid .game-card-v2:nth-child(6)  { animation-delay: 0.12s; }
+.menu-grid .game-card-v2:nth-child(7)  { animation-delay: 0.14s; }
+.menu-grid .game-card-v2:nth-child(8)  { animation-delay: 0.16s; }
+.menu-grid .game-card-v2:nth-child(9)  { animation-delay: 0.18s; }
+.menu-grid .game-card-v2:nth-child(10) { animation-delay: 0.20s; }
+.menu-grid .game-card-v2:nth-child(n+11) { animation-delay: 0.22s; }
+
+/* =====================================================
+   CURSORES PERSONALIZADOS POR TEMA
+   ===================================================== */
+body.t_gameby  * { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect x='3' y='0' width='10' height='16' fill='%234CAF50' rx='2'/%3E%3Crect x='0' y='3' width='16' height='10' fill='%234CAF50' rx='2'/%3E%3Crect x='6' y='4' width='4' height='8' fill='%23000'/%3E%3C/svg%3E") 8 8, crosshair; }
+body.t_hack *,
+body.t_matrix * { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ctext y='13' font-size='14' fill='%2300ff41'%3E_|%3C/text%3E%3C/svg%3E") 4 14, text; }
+body.t_xperror * { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='20'%3E%3Cpolygon points='0,0 0,16 4,12 7,20 9,19 6,11 11,11' fill='white' stroke='black' stroke-width='1'/%3E%3C/svg%3E") 0 0, default; }
+
+/* =====================================================
+   HISTORIAL EXPANDIBLE EN PERFIL
+   ===================================================== */
+.pv2-record-row { cursor: pointer; transition: background 0.15s; }
+.pv2-record-row:hover { background: rgba(255,255,255,0.03); border-radius: 6px; }
+.pv2-record-history { display: none; padding: 4px 8px 8px; }
+.pv2-record-history.open { display: block; animation: wFadeIn 0.2s ease; }
+.pv2-hist-item { display: flex; justify-content: space-between; font-size: 0.58rem; color: #334155; font-family: monospace; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+

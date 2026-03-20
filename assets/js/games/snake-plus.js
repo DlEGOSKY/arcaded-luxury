@@ -109,6 +109,20 @@ export class SnakePlusGame {
             }
         };
         window.addEventListener('keydown', this.keyHandler);
+        // Touch controls
+        this._touchStartX = 0; this._touchStartY = 0;
+        this._touchHandler = (e) => {
+            const dx = e.changedTouches[0].clientX - this._touchStartX;
+            const dy = e.changedTouches[0].clientY - this._touchStartY;
+            if(Math.abs(dx) > Math.abs(dy)) {
+                this.keyHandler({ key: dx > 0 ? 'ArrowRight' : 'ArrowLeft', preventDefault:()=>{} });
+            } else {
+                this.keyHandler({ key: dy > 0 ? 'ArrowDown' : 'ArrowUp', preventDefault:()=>{} });
+            }
+        };
+        this._touchStartHandler = (e) => { this._touchStartX = e.touches[0].clientX; this._touchStartY = e.touches[0].clientY; };
+        window.addEventListener('touchstart', this._touchStartHandler, {passive:true});
+        window.addEventListener('touchend', this._touchHandler, {passive:true});
         this.loop();
     }
 
@@ -326,5 +340,7 @@ export class SnakePlusGame {
     cleanup() {
         if(this.animId) cancelAnimationFrame(this.animId);
         window.removeEventListener('keydown', this.keyHandler);
+        window.removeEventListener('touchstart', this._touchStartHandler);
+        window.removeEventListener('touchend', this._touchHandler);
     }
 }
