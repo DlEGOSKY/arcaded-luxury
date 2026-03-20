@@ -1,6 +1,6 @@
 // --- CONFIGURACIÓN PRINCIPAL ---
 export const CONFIG = {
-    STATES: { WELCOME: 'welcome', MENU: 'menu', GAME: 'game', SHOP: 'shop', DAILY: 'daily' },
+    STATES: { WELCOME: 'welcome', MENU: 'menu', GAME: 'game', SHOP: 'shop', DAILY: 'daily', WEEKLY: 'weekly' },
     
     API: { 
         DECK: 'https://deckofcardsapi.com/api/deck',
@@ -71,28 +71,30 @@ export const CONFIG = {
     },
 
     GAMES_LIST: [
-        { id: 'higher-lower', name: 'High / Low', icon: 'fa-solid fa-arrows-up-down', color: 'DEFAULT', desc: 'Predicción de Cartas' },
+        { id: 'higher-lower', cat: 'MENTAL', name: 'High / Low', icon: 'fa-solid fa-arrows-up-down', color: 'DEFAULT', desc: 'Predicción de Cartas' },
         { id: 'guess-card', name: 'The Oracle', icon: 'fa-solid fa-eye', color: 'PURPLE', desc: 'Adivinación Cuántica' },
-        { id: 'trivia', name: 'Neural Trivia', icon: 'fa-solid fa-brain', color: 'CYAN', desc: 'Conocimiento General' },
+        { id: 'trivia', cat: 'CONOCIMIENTO', name: 'Neural Trivia', icon: 'fa-solid fa-brain', color: 'CYAN', desc: 'Conocimiento General' },
         { id: 'bio-scan', name: 'Bio-Scan', icon: 'fa-solid fa-dna', color: 'BIO', desc: 'Identificación Biológica' },
         { id: 'geo-net', name: 'Geo-Net', icon: 'fa-solid fa-earth-americas', color: 'GEO', desc: 'Datos Geopolíticos' },
-        { id: 'hyper-reflex', name: 'Hyper Reflex', icon: 'fa-solid fa-bolt', color: 'REFLEX', desc: 'Velocidad de Reacción' },
+        { id: 'hyper-reflex', cat: 'REFLEJOS', name: 'Hyper Reflex', icon: 'fa-solid fa-bolt', color: 'REFLEX', desc: 'Velocidad de Reacción' },
         { id: 'spam-click', name: 'Spam Click', icon: 'fa-solid fa-computer-mouse', color: 'SPAM', desc: 'Resistencia Física' },
         { id: 'neon-sniper', name: 'Neon Sniper', icon: 'fa-solid fa-crosshairs', color: 'SNIPER', desc: 'Precisión de Impacto' },
         { id: 'orbit-lock', name: 'Orbit Lock', icon: 'fa-solid fa-circle-notch', color: 'ORBIT', desc: 'Sincronización Rítmica' },
-        { id: 'memory-flash', name: 'Cyber Pattern', icon: 'fa-solid fa-microchip', color: 'MEMORY', desc: 'Retención Visual' },
+        { id: 'memory-flash', cat: 'MEMORIA', name: 'Cyber Pattern', icon: 'fa-solid fa-microchip', color: 'MEMORY', desc: 'Retención Visual' },
         { id: 'vault-cracker', name: 'Vault Cracker', icon: 'fa-solid fa-lock-open', color: 'VAULT', desc: 'Criptografía Lógica' },
         { id: 'phase-shifter', name: 'Phase Shifter', icon: 'fa-solid fa-wave-square', color: 'PHASE', desc: 'Alineación Lineal' },
         { id: 'math-rush', name: 'Math Rush', icon: 'fa-solid fa-calculator', color: 'MATH', desc: 'Cálculo de Emergencia' },
         { id: 'color-trap', name: 'Color Trap', icon: 'fa-solid fa-palette', color: 'STROOP', desc: 'Conflicto Cognitivo' },
         { id: 'holo-match', name: 'Holo Match', icon: 'fa-solid fa-clone', color: 'MATCH', desc: 'Escaneo de Pares' },
-        { id: 'void-dodger', name: 'Void Dodger', icon: 'fa-solid fa-shuttle-space', color: 'VOID', desc: 'Evasión de Amenazas' },
+        { id: 'void-dodger', cat: 'ACCION', name: 'Void Dodger', icon: 'fa-solid fa-shuttle-space', color: 'VOID', desc: 'Evasión de Amenazas' },
         { id: 'glitch-hunt', name: 'Glitch Hunt', icon: 'fa-solid fa-bug', color: 'GLITCH', desc: 'Agudeza Visual' },
         { id: 'orbit-tracker', name: 'Orbit Tracker', icon: 'fa-solid fa-satellite-dish', color: 'TRACKER', desc: 'Seguimiento Orbital' },
         { id: 'cyber-typer', name: 'CYBER TYPER', icon: 'fa-solid fa-keyboard', color: 'GLITCH', desc: 'DEFENSA DEL SISTEMA' },
         
         // --- JUEGO SECRETO ---
-        { id: 'cyber-pong', name: 'CYBER PONG', icon: 'fa-solid fa-table-tennis-paddle-ball', color: 'PONG', desc: 'Duelo IA [CLASSIC]', unlockReq: 'pass_lvl_5' }
+        { id: 'cyber-pong',   name: 'CYBER PONG',  icon: 'fa-solid fa-table-tennis-paddle-ball', color: 'PONG',   desc: 'Duelo IA [CLASSIC]',   unlockReq: 'pass_lvl_5', cat: 'ACCION' },
+        { id: 'snake-plus',   name: 'Snake ++',    icon: 'fa-solid fa-arrow-right-long',         color: 'BIO',    desc: 'Protocolo Serpiente',                       cat: 'ACCION' },
+        { id: 'cipher-decode',name: 'Cipher Decode',icon: 'fa-solid fa-lock',                    color: 'VAULT',  desc: 'Descifra el Mensaje',                       cat: 'MENTAL' }
     ],
 
     GAME_INFO: {
@@ -115,14 +117,17 @@ export const CONFIG = {
         'glitch-hunt': { desc: "Depuración visual.", mech: "Encuentra el diferente.", obj: "Rápido.", diff: "Agudeza." },
         'orbit-tracker': { desc: "Seguimiento.", mech: "Sigue el orbe.", obj: "Mantén señal.", diff: "Pulso." },
         'cyber-typer': { desc: 'Intercepta el código malicioso.', mech: 'Escribe las palabras.', obj: 'Evita la brecha.' },
-        'cyber-pong': { desc: 'Simulación de tenis virtual.', mech: 'Devuelve la bola y vence a la IA.', obj: 'Anota goles.', diff: 'Clásico.' }
+        'cyber-pong':    { desc: 'Simulación de tenis virtual.', mech: 'Devuelve la bola y vence a la IA.', obj: 'Anota goles.', diff: 'Clásico.' },
+        'snake-plus':    { desc: 'Guía la serpiente sin chocar.', mech: 'Come manzanas para crecer. WASD o flechas.', obj: 'Máxima longitud.', diff: 'Clásico.' },
+        'cipher-decode': { desc: 'Descifra mensajes encriptados.', mech: 'Selecciona el carácter correcto para cada símbolo.', obj: 'Velocidad y precisión.', diff: 'Mental.' }
     },
 
     DAILY_TARGETS: {
         'higher-lower': 50, 'guess-card': 20, 'trivia': 60, 'bio-scan': 60, 'geo-net': 80,
         'hyper-reflex': 400, 'spam-click': 30, 'neon-sniper': 50, 'orbit-lock': 40, 'memory-flash': 45,
         'vault-cracker': 1, 'phase-shifter': 50, 'math-rush': 50, 'color-trap': 10, 'holo-match': 1,
-        'void-dodger': 15.0, 'glitch-hunt': 5, 'orbit-tracker': 20.0, 'cyber-typer': 500, 'cyber-pong': 5
+        'void-dodger': 15.0, 'glitch-hunt': 5, 'orbit-tracker': 20.0, 'cyber-typer': 500, 'cyber-pong': 5,
+        'snake-plus': 30, 'cipher-decode': 50
     },
 
     SHOP: [
@@ -171,6 +176,16 @@ export const CONFIG = {
             val: { primary: '#1c1c1c', text: '#333333' }
         },
 
+        // === TEMAS NOSTÁLGICOS V2 ===
+        { id: 't_doom',      type: 'THEME', name: 'DOOM 1993',      icon: 'fa-solid fa-skull',            desc: 'Los colores del infierno. Rip and tear.',          price: 4500,   val: 't_doom'      },
+        { id: 't_outrun',    type: 'THEME', name: 'OutRun',         icon: 'fa-solid fa-car',              desc: 'Arcade de 1986. Velocidad y neón.',                price: 3500,   val: 't_outrun'    },
+        { id: 't_c64',       type: 'THEME', name: 'Commodore 64',   icon: 'fa-solid fa-floppy-disk',      desc: 'El azul icónico del C64. Retro computing.',        price: 2000,   val: 't_c64'       },
+        { id: 't_hotline',   type: 'THEME', name: 'Hotline Miami',  icon: 'fa-solid fa-mask',             desc: 'Neón violento. La ciudad nunca duerme.',           price: 4000,   val: 't_hotline'   },
+        { id: 't_bloodborne',type: 'THEME', name: 'Bloodborne',     icon: 'fa-solid fa-moon',             desc: 'Amanecer rojo sobre Yharnam.',                     price: 5000,   val: 't_bloodborne'},
+        { id: 't_pokemon',   type: 'THEME', name: 'Pokémon',        icon: 'fa-solid fa-gamepad',          desc: 'Gotta catch \'em all. Verde Game Boy.',            price: 2500,   val: 't_pokemon'   },
+        { id: 't_tron',      type: 'THEME', name: 'TRON 1982',      icon: 'fa-solid fa-circle-nodes',     desc: 'La Cuadrícula. Cian sobre negro absoluto.',        price: 3000,   val: 't_tron'      },
+        { id: 't_winamp',    type: 'THEME', name: 'Winamp',         icon: 'fa-solid fa-music',            desc: 'It really whips the llama\'s ass.',                price: 1800,   val: 't_winamp'    },
+
       
 
         { id: 'p_circle', type: 'PARTICLE', name: 'Chispas', icon: 'fa-solid fa-circle', desc: 'Efecto estándar.', price: 0, val: 'circle' },
@@ -214,7 +229,11 @@ export const CONFIG = {
         { id: 'cc_discord',   type: 'CALLCARD', name: 'Discord',          icon: 'fa-solid fa-headset',          desc: 'Pings a medianoche. Servidor de leyenda.',            price: 1200,  val: 'discord',   ref: 'Discord' },
         { id: 'cc_hacker',    type: 'CALLCARD', name: 'H4CK3R',           icon: 'fa-solid fa-terminal',         desc: 'Lluvia de código verde. Modo hacker total.',          price: 2800,  val: 'hacker',    ref: 'Hackers/Mr. Robot' },
         { id: 'cc_retro',     type: 'CALLCARD', name: 'Arcade 1984',      icon: 'fa-solid fa-gamepad',          desc: 'Pixeles y beeps. La era dorada del arcade.',          price: 3200,  val: 'retro',     ref: 'Arcade clásico' },
-        { id: 'cc_gold',      type: 'CALLCARD', name: 'Pay2Win',          icon: 'fa-solid fa-crown',            desc: 'Lluvia de oro. Para los que pagan la skin.',          price: 8000,  val: 'gold',      ref: 'Battle Royale' }
+        { id: 'cc_gold',      type: 'CALLCARD', name: 'Pay2Win',          icon: 'fa-solid fa-crown',            desc: 'Lluvia de oro. Para los que pagan la skin.',          price: 8000,  val: 'gold',      ref: 'Battle Royale' },
+        { id: 'cc_portal',    type: 'CALLCARD', name: 'Portal',           icon: 'fa-solid fa-circle-dot',       desc: 'The cake is a lie. Portales azul y naranja.',         price: 3500,  val: 'portal',    ref: 'Portal' },
+        { id: 'cc_celeste',   type: 'CALLCARD', name: 'Celeste',          icon: 'fa-solid fa-mountain',         desc: 'Sube la montaña. Cada caída es un paso.',             price: 2800,  val: 'celeste',   ref: 'Celeste' },
+        { id: 'cc_halflife',  type: 'CALLCARD', name: 'Half-Life',        icon: 'fa-solid fa-flask',            desc: 'Resonance Cascade. Freeman no está.',                 price: 4500,  val: 'halflife',  ref: 'Half-Life' },
+        { id: 'cc_cyberpunk', type: 'CALLCARD', name: 'Night City',       icon: 'fa-solid fa-city',             desc: 'Wake the f*** up, Samurai. Tenemos una ciudad que quemar.', price: 5000, val: 'cyberpunk', ref: 'Cyberpunk 2077' }
     ],
 
     SKILLS: {
@@ -224,15 +243,43 @@ export const CONFIG = {
     },
 
     ACHIEVEMENTS: [
-        { id: 'rich',        name: 'Magnate',       desc: 'Tener $500',           check: (s) => s.credits >= 500,                                 icon: '💎' },
-        { id: 'pro',         name: 'Veterano',      desc: '50 partidas jugadas',  check: (s) => s.gamesPlayed >= 50,                              icon: '🎖️' },
-        { id: 'sniper',      name: 'Sniper',        desc: 'Reflejos < 200ms',     check: (s) => s.bestReflex > 0 && s.bestReflex < 200,            icon: '⚡' },
-        { id: 'firstblood',  name: 'Primera Sangre',desc: 'Jugar por primera vez',check: (s) => s.gamesPlayed >= 1,                              icon: '🩸' },
-        { id: 'millionaire', name: 'Millonario',    desc: 'Acumular $10,000',     check: (s) => s.credits >= 10000,                               icon: '🏦' },
-        { id: 'dedicated',   name: 'Dedicado',      desc: '200 partidas jugadas', check: (s) => s.gamesPlayed >= 200,                             icon: '🔩' },
-        { id: 'collector',   name: 'Coleccionista', desc: 'Nivel 10 alcanzado',   check: (s) => s.level >= 10,                                    icon: '📦' },
-        { id: 'speedgod',    name: 'Dios de la Vel.',desc:'Reflejos < 150ms',     check: (s) => s.bestReflex > 0 && s.bestReflex < 150,            icon: '🌩️' },
-        { id: 'legend',      name: 'Leyenda',       desc: 'Nivel 30 alcanzado',   check: (s) => s.level >= 30,                                    icon: '👑' }
+        // ── Progresión ──
+        { id: 'firstblood',  name: 'Primera Sangre',    desc: 'Jugar por primera vez',        check: s => s.gamesPlayed >= 1,                              icon: '🩸' },
+        { id: 'pro',         name: 'Veterano',           desc: '50 partidas jugadas',          check: s => s.gamesPlayed >= 50,                             icon: '🎖️' },
+        { id: 'dedicated',   name: 'Dedicado',           desc: '200 partidas jugadas',         check: s => s.gamesPlayed >= 200,                            icon: '🔩' },
+        { id: 'obsessed',    name: 'Obsesionado',        desc: '500 partidas jugadas',         check: s => s.gamesPlayed >= 500,                            icon: '🤖' },
+        { id: 'collector',   name: 'Coleccionista',      desc: 'Nivel 10 alcanzado',           check: s => s.level >= 10,                                   icon: '📦' },
+        { id: 'legend',      name: 'Leyenda',            desc: 'Nivel 30 alcanzado',           check: s => s.level >= 30,                                   icon: '👑' },
+        { id: 'transcend',   name: 'Trascendente',       desc: 'Nivel 50 alcanzado',           check: s => s.level >= 50,                                   icon: '🌌' },
+        // ── Economía ──
+        { id: 'rich',        name: 'Magnate',            desc: 'Acumula 500 créditos',         check: s => s.credits >= 500,                                icon: '💎' },
+        { id: 'millionaire', name: 'Millonario',         desc: 'Acumula 10,000 créditos',      check: s => s.credits >= 10000,                              icon: '🏦' },
+        { id: 'billionaire', name: 'Multimillonario',    desc: 'Acumula 100,000 créditos',     check: s => s.credits >= 100000,                             icon: '🏰' },
+        // ── Reflejos ──
+        { id: 'sniper',      name: 'Sniper',             desc: 'Reflejos < 200ms',             check: s => s.bestReflex > 0 && s.bestReflex < 200,          icon: '⚡' },
+        { id: 'speedgod',    name: 'Dios de la Vel.',    desc: 'Reflejos < 150ms',             check: s => s.bestReflex > 0 && s.bestReflex < 150,          icon: '🌩️' },
+        { id: 'quantum',     name: 'Cuántico',           desc: 'Reflejos < 100ms',             check: s => s.bestReflex > 0 && s.bestReflex < 100,          icon: '⚛️' },
+        // ── Racha ──
+        { id: 'habitual',    name: 'Habitual',           desc: 'Racha de 3 días seguidos',     check: s => (s.streak?.days||s.days||0) >= 3,                icon: '🔥' },
+        { id: 'weekly_s',    name: 'Semana Perfecta',    desc: 'Racha de 7 días seguidos',     check: s => (s.streak?.days||s.days||0) >= 7,                icon: '📅' },
+        { id: 'monthly',     name: 'Mensual',            desc: 'Racha de 30 días seguidos',    check: s => (s.streak?.days||s.days||0) >= 30,               icon: '🗓️' },
+        // ── Colección ──
+        { id: 'shopper',     name: 'Comprador',          desc: 'Compra 5 items en la tienda',  check: s => (s.inventory?.length||0) >= 5,                   icon: '🛒' },
+        { id: 'hoarder',     name: 'Acaparador',         desc: 'Compra 15 items en la tienda', check: s => (s.inventory?.length||0) >= 15,                  icon: '📦' },
+        { id: 'fashionista', name: 'Fashionista',        desc: 'Desbloquea 5 temas',           check: s => (s.inventory?.filter?.(i=>i.startsWith?.('t_'))?.length||0) >= 5, icon: '🎨' },
+        // ── Battle Pass ──
+        { id: 'passer',      name: 'Pasajero',           desc: 'Reclama 10 recompensas del pass', check: s => (s.passClaimed?.length||0) >= 10,             icon: '🎫' },
+        { id: 'passmaster',  name: 'Maestro del Pass',   desc: 'Reclama 25 recompensas del pass', check: s => (s.passClaimed?.length||0) >= 25,             icon: '🏆' },
+        // ── Daily / Weekly ──
+        { id: 'daily_done',  name: 'Puntual',            desc: 'Completa el protocolo diario', check: s => s.dailyCompleted >= 1,                           icon: '✅' },
+        { id: 'weekly_done', name: 'Constante',          desc: 'Completa misiones semanales',  check: s => s.weeklyCompleted >= 1,                          icon: '📋' },
+        // ── Especiales ──
+        { id: 'nolifer',     name: 'Sin Vida',           desc: 'Juega 1000 partidas',          check: s => s.gamesPlayed >= 1000,                           icon: '💀' },
+        { id: 'highroller',  name: 'High Roller',        desc: 'Gana 500 CR en una partida',   check: s => s.bestPrize >= 500,                              icon: '🎰' },
+        { id: 'perfectionist',name:'Perfeccionista',     desc: 'Consigue rango S en cualquier juego', check: s => s.hasRankS,                              icon: '💯' },
+        { id: 'nocturno',    name: 'Nocturno',           desc: 'Juega después de medianoche',  check: s => s.playedLate,                                    icon: '🌙' },
+        { id: 'streakmaster',name:'Maestro de Rachas',   desc: 'Racha de 50 días',             check: s => (s.streak?.best||s.best||0) >= 50,               icon: '🌋' },
+        { id: 'architect',   name: 'El Architecto',      desc: 'Completa todos los logros anteriores', check: s => (s.unlockedAchs?.length||0) >= 28,       icon: '🏛️' },
     ],
 
     BATTLE_PASS: [
@@ -265,6 +312,20 @@ export const CONFIG = {
         { lvl: 40, type: 'CREDITS',     val: 5000,             name: 'Reserva Federal',      icon: 'fa-coins',                    rarity: 'legendary', desc: '+5000 CR' },
         { lvl: 45, type: 'PARTICLE',    val: 'p_pizza',        name: 'FX: Pizza Time',       icon: 'fa-pizza-slice',              rarity: 'epic',      desc: 'Secreto desclasificado' },
         { lvl: 50, type: 'CREDITS',     val: 10000,            name: 'JACKPOT FINAL',        icon: 'fa-trophy',                   rarity: 'legendary', desc: 'El final del camino' }
+    ],
+
+    TITLES: [
+        { id: 'rookie',      name: 'El Rookie',           unlock: 'firstblood',   desc: 'Tu primera partida' },
+        { id: 'speedster',   name: 'El Rayo',             unlock: 'sniper',       desc: 'Reflejos sobrehumanos' },
+        { id: 'nightowl',    name: 'El Nocturno',         unlock: 'nocturno',     desc: 'Las madrugadas son tuyas' },
+        { id: 'wealthy',     name: 'El Magnate',          unlock: 'millionaire',  desc: 'Créditos sin límite' },
+        { id: 'veteran',     name: 'El Veterano',         unlock: 'pro',          desc: '50 partidas en el sistema' },
+        { id: 'streak',      name: 'El Constante',        unlock: 'weekly_s',     desc: '7 días sin fallar' },
+        { id: 'fashionable', name: 'El Fashionista',      unlock: 'fashionista',  desc: 'Estilo por encima de todo' },
+        { id: 'perfectionist',name:'El Perfeccionista',   unlock: 'perfectionist',desc: 'Nada menos que rango S' },
+        { id: 'ghost',       name: 'El Fantasma',         unlock: 'dedicated',    desc: 'Siempre presente, nunca visto' },
+        { id: 'transcend',   name: 'El Trascendente',     unlock: 'transcend',    desc: 'Nivel 50. El pico del sistema' },
+        { id: 'architect',   name: 'El Architecto',       unlock: 'architect',    desc: 'Lo ha conseguido todo' },
     ],
 
     RANKS: [

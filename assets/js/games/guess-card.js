@@ -144,6 +144,46 @@ export class GuessCardGame {
     }
 
     init() {
+        this.showModeSelect();
+    }
+
+    showModeSelect() {
+        const modes = [
+            { id:'oc-classic', mc:'#a855f7', icon:'fa-eye',          name:'CLÁSICO',  desc:'Predice color y palo · mazo completo' },
+            { id:'oc-blitz',   mc:'#ef4444', icon:'fa-bolt',         name:'BLITZ',    desc:'Solo color · 3 segundos por carta'     },
+            { id:'oc-expert',  mc:'#fbbf24', icon:'fa-star',         name:'EXPERTO',  desc:'Adivina el palo exacto · x3 puntos'    },
+        ];
+        this.uiContainer.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:28px;width:100%;">
+            <div style="text-align:center;">
+                <div style="font-family:var(--font-display);font-size:1.6rem;color:white;letter-spacing:4px;margin-bottom:4px;">THE ORACLE</div>
+                <div style="font-size:0.65rem;color:#a855f7;letter-spacing:3px;font-family:monospace;">ADIVINACIÓN CUÁNTICA</div>
+                <div style="width:120px;height:1px;background:#a855f7;margin:10px auto 0;opacity:0.5;"></div>
+            </div>
+            <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
+                ${modes.map(m=>`
+                <div style="width:160px;min-height:155px;background:rgba(10,16,30,0.9);border:1px solid ${m.mc}25;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:all 0.15s;padding:18px 12px;position:relative;overflow:hidden;"
+                     id="${m.id}"
+                     onmouseenter="this.style.transform='translateY(-4px)';this.style.borderColor='${m.mc}';this.style.boxShadow='0 8px 24px rgba(0,0,0,0.4)';"
+                     onmouseleave="this.style.transform='';this.style.borderColor='${m.mc}25';this.style.boxShadow='';">
+                    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${m.mc};opacity:0.6;"></div>
+                    <i class="fa-solid ${m.icon}" style="font-size:1.8rem;color:${m.mc};filter:drop-shadow(0 0 8px ${m.mc});"></i>
+                    <div style="font-family:var(--font-display);font-size:0.76rem;letter-spacing:2px;color:${m.mc};">${m.name}</div>
+                    <div style="font-size:0.6rem;color:#475569;font-family:monospace;text-align:center;line-height:1.5;">${m.desc}</div>
+                </div>`).join('')}
+            </div>
+            <button class="btn btn-secondary" id="oc-back" style="width:180px;">
+                <i class="fa-solid fa-arrow-left"></i> VOLVER AL LOBBY
+            </button>
+        </div>`;
+        document.getElementById('oc-classic').onclick = () => this.startWithMode('CLASSIC');
+        document.getElementById('oc-blitz').onclick   = () => this.startWithMode('BLITZ');
+        document.getElementById('oc-expert').onclick  = () => this.startWithMode('EXPERT');
+        document.getElementById('oc-back').onclick    = () => { if(this.onQuit) this.onQuit(0); };
+    }
+
+    startWithMode(mode) {
+        this.mode = mode;
         try{ this.canvas.setMood('MYSTERY'); }catch(e){}
         this.score=0; this.round=0; this.winStreak=0; this.totalWins=0; this.totalLosses=0;
         this.roundHistory=[];

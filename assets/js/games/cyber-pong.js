@@ -19,18 +19,62 @@ export class CyberPongGame {
         this.lives = 3; 
         this.isPlaying = false;
         this.difficulty = 1;
+        this.mode = "NORMAL";
+        this.uiContainer = document.getElementById("game-ui-overlay");
 
         // Control de Teclado
         this.keys = { up: false, down: false };
     }
 
     init() {
+        this.showModeSelect();
+    }
+
+    showModeSelect() {
+        if(!this.uiContainer) this.uiContainer = document.getElementById('game-ui-overlay');
+        const modes = [
+            { id:'pong-normal', mc:'#3b82f6', icon:'fa-table-tennis-paddle-ball', name:'NORMAL',   desc:'Dificultad progresiva'        },
+            { id:'pong-fast',   mc:'#ef4444', icon:'fa-forward-fast',             name:'TURBO',    desc:'Bola x2 velocidad · 5 vidas'  },
+            { id:'pong-chaos',  mc:'#a855f7', icon:'fa-tornado',                  name:'CAOS',     desc:'Bola acelera tras cada golpe'  },
+        ];
+        this.uiContainer.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:28px;width:100%;background:rgba(0,0,10,0.5);">
+            <div style="text-align:center;">
+                <div style="font-family:var(--font-display);font-size:1.6rem;color:white;letter-spacing:4px;margin-bottom:4px;">CYBER PONG</div>
+                <div style="font-size:0.65rem;color:#3b82f6;letter-spacing:3px;font-family:monospace;">PROTOCOLO DE COLISIÓN</div>
+                <div style="width:120px;height:1px;background:#3b82f6;margin:10px auto 0;opacity:0.5;"></div>
+            </div>
+            <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
+                ${modes.map(m=>`
+                <div style="width:160px;min-height:155px;background:rgba(10,16,30,0.9);border:1px solid ${m.mc}25;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:all 0.15s;padding:18px 12px;position:relative;overflow:hidden;"
+                     id="${m.id}"
+                     onmouseenter="this.style.transform='translateY(-4px)';this.style.borderColor='${m.mc}';this.style.boxShadow='0 8px 24px rgba(0,0,0,0.4)';"
+                     onmouseleave="this.style.transform='';this.style.borderColor='${m.mc}25';this.style.boxShadow='';">
+                    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${m.mc};opacity:0.6;"></div>
+                    <i class="fa-solid ${m.icon}" style="font-size:1.8rem;color:${m.mc};filter:drop-shadow(0 0 8px ${m.mc});"></i>
+                    <div style="font-family:var(--font-display);font-size:0.76rem;letter-spacing:2px;color:${m.mc};">${m.name}</div>
+                    <div style="font-size:0.6rem;color:#475569;font-family:monospace;text-align:center;line-height:1.5;">${m.desc}</div>
+                </div>`).join('')}
+            </div>
+            <button class="btn btn-secondary" id="pong-back" style="width:180px;">
+                <i class="fa-solid fa-arrow-left"></i> VOLVER AL LOBBY
+            </button>
+        </div>`;
+        document.getElementById('pong-normal').onclick = () => this.startWithMode('NORMAL');
+        document.getElementById('pong-fast').onclick   = () => this.startWithMode('TURBO');
+        document.getElementById('pong-chaos').onclick  = () => this.startWithMode('CHAOS');
+        document.getElementById('pong-back').onclick   = () => { if(this.onGameOver) this.onGameOver(0); };
+    }
+
+    startWithMode(mode) {
+        this.mode = mode;
+        if(this.uiContainer) this.uiContainer.innerHTML = '';
         this.playerY = this.canvas.height / 2 - this.paddleHeight / 2;
         this.aiY = this.canvas.height / 2 - this.paddleHeight / 2;
         this.resetBall();
-        this.lives = 3;
+        this.lives = mode === 'TURBO' ? 5 : 3;
         this.score = 0;
-        this.difficulty = 1;
+        this.difficulty = mode === 'TURBO' ? 2 : 1;
         this.isPlaying = true;
 
         // Pausar el fondo animado para que Pong controle el canvas
@@ -73,7 +117,8 @@ export class CyberPongGame {
     resetBall() {
         this.ball.x = this.canvas.width / 2;
         this.ball.y = this.canvas.height / 2;
-        this.ball.speed = 6 + (this.score * 0.5); 
+        const baseSpeed = this.mode === 'TURBO' ? 10 : this.mode === 'CHAOS' ? 5 : 6;
+        this.ball.speed = baseSpeed + (this.score * 0.5);
         this.ball.dx = (Math.random() > 0.5 ? 1 : -1) * this.ball.speed;
         this.ball.dy = (Math.random() * 2 - 1) * this.ball.speed;
     }
@@ -110,7 +155,7 @@ export class CyberPongGame {
         // Colisión Jugador
         if(this.ball.x < 20 + this.paddleWidth) {
             if(this.ball.y > this.playerY && this.ball.y < this.playerY + this.paddleHeight) {
-                this.ball.dx *= -1.1; 
+                this.ball.dx *= this.mode==="CHAOS" ? -1.22 : -1.1;
                 this.ball.x = 20 + this.paddleWidth; 
                 this.audio.playTone(400, 'square', 0.1);
                 if(window.app && window.app.canvas) window.app.canvas.explode(this.ball.x, this.ball.y, '#00ff00');
@@ -129,7 +174,7 @@ export class CyberPongGame {
         // Colisión IA
         if(this.ball.x > this.canvas.width - 20 - this.paddleWidth) {
             if(this.ball.y > this.aiY && this.ball.y < this.aiY + this.paddleHeight) {
-                this.ball.dx *= -1.1;
+                this.ball.dx *= this.mode==="CHAOS" ? -1.22 : -1.1;
                 this.ball.x = this.canvas.width - 20 - this.paddleWidth;
                 this.audio.playTone(300, 'square', 0.1);
             } else if (this.ball.x > this.canvas.width) {

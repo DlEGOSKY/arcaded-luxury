@@ -25,6 +25,8 @@ import { OrbitTrackerGame } from './games/orbit-tracker.js';
 import { CyberTyperGame } from './games/cyber-typer.js';
 // --- NUEVO JUEGO IMPORTADO ---
 import { CyberPongGame } from './games/cyber-pong.js';
+import { SnakePlusGame }  from './games/snake-plus.js';
+import { CipherDecodeGame } from './games/cipher-decode.js';
 
 const app = {
     state: CONFIG.STATES.WELCOME,
@@ -36,7 +38,9 @@ const app = {
     activeGameId: null,
     stats: { gamesPlayed: 0, xp: 0, level: 1, avatar: 'fa-user-astronaut', passClaimed: [], unlockedGames: [] }, 
     highScores: {},
-    daily: { date: '', tasks: [], claimed: false },
+    daily:  { date: '', tasks: [], claimed: false },
+    weekly: { week: '', tasks: [], claimed: false },
+    streak: { days: 0, lastDate: '', best: 0 },
     settings: { 
         audio: { master: 0.5, sfx: 1.0, music: 0.5 },
         performance: true 
@@ -60,7 +64,9 @@ const app = {
             'math-rush': MathRushGame, 'color-trap': ColorTrapGame, 'holo-match': HoloMatchGame,
             'void-dodger': VoidDodgerGame, 'glitch-hunt': GlitchHuntGame, 'orbit-tracker': OrbitTrackerGame,
             'cyber-typer': CyberTyperGame,
-            'cyber-pong': CyberPongGame 
+            'cyber-pong':    CyberPongGame,
+            'snake-plus':    SnakePlusGame,
+            'cipher-decode': CipherDecodeGame
         };
 
         let save = localStorage.getItem('arcade_save');
@@ -83,7 +89,9 @@ const app = {
                     this.shop.load(d.shop); 
                     this.applyTheme(this.shop.equipped.theme); 
                 }
-                if(d.daily) this.daily = d.daily;
+                if(d.daily)  this.daily  = d.daily;
+                if(d.weekly) this.weekly = d.weekly;
+                if(d.streak) this.streak = d.streak;
                 if(d.settings) {
                     if(d.settings.audio) this.audio.vol = d.settings.audio;
                     if(d.settings.performance !== undefined) this.settings.performance = d.settings.performance;
@@ -96,6 +104,8 @@ const app = {
         // ---------------------------
 
         this.checkDailyReset();
+        this.checkWeeklyReset();
+        this.checkStreakUpdate();
         this.renderMenu();
         this.updateUI();
         
@@ -127,7 +137,15 @@ const app = {
         safeBind('btn-profile', () => this.showProfile());
         safeBind('btn-shop', () => { this.audio.playClick(); this.changeState(CONFIG.STATES.SHOP); this.shop.init(); });
         safeBind('btn-shop-back', () => { this.audio.playClick(); this.changeState(CONFIG.STATES.MENU); });
-        safeBind('btn-daily', () => { this.audio.playClick(); this.renderDailyScreen(); this.changeState(CONFIG.STATES.DAILY); });
+        safeBind('btn-daily',  () => { this.audio.playClick(); this.renderDailyScreen();  this.changeState(CONFIG.STATES.DAILY);  });
+        safeBind('btn-weekly', () => { this.audio.playClick(); this.renderWeeklyScreen(); this.changeState(CONFIG.STATES.WEEKLY); });
+        safeBind('btn-random-game', () => {
+            this.audio.playClick();
+            const available = Object.keys(this.gameClasses);
+            const pick = available[Math.floor(Math.random() * available.length)];
+            this.showToast('PROTOCOLO ALEATORIO', CONFIG.GAMES_LIST.find(g=>g.id===pick)?.name || pick, 'purple');
+            setTimeout(() => this.launch(pick), 600);
+        });
         safeBind('btn-daily-back', () => { this.audio.playClick(); this.changeState(CONFIG.STATES.MENU); });
         
         // BOTÓN NEON PASS
@@ -155,19 +173,25 @@ const app = {
             const modal = document.getElementById('modal-settings');
             if(modal) {
                 modal.classList.remove('hidden');
-                // Actualizar sliders visualmente
                 const updateSlider = (id, val) => { const el = document.getElementById(id); if(el) el.value = val * 100; };
                 updateSlider('rng-master', this.audio.vol.master);
-                updateSlider('rng-sfx', this.audio.vol.sfx);
-                updateSlider('rng-music', this.audio.vol.music);
-                
+                updateSlider('rng-sfx',    this.audio.vol.sfx);
+                updateSlider('rng-music',  this.audio.vol.music);
                 const updateText = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = Math.round(val * 100) + '%'; };
                 updateText('val-master', this.audio.vol.master);
-                updateText('val-sfx', this.audio.vol.sfx);
-                updateText('val-music', this.audio.vol.music);
-
+                updateText('val-sfx',    this.audio.vol.sfx);
+                updateText('val-music',  this.audio.vol.music);
                 const perfCheck = document.getElementById('chk-performance');
                 if(perfCheck) perfCheck.checked = this.settings.performance;
+                const scanlinesCheck = document.getElementById('chk-scanlines');
+                if(scanlinesCheck) scanlinesCheck.checked = this.settings.scanlines || false;
+                const shakeCheck = document.getElementById('chk-shake');
+                if(shakeCheck) shakeCheck.checked = this.settings.shake !== false;
+                const reduceCheck = document.getElementById('chk-reduce-motion');
+                if(reduceCheck) reduceCheck.checked = this.settings.reduceMotion || false;
+                // Info del sistema
+                const sysGames = document.getElementById('sys-games'); if(sysGames) sysGames.innerText = this.stats.gamesPlayed || 0;
+                const sysLevel = document.getElementById('sys-level');  if(sysLevel) sysLevel.innerText = this.stats.level || 1;
             }
         });
 
@@ -176,6 +200,13 @@ const app = {
             const modal = document.getElementById('modal-settings');
             if(modal) modal.classList.add('hidden');
             this.save();
+        });
+
+        safeBind('btn-reset-data', () => {
+            if(confirm('¿Borrar todos los datos? Esta acción no se puede deshacer.')) {
+                localStorage.removeItem('arcade_save');
+                location.reload();
+            }
         });
 
         // Sliders de Audio
@@ -188,21 +219,32 @@ const app = {
                     if(label) label.innerText = val + '%';
                     this.audio.setVolume(type, val);
                 };
-                el.onchange = () => this.audio.playHover(); 
+                el.onchange = () => this.audio.playHover();
             }
         };
         bindSlider('rng-master', 'master', 'val-master');
-        bindSlider('rng-sfx', 'sfx', 'val-sfx');
-        bindSlider('rng-music', 'music', 'val-music');
+        bindSlider('rng-sfx',   'sfx',    'val-sfx');
+        bindSlider('rng-music', 'music',  'val-music');
 
         // Checkbox Performance
         const perfCheck = document.getElementById('chk-performance');
-        if(perfCheck) {
-            perfCheck.onchange = (e) => {
-                this.settings.performance = e.target.checked;
-                this.audio.playClick();
-            };
-        }
+        if(perfCheck) perfCheck.onchange = (e) => { this.settings.performance = e.target.checked; this.audio.playClick(); };
+
+        // Nuevos toggles
+        const scanlinesCheck = document.getElementById('chk-scanlines');
+        if(scanlinesCheck) scanlinesCheck.onchange = (e) => {
+            this.settings.scanlines = e.target.checked;
+            document.querySelector('.scanlines')?.style.setProperty('display', e.target.checked ? 'block' : 'none');
+            this.audio.playClick();
+        };
+        const shakeCheck = document.getElementById('chk-shake');
+        if(shakeCheck) shakeCheck.onchange = (e) => { this.settings.shake = e.target.checked; this.audio.playClick(); };
+        const reduceCheck = document.getElementById('chk-reduce-motion');
+        if(reduceCheck) reduceCheck.onchange = (e) => {
+            this.settings.reduceMotion = e.target.checked;
+            document.body.classList.toggle('reduce-motion', e.target.checked);
+            this.audio.playClick();
+        };
 
         // LOOT BOX
         safeBind('btn-buy-lootbox', () => this.buyLootBox());
@@ -324,7 +366,8 @@ const app = {
         if(newState === CONFIG.STATES.MENU) nextScreenId = 'screen-menu';
         if(newState === CONFIG.STATES.GAME) nextScreenId = 'screen-game';
         if(newState === CONFIG.STATES.SHOP) nextScreenId = 'screen-shop';
-        if(newState === CONFIG.STATES.DAILY) nextScreenId = 'screen-daily';
+        if(newState === CONFIG.STATES.DAILY)  nextScreenId = 'screen-daily';
+        if(newState === CONFIG.STATES.WEEKLY) nextScreenId = 'screen-weekly';
         if(newState === 'pass') nextScreenId = 'screen-pass';
 
         const nextScreen = document.getElementById(nextScreenId);
@@ -361,40 +404,38 @@ const app = {
     renderPassScreen() {
         if (!this.stats.passClaimed) this.stats.passClaimed = [];
 
-        // --- CABECERA: nivel y XP ---
         const lvl = this.stats.level || 1;
         const xp  = this.stats.xp    || 0;
         const req = this.getReqXP(lvl);
         const pct = Math.min(100, (xp / req) * 100);
 
-        const lvlEl   = document.getElementById('np-level');
-        const fillEl  = document.getElementById('np-xp-fill');
-        const glowEl  = document.getElementById('np-xp-glow');
-        const textEl  = document.getElementById('np-xp-text');
-        if(lvlEl)  lvlEl.innerText   = lvl;
+        // Actualizar cabecera XP
+        const lvlEl  = document.getElementById('np-level');
+        const fillEl = document.getElementById('np-xp-fill');
+        const glowEl = document.getElementById('np-xp-glow');
+        const textEl = document.getElementById('np-xp-text');
+        if(lvlEl)  lvlEl.innerText    = lvl;
         if(fillEl) fillEl.style.width = `${pct}%`;
         if(glowEl) glowEl.style.width = `${pct}%`;
-        if(textEl) textEl.innerText  = `${Math.floor(xp)} / ${req} XP`;
+        if(textEl) textEl.innerText   = `${Math.floor(xp)} / ${req} XP`;
 
-        // --- BADGE de reclamables ---
-        const claimable = CONFIG.BATTLE_PASS.filter(n =>
-            lvl >= n.lvl && !this.stats.passClaimed.includes(n.lvl)
-        ).length;
-        const badge = document.getElementById('np-claimable-badge');
+        const claimable = CONFIG.BATTLE_PASS.filter(n => lvl >= n.lvl && !this.stats.passClaimed.includes(n.lvl)).length;
+        const badge   = document.getElementById('np-claimable-badge');
         const countEl = document.getElementById('np-claimable-count');
-        if(badge) badge.classList.toggle('visible', claimable > 0);
+        if(badge)   badge.classList.toggle('visible', claimable > 0);
         if(countEl) countEl.innerText = claimable;
 
-        // --- TRACK ---
         const container = document.getElementById('np-track');
         if (!container) return;
 
-        const rarityLabels = {
-            common: 'Común', rare: 'Raro', epic: 'Épico', legendary: 'Legendario'
-        };
-        const typeLabels = {
-            CREDITS: 'Créditos', PARTICLE: 'Efecto FX', THEME: 'Tema',
-            AVATAR: 'Avatar', HARDWARE: 'Mejora Pasiva', GAME_UNLOCK: 'Juego'
+        const typeLabels = { CREDITS:'Créditos', PARTICLE:'Efecto FX', THEME:'Tema', AVATAR:'Avatar', HARDWARE:'Mejora', GAME_UNLOCK:'Juego' };
+
+        // Colores y efectos por rareza
+        const rarityFx = {
+            common:    { glow:'rgba(100,116,139,0.25)', ring:'#64748b',  anim:'none',              stars:0 },
+            rare:      { glow:'rgba(59,130,246,0.35)',  ring:'#3b82f6',  anim:'none',              stars:1 },
+            epic:      { glow:'rgba(168,85,247,0.45)',  ring:'#a855f7',  anim:'epicPulse 2s ease-in-out infinite', stars:2 },
+            legendary: { glow:'rgba(245,158,11,0.6)',   ring:'#f59e0b',  anim:'legendaryFlame 1.5s ease-in-out infinite', stars:3 },
         };
 
         let html = '';
@@ -402,59 +443,68 @@ const app = {
             const isUnlocked = lvl >= node.lvl;
             const isClaimed  = this.stats.passClaimed.includes(node.lvl);
             const rarity     = node.rarity || 'common';
+            const fx         = rarityFx[rarity] || rarityFx.common;
 
-            // Conector
             if (idx > 0) {
                 const prevUnlocked = lvl >= CONFIG.BATTLE_PASS[idx-1].lvl;
-                html += `<div class="np-connector ${prevUnlocked ? 'active' : ''}"></div>`;
+                html += `<div class="np-connector ${prevUnlocked?'active':''}"></div>`;
             }
 
-            // Acción
+            // Estrellas de rareza
+            const starsHTML = fx.stars > 0
+                ? `<div class="np-stars">${'<i class="fa-solid fa-star np-star"></i>'.repeat(fx.stars)}</div>`
+                : '';
+
+            // Partículas orbitales para legendary
+            const orbitsHTML = rarity === 'legendary' && isUnlocked && !isClaimed
+                ? `<div class="np-orbit-ring"></div><div class="np-orbit-dot"></div>`
+                : '';
+
             let action = '';
             if (isUnlocked && !isClaimed) {
-                action = `<button class="np-btn-claim" onclick="event.stopPropagation(); window.app.claimPassReward(${node.lvl})">
+                action = `<button class="np-btn-claim rarity-${rarity}" onclick="event.stopPropagation(); window.app.claimPassReward(${node.lvl})">
                     <i class="fa-solid fa-gift"></i> RECLAMAR
                 </button>`;
             } else if (!isUnlocked) {
-                action = `<div class="np-type-badge" style="margin-top:4px;">
-                    <i class="fa-solid fa-lock" style="font-size:0.6rem;"></i> NVL ${node.lvl}
-                </div>`;
+                action = `<div class="np-lock-badge"><i class="fa-solid fa-lock"></i> ${node.lvl}</div>`;
+            } else {
+                action = `<div class="np-claimed-check"><i class="fa-solid fa-check"></i></div>`;
             }
 
-            const delayMs = idx * 35;
+            const iconClass = node.icon.includes(' ') ? node.icon : 'fa-solid ' + node.icon;
+            const cardStyle = isUnlocked && !isClaimed
+                ? `--rarity-glow:${fx.glow}; --rarity-ring:${fx.ring}; animation:${fx.anim};`
+                : `--rarity-glow:${fx.glow}; --rarity-ring:${fx.ring};`;
+
             html += `
-                <div class="np-node">
-                    <div class="np-card rarity-${rarity} ${isUnlocked ? 'unlocked' : ''} ${isClaimed ? 'claimed' : ''}"
-                         style="animation-delay:${delayMs}ms"
-                         data-lvl="${node.lvl}"
-                         data-rarity="${rarity}"
-                         data-name="${node.name}"
-                         data-type="${typeLabels[node.type] || node.type}"
-                         data-desc="${node.desc || ''}"
-                         onmouseenter="window.app.showPassTooltip(event, this)"
-                         onmouseleave="window.app.hidePassTooltip()">
-                        <div class="np-level-badge">LVL ${node.lvl}</div>
-                        <div class="np-rarity-dot"></div>
-                        <div class="np-reward-icon">
-                            <i class="${node.icon.includes(' ') ? node.icon : 'fa-solid ' + node.icon}"></i>
-                        </div>
-                        <div class="np-reward-name">${node.name}</div>
-                        <div class="np-type-badge">${typeLabels[node.type] || node.type}</div>
-                        ${action}
+            <div class="np-node">
+                <div class="np-card rarity-${rarity} ${isUnlocked?'unlocked':''} ${isClaimed?'claimed':''}"
+                     style="${cardStyle} animation-delay:${idx*40}ms;"
+                     data-lvl="${node.lvl}" data-rarity="${rarity}"
+                     data-name="${node.name}" data-type="${typeLabels[node.type]||node.type}"
+                     data-desc="${node.desc||''}"
+                     onmouseenter="window.app.showPassTooltip(event,this)"
+                     onmouseleave="window.app.hidePassTooltip()">
+                    <div class="np-level-badge">LVL ${node.lvl}</div>
+                    ${orbitsHTML}
+                    ${starsHTML}
+                    <div class="np-reward-icon ${rarity==='legendary'&&isUnlocked&&!isClaimed?'np-icon-glow':''}">
+                        <i class="${iconClass}"></i>
                     </div>
-                </div>`;
+                    <div class="np-reward-name">${node.name}</div>
+                    <div class="np-type-badge">${typeLabels[node.type]||node.type}</div>
+                    ${action}
+                </div>
+            </div>`;
         });
 
         container.innerHTML = html;
 
-        // Auto-scroll al primer reclamable, o al primer bloqueado
         setTimeout(() => {
             const firstClaim = container.querySelector('.unlocked:not(.claimed) .np-btn-claim');
             const target = firstClaim ? firstClaim.closest('.np-node') : container.querySelector('.np-card:not(.unlocked)');
-            if(target) {
-                target.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-            }
-        }, 200);
+            if(target) target.scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' });
+        }, 250);
     },
 
     // Tooltip del pass
@@ -530,63 +580,162 @@ const app = {
 
     // --- FUNCIÓN DE INFORMACIÓN (MODAL TÁCTICO) ---
     showGameInfo(gameId) {
-        // Detener propagación para no lanzar el juego al dar click en Info
         if(window.event) window.event.stopPropagation();
-
         this.audio.playClick();
+
         const info = CONFIG.GAME_INFO[gameId];
         const meta = CONFIG.GAMES_LIST.find(g => g.id === gameId);
-        
         if(!info || !meta) return;
 
-        const modal = document.getElementById('modal-info');
+        const color     = CONFIG.COLORS[meta.color] || '#3b82f6';
+        const score     = this.getBest(gameId);
+        const rank      = this.calculateRank(gameId, score);
+        const rankColors = { S:'#fbbf24', A:'#10b981', B:'#3b82f6', F:'#475569' };
+        const rankColor  = rankColors[rank] || '#475569';
+        const diffIcons  = { Timing:'fa-stopwatch', Reflejos:'fa-bolt', Memoria:'fa-brain', Precisión:'fa-crosshairs', Mental:'fa-brain', Cognitivo:'fa-puzzle-piece', Conocimiento:'fa-graduation-cap', Estándar:'fa-gamepad' };
+        const diffIcon   = `fa-solid ${diffIcons[info.diff] || 'fa-gamepad'}`;
+
+        const modal   = document.getElementById('modal-info');
         const content = document.getElementById('info-content');
-        const color = CONFIG.COLORS[meta.color] || '#fff';
 
         content.innerHTML = `
-            <div class="info-header-tactical" style="border-bottom: 2px solid ${color};">
-                <div class="iht-icon" style="color:${color}; text-shadow: 0 0 15px ${color};">
+        <div class="gi-root">
+            <!-- Fondo con color del juego -->
+            <div class="gi-bg" style="--gc:${color};"></div>
+
+            <!-- Header del juego -->
+            <div class="gi-header">
+                <div class="gi-icon-ring" style="--gc:${color};">
                     <i class="${meta.icon}"></i>
                 </div>
-                <div>
-                    <h2 style="color:white; margin:0; font-size:1.5rem; text-transform:uppercase;">${meta.name}</h2>
-                    <small style="color:${color}; letter-spacing:2px;">PROTOCOLO DE MISIÓN</small>
+                <div class="gi-title-block">
+                    <div class="gi-game-name">${meta.name.toUpperCase()}</div>
+                    <div class="gi-game-sub" style="color:${color};">${meta.desc}</div>
+                </div>
+                <div class="gi-rank-display" style="--rc:${rankColor};">
+                    <div class="gi-rank-letter">${rank}</div>
+                    <div class="gi-rank-label">RÉCORD</div>
+                    <div class="gi-rank-score">${score > 0 ? score : '—'}</div>
                 </div>
             </div>
-            
-            <div class="info-body-tactical">
-                <div class="ibt-row">
-                    <div class="ibt-label"><i class="fa-solid fa-crosshairs"></i> OBJETIVO</div>
-                    <div class="ibt-val">${info.desc}</div>
-                </div>
-                
-                <div class="ibt-row">
-                    <div class="ibt-label"><i class="fa-solid fa-microchip"></i> MECÁNICA</div>
-                    <div class="ibt-val">${info.mech}</div>
-                </div>
 
-                <div class="ibt-row highlight" style="border-color:${color}40; background:${color}10;">
-                    <div class="ibt-label" style="color:${color}"><i class="fa-solid fa-star"></i> CONDICIÓN DE VICTORIA</div>
-                    <div class="ibt-val" style="color:white;">${info.obj}</div>
-                </div>
+            <!-- Divisor -->
+            <div class="gi-divider" style="background:linear-gradient(90deg,${color}40,${color}10,transparent);"></div>
 
-                <div class="ibt-stats">
-                    <span><i class="fa-solid fa-layer-group"></i> TIPO: <strong>${info.diff || 'Estándar'}</strong></span>
-                    <span><i class="fa-solid fa-bolt"></i> XP: <strong>Alto</strong></span>
+            <!-- Info cards -->
+            <div class="gi-cards">
+                <div class="gi-card">
+                    <div class="gi-card-lbl"><i class="fa-solid fa-crosshairs"></i> OBJETIVO</div>
+                    <div class="gi-card-val">${info.desc}</div>
+                </div>
+                <div class="gi-card">
+                    <div class="gi-card-lbl"><i class="fa-solid fa-microchip"></i> MECÁNICA</div>
+                    <div class="gi-card-val">${info.mech}</div>
+                </div>
+                <div class="gi-card gi-card-highlight" style="border-color:${color}30; background:${color}08;">
+                    <div class="gi-card-lbl" style="color:${color};"><i class="fa-solid fa-trophy"></i> CONDICIÓN DE VICTORIA</div>
+                    <div class="gi-card-val" style="color:white; font-weight:600;">${info.obj}</div>
                 </div>
             </div>
-        `;
+
+            <!-- Stat pills -->
+            <div class="gi-pills">
+                <div class="gi-pill">
+                    <i class="${diffIcon}" style="color:${color};"></i>
+                    <span>${info.diff || 'Estándar'}</span>
+                </div>
+                <div class="gi-pill">
+                    <i class="fa-solid fa-bolt" style="color:#fbbf24;"></i>
+                    <span>XP ALTO</span>
+                </div>
+                <div class="gi-pill">
+                    <i class="fa-solid fa-gamepad" style="color:#a855f7;"></i>
+                    <span>${Object.keys(this.highScores).includes(gameId) ? 'JUGADO' : 'SIN JUGAR'}</span>
+                </div>
+            </div>
+
+            <!-- Botón -->
+            <button class="gi-play-btn" style="--gc:${color};"
+                    onclick="document.getElementById('modal-info').classList.add('hidden'); window.app.launch('${gameId}');">
+                <i class="fa-solid fa-play"></i>
+                JUGAR AHORA
+            </button>
+        </div>`;
 
         modal.classList.remove('hidden');
     },
 
     // --- RENDER MENU ---
+    activeFilter: 'ALL',
+
+    setLobbyFilter(cat, btn) {
+        this.activeFilter = cat;
+        document.querySelectorAll('.lf-btn').forEach(b => b.classList.remove('active'));
+        if(btn) btn.classList.add('active');
+        this.audio.playClick();
+        this.renderMenu();
+    },
+
+    renderRecommendation() {
+        const el = document.getElementById('lobby-recommend');
+        if(!el) return;
+
+        const scored = CONFIG.GAMES_LIST.filter(g => {
+            const locked = g.unlockReq && !(this.stats.unlockedGames||[]).includes(g.id);
+            return !locked;
+        }).map(g => ({
+            g,
+            best:  this.getBest(g.id),
+            rank:  this.calculateRank(g.id, this.getBest(g.id)),
+            color: CONFIG.COLORS[g.color] || '#3b82f6'
+        }));
+
+        // Prioridad: juegos sin récord (rank F con score 0), luego juegos con rank bajo
+        const noRecord = scored.filter(x => x.best === 0);
+        const lowRank  = scored.filter(x => x.rank === 'F' && x.best > 0);
+        const pick     = noRecord.length > 0
+            ? noRecord[Math.floor(Math.random() * Math.min(noRecord.length, 5))]
+            : lowRank.length > 0
+                ? lowRank[Math.floor(Math.random() * Math.min(lowRank.length, 5))]
+                : scored.sort((a,b) => a.best - b.best)[0];
+
+        if(!pick) { el.style.display = 'none'; return; }
+
+        const msg = pick.best === 0 ? 'Sin récord aún' : `Récord actual: ${pick.best.toLocaleString()} pts`;
+        const dailyTask = this.daily.tasks?.find(t => t.gameId === pick.g.id && !t.done);
+
+        el.style.display = 'block';
+        el.innerHTML = `
+        <div style="margin:0 0 8px;padding:10px 16px;background:rgba(10,16,30,0.7);border:1px solid ${pick.color}20;border-left:3px solid ${pick.color};border-radius:12px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all 0.15s;"
+             onmouseenter="this.style.background='rgba(10,16,30,0.95)';this.style.borderColor='${pick.color}40';"
+             onmouseleave="this.style.background='rgba(10,16,30,0.7)';this.style.borderColor='${pick.color}20';"
+             onclick="window.app.launch('${pick.g.id}')">
+            <div style="width:36px;height:36px;border-radius:10px;background:${pick.color}12;border:1px solid ${pick.color}20;display:flex;align-items:center;justify-content:center;color:${pick.color};font-size:1rem;flex-shrink:0;">
+                <i class="${pick.g.icon}"></i>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:0.58rem;color:#334155;font-family:monospace;letter-spacing:2px;margin-bottom:1px;">PROTOCOLO RECOMENDADO</div>
+                <div style="font-family:var(--font-display);font-size:0.8rem;color:white;letter-spacing:1px;">${pick.g.name}</div>
+                <div style="font-size:0.6rem;color:#475569;margin-top:1px;">${msg}${dailyTask ? ' · <span style="color:#f97316;">Misión diaria pendiente</span>' : ''}</div>
+            </div>
+            <div style="font-size:0.65rem;color:${pick.color};font-family:monospace;display:flex;align-items:center;gap:5px;flex-shrink:0;">
+                JUGAR <i class="fa-solid fa-play" style="font-size:0.55rem;"></i>
+            </div>
+        </div>`;
+    },
+
     renderMenu() {
         const container = document.getElementById('main-menu-grid');
         if(!container) return;
         if(!this.stats.unlockedGames) this.stats.unlockedGames = [];
 
-        container.innerHTML = CONFIG.GAMES_LIST.map(g => {
+        // Banner de recomendación
+        this.renderRecommendation();
+
+        container.innerHTML = CONFIG.GAMES_LIST.filter(g => {
+            if(!g.id || g.unlockLevel) return true; // siempre incluir bloqueados visualmente
+            return this.activeFilter === 'ALL' || g.cat === this.activeFilter;
+        }).map(g => {
             const color    = CONFIG.COLORS[g.color] || '#fff';
             const score    = this.getBest(g.id);
             const rank     = this.calculateRank(g.id, score);
@@ -705,15 +854,27 @@ const app = {
             
             this.gainXP(xpGain);
             if (typeof this.game.score === 'number' && this.activeGameId) {
+                // Marcar misión diaria
                 const task = this.daily.tasks.find(t => t.gameId === this.activeGameId);
                 if (task && !task.done && this.game.score >= task.target) {
                     task.done = true;
-                    this.showToast("¡MISIÓN CUMPLIDA!", "Objetivo alcanzado", "daily");
+                    this.showToast('¡MISIÓN CUMPLIDA!', 'Objetivo alcanzado', 'daily');
                     this.audio.playWin(5);
                     this.save();
                 }
+                // Marcar misión semanal
+                const wtask = this.weekly.tasks?.find(t => t.gameId === this.activeGameId);
+                if (wtask && !wtask.done && this.game.score >= wtask.target) {
+                    wtask.done = true;
+                    this.showToast('¡MISIÓN SEMANAL!', wtask.label, 'gold');
+                    const wDone = this.weekly.tasks.filter(t=>t.done).length;
+                    if(wDone === this.weekly.tasks.length) {
+                        setTimeout(()=>this.showToast('¡TODAS LAS MISIONES!','Reclama tu recompensa semanal','purple'),1000);
+                    }
+                    this.save();
+                }
             }
-            if(this.game.timerInterval) clearInterval(this.game.timerInterval);
+            this.checkAchievements(); clearInterval(this.game.timerInterval);
             if(this.game.animationId) cancelAnimationFrame(this.game.animationId);
             if(this.game.cleanup) this.game.cleanup();
         }
@@ -779,6 +940,10 @@ const app = {
         if (['higher-lower', 'guess-card', 'bio-scan', 'geo-net'].includes(gameId)) prize = 0;
         if (prize > 0 && this.shop.inventory.includes('up_credit')) prize = Math.ceil(prize * 1.10);
         if (prize > 0) { this.credits += prize; this.save(); }
+        // Tracking para logros
+        if(prize > (this.stats.bestPrize||0)) this.stats.bestPrize = prize;
+        if(rank === 'S') this.stats.hasRankS = true;
+        if(new Date().getHours() >= 0 && new Date().getHours() < 4) this.stats.playedLate = true;
 
         // XP ganado
         let xpGain = 10 + Math.min(100, Math.floor(score));
@@ -868,6 +1033,27 @@ const app = {
                         <div class="cod-xp-gain-marker" id="cod-xp-marker" style="opacity:0; background:#a855f7;"></div>
                     </div>
                 </div>
+
+                <!-- Comparador de rivales -->
+                ${(() => {
+                    const sortedRivals = [...CONFIG.RIVALS].sort((a,b) => a.xp - b.xp);
+                    const playerXP = (this.stats.level * 100) + (this.stats.xp || 0);
+                    const beaten   = sortedRivals.filter(r => playerXP >= r.xp);
+                    const next     = sortedRivals.find(r => playerXP < r.xp);
+                    const scoreBeaten = sortedRivals.filter(r => score >= (r.xp/100));
+                    if(!next && !beaten.length) return '';
+                    let html = '<div class="cod-rivals">';
+                    if(beaten.length > 0) {
+                        const top = beaten[beaten.length-1];
+                        html += `<div class="cod-rival beaten"><i class="fa-solid fa-trophy" style="color:${top.color};"></i> SUPERASTE A <span style="color:${top.color};">${top.name}</span></div>`;
+                    }
+                    if(next) {
+                        const diff = next.xp - playerXP;
+                        html += `<div class="cod-rival next"><i class="fa-solid fa-angle-up"></i> ${diff.toLocaleString()} XP para superar a <span style="color:${next.color};">${next.name}</span></div>`;
+                    }
+                    html += '</div>';
+                    return html;
+                })()}
 
                 <!-- Acciones -->
                 <div class="cod-actions">
@@ -979,9 +1165,36 @@ const app = {
         if(xpBar)    xpBar.style.width  = `${pct}%`;
         if(xpText)   xpText.innerText   = `${Math.floor(xp)} / ${req} XP`;
 
+        // Título equipado en status bar
+        const titleEl = get('status-title');
+        if(titleEl) {
+            const t = CONFIG.TITLES?.find(t => t.id === this.stats.equippedTitle);
+            titleEl.textContent = t ? t.name : '';
+            titleEl.style.display = t ? 'block' : 'none';
+        }
+
         const avatarClass = `fa-solid ${this.stats.avatar || 'fa-user-astronaut'}`;
         if(navIcon)    navIcon.className    = avatarClass;
         if(statusIcon) statusIcon.className = avatarClass;
+
+        // Streak display
+        const streakBar  = get('streak-bar');
+        const streakDays = get('streak-days');
+        if(streakBar && this.streak?.days > 1) {
+            streakBar.style.display = 'flex';
+            if(streakDays) streakDays.textContent = `${this.streak.days}d`;
+        }
+
+        // Badge semanal en nav
+        const wDone = (this.weekly?.tasks||[]).filter(t=>t.done).length;
+        const wTotal = (this.weekly?.tasks||[]).length;
+        const wBtn = get('btn-weekly');
+        if(wBtn) {
+            const existing = wBtn.querySelector('.nav-claimable-dot');
+            if(wDone===wTotal && wTotal>0 && !this.weekly?.claimed) {
+                if(!existing) { const dot=document.createElement('span'); dot.className='nav-claimable-dot'; dot.style.cssText='position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:#a855f7;'; wBtn.style.position='relative'; wBtn.appendChild(dot); }
+            } else if(existing) existing.remove();
+        }
     },
     showToast(title, msg, type = 'default') {
         const container = document.getElementById('toast-container');
@@ -1113,6 +1326,20 @@ const app = {
             </div>`
         ).join('');
 
+        // Títulos
+        if(!this.stats.unlockedAchs) this.stats.unlockedAchs = [];
+        const equippedTitle = this.stats.equippedTitle || null;
+        const titlesHTML = CONFIG.TITLES.map(t => {
+            const unlocked = this.stats.unlockedAchs.includes(t.unlock);
+            const equipped  = equippedTitle === t.id;
+            return `<div class="pv2-title-opt ${unlocked?'unlocked':''} ${equipped?'equipped':''}"
+                        onclick="${unlocked ? `window.app.setTitle('${t.id}')` : ''}"
+                        title="${unlocked ? t.desc : 'Bloquado: logro ' + t.unlock}">
+                <div class="pvt-name">${t.name}</div>
+                <div class="pvt-badge">${equipped ? 'EQUIPADO' : unlocked ? 'DISPONIBLE' : '🔒'}</div>
+            </div>`;
+        }).join('');
+
         // Logros
         const unlockedCount = CONFIG.ACHIEVEMENTS.filter(a => a.check(ctx)).length;
         const achHTML = CONFIG.ACHIEVEMENTS.map(ach => {
@@ -1150,16 +1377,22 @@ const app = {
                     </div>`;
             }).join('') || `<div style="color:#334155;font-size:0.78rem;padding:8px 0;">Sin récords todavía</div>`;
 
-        // Leaderboard
-        const me = { name: "TÚ", xp: this.stats.xp, isPlayer: true };
+        // Leaderboard — usar XP total acumulado
+        const playerTotalXP = ((this.stats.level-1) * 100) + (this.stats.xp||0);
+        const me = { name: 'TÚ', xp: playerTotalXP, isPlayer: true, color: 'var(--primary)' };
         const board = [...(CONFIG.RIVALS || []), me].sort((a,b) => b.xp - a.xp);
-        const lbHTML = board.map((r, i) =>
-            `<div class="pv2-lb-row ${r.isPlayer ? 'is-player' : ''}">
-                <div class="pv2-lb-pos">#${i+1}</div>
-                <div class="pv2-lb-name" style="${r.color ? `color:${r.color}` : ''}">${r.name}</div>
+        const playerPos = board.findIndex(r => r.isPlayer) + 1;
+        const lbHTML = board.map((r, i) => {
+            const isBeaten = !r.isPlayer && playerTotalXP >= r.xp;
+            return `<div class="pv2-lb-row ${r.isPlayer ? 'is-player' : ''}" style="${isBeaten ? 'opacity:0.5;' : ''}">
+                <div class="pv2-lb-pos" style="${r.isPlayer ? 'color:var(--primary);font-weight:bold;' : ''}">#${i+1}</div>
+                <div class="pv2-lb-name" style="color:${r.color||'#94a3b8'};">
+                    ${r.isPlayer ? '<i class="fa-solid fa-user" style="font-size:0.7rem;margin-right:4px;"></i>' : ''}${r.name}
+                    ${isBeaten ? ' <span style="font-size:0.5rem;color:#10b981;margin-left:4px;">SUPERADO</span>' : ''}
+                </div>
                 <div class="pv2-lb-xp">${r.xp.toLocaleString()} XP</div>
-            </div>`
-        ).join('');
+            </div>`;
+        }).join('');
 
         modal.innerHTML = `
             <div class="profile-v2">
@@ -1193,6 +1426,11 @@ const app = {
                 <div class="pv2-section">
                     <div class="pv2-section-title">AVATAR</div>
                     <div class="pv2-avatar-grid">${avatarsHTML}</div>
+                </div>
+
+                <div class="pv2-section">
+                    <div class="pv2-section-title">TÍTULO DE AGENTE</div>
+                    <div class="pv2-titles-grid">${titlesHTML}</div>
                 </div>
 
                 <div class="pv2-section">
@@ -1508,6 +1746,94 @@ const app = {
                     ctx.shadowBlur=0;
                 });
                 ctx.globalAlpha=1;
+            },
+
+            // PORTAL — portales azul/naranja con partículas orbitales
+            portal() {
+                ctx.fillStyle='rgba(5,8,18,0.15)'; ctx.fillRect(0,0,W,H);
+                const t = Date.now()*0.001;
+                // Portal azul
+                ctx.beginPath(); ctx.ellipse(W*0.3,H*0.5,60,90,0,0,Math.PI*2);
+                ctx.strokeStyle=`rgba(50,150,255,${0.5+Math.sin(t)*0.3})`; ctx.lineWidth=4; ctx.stroke();
+                ctx.fillStyle=`rgba(0,80,200,0.08)`; ctx.fill();
+                // Portal naranja
+                ctx.beginPath(); ctx.ellipse(W*0.7,H*0.5,60,90,0,0,Math.PI*2);
+                ctx.strokeStyle=`rgba(255,140,0,${0.5+Math.cos(t)*0.3})`; ctx.lineWidth=4; ctx.stroke();
+                ctx.fillStyle=`rgba(200,80,0,0.08)`; ctx.fill();
+                // Partículas flotando entre portales
+                P.forEach(p => {
+                    p.x+=Math.sin(t+p.vx)*1.5; p.y+=Math.cos(t*0.7+p.vy)*0.8;
+                    if(p.x<0)p.x=W; if(p.x>W)p.x=0; if(p.y<0)p.y=H; if(p.y>H)p.y=0;
+                    const side = p.x < W/2;
+                    ctx.globalAlpha=p.alpha*0.7;
+                    ctx.fillStyle=side?'#3296ff':'#ff8c00';
+                    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*0.5,0,Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha=1;
+            },
+
+            // CELESTE — montañas pixeladas y partículas estrella rosa/morado
+            celeste() {
+                ctx.fillStyle='rgba(4,6,20,0.18)'; ctx.fillRect(0,0,W,H);
+                // Estrellas de fondo estáticas
+                P.slice(0,20).forEach(p=>{
+                    ctx.globalAlpha=p.alpha*0.6;
+                    ctx.fillStyle='#fff';
+                    ctx.fillRect(p.x,p.y,1.5,1.5);
+                });
+                // Partículas tipo dash de Madeline
+                P.slice(20).forEach(p=>{
+                    p.x+=p.vx*2; p.y+=p.vy*2;
+                    if(p.x<0||p.x>W||p.y<0||p.y>H){p.x=Math.random()*W;p.y=Math.random()*H;p.vx=(Math.random()-0.5)*3;p.vy=(Math.random()-0.5)*3;}
+                    ctx.globalAlpha=p.alpha;
+                    ctx.fillStyle=p.y<H/2?'#e040fb':'#7c4dff';
+                    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*0.6,0,Math.PI*2); ctx.fill();
+                    // Trail
+                    ctx.globalAlpha=p.alpha*0.3;
+                    ctx.fillRect(p.x-p.vx*3,p.y-p.vy*3,p.size,p.size*0.5);
+                });
+                ctx.globalAlpha=1;
+            },
+
+            // HALF-LIFE — efecto resonance cascade, verde y partículas peligrosas
+            halflife() {
+                ctx.fillStyle='rgba(2,10,4,0.15)'; ctx.fillRect(0,0,W,H);
+                const t = Date.now()*0.001;
+                // Ondas de resonancia
+                for(let i=0;i<3;i++){
+                    const r=(t*80+i*120)%(Math.max(W,H)*0.8);
+                    ctx.beginPath(); ctx.arc(W/2,H/2,r,0,Math.PI*2);
+                    ctx.strokeStyle=`rgba(0,255,50,${Math.max(0,0.4-(r/400))})`;
+                    ctx.lineWidth=2; ctx.stroke();
+                }
+                // Partículas de energía
+                P.forEach(p=>{
+                    const angle=Math.atan2(p.y-H/2,p.x-W/2)+0.02;
+                    const dist=Math.hypot(p.x-W/2,p.y-H/2);
+                    p.x=W/2+Math.cos(angle)*dist; p.y=H/2+Math.sin(angle)*dist;
+                    if(dist>Math.max(W,H)/2){p.x=W/2+(Math.random()-0.5)*20;p.y=H/2+(Math.random()-0.5)*20;}
+                    ctx.globalAlpha=p.alpha*0.8;
+                    ctx.fillStyle=`hsl(${120+Math.sin(t+p.vx)*30},100%,50%)`;
+                    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*0.5,0,Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha=1;
+            },
+
+            // CYBERPUNK / NIGHT CITY — lluvia de datos cian + neón urbano
+            cyberpunk() {
+                ctx.fillStyle='rgba(2,0,10,0.18)'; ctx.fillRect(0,0,W,H);
+                const chars='01ﾊﾐﾋｱｳｦｲｸｺｷｵｴｹｸｦ';
+                ctx.font=`${12}px monospace`;
+                P.forEach(p=>{
+                    if(!p.char||Math.random()<0.02) p.char=chars[Math.floor(Math.random()*chars.length)];
+                    p.y+=p.size+1.5; if(p.y>H){p.y=-20;p.x=Math.random()*W;p.color=Math.random()<0.5?'#00ffff':'#ff00aa';}
+                    ctx.globalAlpha=p.alpha;
+                    ctx.fillStyle=p.color||'#00ffff';
+                    ctx.shadowBlur=6; ctx.shadowColor=p.color||'#00ffff';
+                    ctx.fillText(p.char,p.x,p.y);
+                    ctx.shadowBlur=0;
+                });
+                ctx.globalAlpha=1;
             }
         };
 
@@ -1527,9 +1853,86 @@ const app = {
     },
 
     setAvatar(icon) { this.stats.avatar = icon; this.audio.playClick(); this.showProfile(); this.updateUI(); this.save(); },
+    setTitle(titleId) {
+        this.stats.equippedTitle = this.stats.equippedTitle === titleId ? null : titleId;
+        this.audio.playClick();
+        this.showProfile();
+        this.updateUI();
+        this.save();
+    },
     closeProfile() { document.getElementById('modal-profile').classList.add('hidden'); },
-    save() { localStorage.setItem('arcade_save', JSON.stringify({ credits: this.credits, stats: this.stats, highScores: this.highScores, shop: { inventory: this.shop.inventory, equipped: this.shop.equipped }, daily: this.daily, settings: { audio: this.audio.vol, performance: this.settings.performance } })); },
+    save() { localStorage.setItem('arcade_save', JSON.stringify({ credits: this.credits, stats: this.stats, highScores: this.highScores, shop: { inventory: this.shop.inventory, equipped: this.shop.equipped }, daily: this.daily, weekly: this.weekly, streak: this.streak, settings: { audio: this.audio.vol, performance: this.settings.performance } })); },
     checkDailyReset() { const today = new Date().toDateString(); if (this.daily.date !== today || this.daily.tasks.length === 0) { this.daily.date = today; this.daily.claimed = false; this.daily.tasks = []; const rng = new SeededRandom(parseInt(today.replace(/\D/g,'')) || Date.now()); const gameIds = Object.keys(this.gameClasses); while(this.daily.tasks.length < 3) { const gid = gameIds[Math.floor(rng.next() * gameIds.length)]; if (!this.daily.tasks.find(t => t.gameId === gid)) this.daily.tasks.push({ gameId: gid, target: CONFIG.DAILY_TARGETS[gid] || 10, done: false }); } this.save(); } },
+
+    checkWeeklyReset() {
+        const now    = new Date();
+        const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay()+6)%7)); monday.setHours(0,0,0,0);
+        const weekKey = monday.toDateString();
+        if(this.weekly.week !== weekKey || this.weekly.tasks.length === 0) {
+            this.weekly = { week: weekKey, tasks: [], claimed: false };
+            // 4 misiones semanales con targets más altos y variedad
+            const WEEKLY_MISSIONS = [
+                { gameId:'higher-lower', target:25,  label:'Alcanza 25 aciertos en High/Low',    reward:800  },
+                { gameId:'geo-net',      target:50,  label:'Consigue 50 puntos en Geo-Net',       reward:1000 },
+                { gameId:'spam-click',   target:100, label:'Llega a 100 clics en Spam Click',     reward:600  },
+                { gameId:'neon-sniper',  target:15,  label:'Noquea 15 objetivos en Neon Sniper',  reward:700  },
+                { gameId:'color-trap',   target:20,  label:'Supera racha 20 en Color Trap',       reward:900  },
+                { gameId:'cyber-typer',  target:300, label:'Escribe 300 pts en Cyber Typer',      reward:850  },
+                { gameId:'glitch-hunt',  target:10,  label:'Atrapa 10 glitches',                  reward:750  },
+                { gameId:'math-rush',    target:80,  label:'Consigue 80 pts en Math Rush',        reward:700  },
+            ];
+            const rng = new SeededRandom(parseInt(weekKey.replace(/\D/g,'')) || Date.now());
+            const shuffled = [...WEEKLY_MISSIONS].sort(()=>rng.next()-0.5);
+            this.weekly.tasks = shuffled.slice(0,4).map(m => ({...m, done:false}));
+            this.save();
+        }
+    },
+
+    checkStreakUpdate() {
+        const today    = new Date().toDateString();
+        const last     = this.streak.lastDate;
+        const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+        const yStr     = yesterday.toDateString();
+
+        if(last === today) return; // Ya actualizado hoy
+
+        if(last === yStr) {
+            // Día consecutivo
+            this.streak.days++;
+        } else if(last !== today) {
+            // Se rompió la racha (o es el primer día)
+            this.streak.days = 1;
+        }
+        this.streak.lastDate = today;
+        this.streak.best = Math.max(this.streak.best||0, this.streak.days);
+
+        // Toast de racha
+        if(this.streak.days > 1) {
+            const bonusXP = Math.min(50, this.streak.days * 5);
+            setTimeout(() => {
+                this.showToast(`🔥 RACHA: ${this.streak.days} DÍAS`, `+${bonusXP} XP bonus`, 'gold');
+                this.gainXP(bonusXP);
+            }, 1500);
+        }
+        this.save();
+    },
+
+    claimWeekly() {
+        if(this.weekly.claimed) return;
+        const done = this.weekly.tasks.filter(t=>t.done).length;
+        if(done < this.weekly.tasks.length) return;
+        this.weekly.claimed = true;
+        this.stats.weeklyCompleted = (this.stats.weeklyCompleted||0)+1;
+        const totalReward = this.weekly.tasks.reduce((s,t)=>s+t.reward, 0);
+        this.credits += totalReward;
+        this.audio.playWin(10);
+        try{ this.canvas.explode(window.innerWidth/2, window.innerHeight/2, '#fbbf24'); }catch(e){}
+        setTimeout(()=>{ try{ this.canvas.explode(window.innerWidth*0.3, window.innerHeight*0.5, '#a855f7'); }catch(e){} }, 300);
+        this.showToast('¡MISIÓN SEMANAL COMPLETADA!', `+${totalReward.toLocaleString()} CR obtenidos`, 'gold');
+        this.gainXP(200);
+        this.renderWeeklyScreen();
+        this.save();
+    },
     renderDailyScreen() {
         this.canvas.setMood('DAILY');
         const container = document.getElementById('screen-daily');
@@ -1539,82 +1942,185 @@ const app = {
         const total = this.daily.tasks.length;
         const pct   = Math.round((done / total) * 100);
         const allDone = done === total;
+        const claimed = this.daily.claimed;
 
         const tasksHTML = this.daily.tasks.map((task, idx) => {
-            const meta   = CONFIG.GAMES_LIST.find(g => g.id === task.gameId) || { name: task.gameId, icon: 'fa-solid fa-gamepad', color: 'DEFAULT' };
-            const color  = task.done ? '#10b981' : '#f97316';
+            const meta      = CONFIG.GAMES_LIST.find(g => g.id === task.gameId) || { name: task.gameId, icon: 'fa-solid fa-gamepad', color: 'DEFAULT' };
             const gameColor = CONFIG.COLORS[meta.color] || '#94a3b8';
+            const isDone    = task.done;
             return `
-                <div class="daily-card ${task.done ? 'done' : ''}"
-                     style="--dc-color:${color};"
-                     onclick="${task.done ? '' : `window.app.launchDaily('${task.gameId}')`}">
-                    <div class="d-num">${idx + 1}</div>
-                    <div class="d-game-icon" style="color:${gameColor}; background:${gameColor}12; border-color:${gameColor}20;">
-                        <i class="${meta.icon}"></i>
-                    </div>
-                    <div class="d-info">
-                        <h3>${meta.name}</h3>
-                        <small>OBJETIVO: <span>${task.target} pts</span></small>
-                    </div>
-                    <div class="d-status-icon">
-                        <i class="fa-solid ${task.done ? 'fa-circle-check' : 'fa-lock'}"></i>
-                    </div>
-                </div>`;
-        }).join('');
-
-        const claimed = this.daily.claimed;
-        const claimDisabled = (!allDone || claimed) ? 'disabled' : '';
-        const claimLabel = claimed
-            ? `<i class="fa-solid fa-check-double"></i> COMPLETADO`
-            : allDone
-                ? `<i class="fa-solid fa-gift"></i> RECLAMAR 500 CR`
-                : `<i class="fa-solid fa-lock"></i> BLOQUEADO`;
-
-        container.innerHTML = `
-            <div class="daily-panel-v2">
-                <div class="daily-title-row">
-                    <div>
-                        <h2>PROTOCOLO DIARIO</h2>
-                        <small>Sincronización Neural: ${done}/${total}</small>
-                    </div>
-                    <div class="daily-reward-badge">
-                        <div class="r-label">RECOMPENSA</div>
-                        <div class="r-val"><i class="fa-solid fa-coins"></i> 500 CR</div>
-                    </div>
+            <div class="daily-task-v3 ${isDone?'done':''}" style="--tc:${gameColor};"
+                 onclick="${isDone ? '' : `window.app.launchDaily('${task.gameId}')`}">
+                <div class="dt-icon-wrap" style="background:${gameColor}12; border-color:${gameColor}20; color:${gameColor};">
+                    <i class="${meta.icon}"></i>
                 </div>
-                <div class="daily-progress-wrap">
-                    <div class="daily-progress-track">
-                        <div class="daily-progress-fill" style="width:${pct}%"></div>
-                    </div>
-                    <div class="daily-progress-label">${done}/${total} COMPLETADAS</div>
+                <div class="dt-info">
+                    <div class="dt-name">${meta.name}</div>
+                    <div class="dt-target">OBJETIVO: ${task.target} puntos${isDone ? ' · <span style="color:#10b981">COMPLETADA</span>' : ''}</div>
                 </div>
-                <div class="daily-tasks-list">${tasksHTML}</div>
-                <div class="daily-actions">
-                    <button class="btn btn-secondary" id="btn-daily-back-panel">
-                        <i class="fa-solid fa-arrow-left"></i> VOLVER
-                    </button>
-                    <button id="btn-daily-claim-panel"
-                            class="btn ${allDone && !claimed ? 'btn-claim-daily pulse' : ''}"
-                            style="${!allDone || claimed ? 'opacity:0.4;cursor:not-allowed;' : ''}"
-                            ${claimDisabled}>
-                        ${claimLabel}
-                    </button>
-                </div>
-                <div class="daily-footer">
-                    ${claimed ? 'RECOMPENSA OBTENIDA — HASTA MAÑANA' : 'CAJA DE SUMINISTROS PENDIENTE'}
+                <div class="dt-status ${isDone?'done':'pending'}">
+                    <i class="fa-solid ${isDone ? 'fa-check' : 'fa-play'}"></i>
                 </div>
             </div>`;
+        }).join('');
 
-        document.getElementById('btn-daily-back-panel').onclick = () => {
-            this.audio.playClick();
-            this.changeState(CONFIG.STATES.MENU);
-        };
-        if(allDone && !claimed) {
-            document.getElementById('btn-daily-claim-panel').onclick = () => this.claimDaily();
+        let claimState = 'inactive', claimLabel = '', claimFn = '';
+        if(claimed) {
+            claimState = 'done';
+            claimLabel = `<i class="fa-solid fa-check-double"></i> COMPLETADO`;
+        } else if(allDone) {
+            claimState = 'active';
+            claimLabel = `<i class="fa-solid fa-gift"></i> RECLAMAR RECOMPENSA`;
+            claimFn    = 'onclick="window.app.claimDaily()"';
+        } else {
+            claimLabel = `<i class="fa-solid fa-lock"></i> COMPLETA LAS 3 MISIONES`;
         }
+
+        container.innerHTML = `
+        <div class="daily-panel-v3">
+            <div class="daily-header-v3">
+                <div>
+                    <div class="daily-title-v3"><i class="fa-solid fa-calendar-check" style="color:var(--primary);margin-right:8px;"></i>PROTOCOLO DIARIO</div>
+                    <div class="daily-subtitle-v3">SINCRONIZACIÓN NEURAL — ${done}/${total} COMPLETADAS</div>
+                </div>
+                <div class="daily-reward-v3">
+                    <div class="daily-reward-lbl">RECOMPENSA</div>
+                    <div class="daily-reward-val"><i class="fa-solid fa-coins"></i> 500 CR</div>
+                </div>
+            </div>
+            <div class="daily-progress-v3">
+                <div class="dp-track"><div class="dp-fill" style="width:${pct}%;"></div></div>
+                <div class="dp-label">${pct}% · ${claimed ? 'COMPLETADO HOY' : 'RENUEVA EN MEDIANOCHE'}</div>
+            </div>
+            <div class="daily-tasks-v3">${tasksHTML}</div>
+            <div class="daily-claim-v3">
+                <button class="btn btn-secondary" onclick="window.app.audio.playClick(); window.app.changeState('menu');" style="flex-shrink:0;">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <button class="btn-claim-daily-v3 ${claimState}" ${claimFn}>
+                    ${claimLabel}
+                </button>
+            </div>
+        </div>`;
     },
-    launchDaily(gameId) { this.launch(gameId); },
-    claimDaily() { if(this.daily.claimed) return; this.daily.claimed = true; this.addScore(0, 500); this.audio.playWin(10); this.showToast("¡RECOMPENSA RECLAMADA!", "Has ganado 500 Créditos", "gold"); this.renderDailyScreen(); this.save(); },
+    renderWeeklyScreen() {
+        this.canvas.setMood('WEEKLY');
+        const container = document.getElementById('screen-weekly');
+        if(!container) return;
+
+        const done    = this.weekly.tasks.filter(t => t.done).length;
+        const total   = this.weekly.tasks.length;
+        const pct     = total > 0 ? Math.round((done/total)*100) : 0;
+        const allDone = done === total;
+        const claimed = this.weekly.claimed;
+
+        // Calcular cuánto tiempo queda hasta el lunes
+        const now = new Date();
+        const nextMon = new Date(now); nextMon.setDate(now.getDate() + (7 - ((now.getDay()+6)%7)) % 7 || 7); nextMon.setHours(0,0,0,0);
+        const msLeft  = nextMon - now;
+        const dLeft   = Math.floor(msLeft / 86400000);
+        const hLeft   = Math.floor((msLeft % 86400000) / 3600000);
+        const timeStr = dLeft > 0 ? `${dLeft}d ${hLeft}h` : `${hLeft}h restantes`;
+
+        const totalReward = this.weekly.tasks.reduce((s,t) => s + t.reward, 0);
+
+        const tasksHTML = this.weekly.tasks.map((task, idx) => {
+            const meta      = CONFIG.GAMES_LIST.find(g => g.id === task.gameId) || { name: task.gameId, icon:'fa-solid fa-gamepad', color:'DEFAULT' };
+            const gameColor = CONFIG.COLORS[meta.color] || '#94a3b8';
+            return `
+            <div class="daily-task-v3 ${task.done?'done':''}" style="--tc:${gameColor};"
+                 onclick="${task.done ? '' : `window.app.launch('${task.gameId}')`}">
+                <div class="dt-icon-wrap" style="background:${gameColor}12;border-color:${gameColor}20;color:${gameColor};">
+                    <i class="${meta.icon}"></i>
+                </div>
+                <div class="dt-info">
+                    <div class="dt-name">${task.label}</div>
+                    <div class="dt-target">+${task.reward.toLocaleString()} CR · ${task.done ? '<span style="color:#10b981">COMPLETADA</span>' : `objetivo: ${task.target} pts`}</div>
+                </div>
+                <div class="dt-status ${task.done?'done':'pending'}">
+                    <i class="fa-solid ${task.done?'fa-check':'fa-play'}"></i>
+                </div>
+            </div>`;
+        }).join('');
+
+        let claimState = 'inactive', claimLabel = '';
+        if(claimed)       { claimState='done';   claimLabel=`<i class="fa-solid fa-check-double"></i> RECOMPENSA RECLAMADA`; }
+        else if(allDone)  { claimState='active';  claimLabel=`<i class="fa-solid fa-gift"></i> RECLAMAR ${totalReward.toLocaleString()} CR`; }
+        else              { claimLabel=`<i class="fa-solid fa-lock"></i> COMPLETA LAS ${total} MISIONES`; }
+
+        container.innerHTML = `
+        <div class="daily-panel-v3">
+            <div class="daily-header-v3">
+                <div>
+                    <div class="daily-title-v3">
+                        <i class="fa-solid fa-calendar-week" style="color:#a855f7;margin-right:8px;"></i>MISIONES SEMANALES
+                    </div>
+                    <div class="daily-subtitle-v3">RENUEVA EL LUNES · ${timeStr}</div>
+                </div>
+                <div class="daily-reward-v3" style="background:rgba(168,85,247,0.08);border-color:rgba(168,85,247,0.25);">
+                    <div class="daily-reward-lbl">RECOMPENSA TOTAL</div>
+                    <div class="daily-reward-val" style="color:#a855f7;">
+                        <i class="fa-solid fa-coins"></i> ${totalReward.toLocaleString()} CR
+                    </div>
+                </div>
+            </div>
+            <div class="daily-progress-v3">
+                <div class="dp-track">
+                    <div class="dp-fill" style="width:${pct}%;background:#a855f7;box-shadow:0 0 8px #a855f7;"></div>
+                </div>
+                <div class="dp-label">${pct}% · ${done}/${total} COMPLETADAS${claimed ? ' · RECOMPENSA OBTENIDA' : ''}</div>
+            </div>
+            <div class="daily-tasks-v3">${tasksHTML}</div>
+            <div class="daily-claim-v3">
+                <button class="btn btn-secondary" onclick="window.app.audio.playClick(); window.app.changeState('menu');" style="flex-shrink:0;">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <button class="btn-claim-daily-v3 ${claimState}" ${allDone&&!claimed?'onclick="window.app.claimWeekly()"':''}>
+                    ${claimLabel}
+                </button>
+            </div>
+        </div>`;
+    },
+    checkAchievements() {
+        if(!this.stats.unlockedAchs) this.stats.unlockedAchs = [];
+        const reflexRaw  = this.highScores['hyper-reflex'];
+        const reflexBest = reflexRaw ? (typeof reflexRaw === 'number' ? reflexRaw : reflexRaw.best) : 0;
+        const ctx = Object.assign({ credits: this.credits, bestReflex: reflexBest }, this.stats);
+
+        const newlyUnlocked = [];
+        CONFIG.ACHIEVEMENTS.forEach(ach => {
+            if(!this.stats.unlockedAchs.includes(ach.id) && ach.check(ctx)) {
+                this.stats.unlockedAchs.push(ach.id);
+                newlyUnlocked.push(ach);
+            }
+        });
+        if(!newlyUnlocked.length) return;
+        this.save();
+        newlyUnlocked.forEach((ach, i) => {
+            setTimeout(() => { this.showAchievementToast(ach); try{this.audio.playWin(8);}catch(e){} }, i * 2000);
+        });
+    },
+
+    showAchievementToast(ach) {
+        const container = document.getElementById('toast-container');
+        if(!container) return;
+        const el = document.createElement('div');
+        el.style.cssText = 'background:linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.08));border:1px solid rgba(251,191,36,0.5);border-left:3px solid #fbbf24;border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,0.5),0 0 20px rgba(251,191,36,0.15);max-width:320px;opacity:0;transform:translateX(60px) scale(0.85);transition:all 0.4s cubic-bezier(0.2,0,0,1.3);';
+        el.innerHTML = `
+            <div style="font-size:1.6rem;filter:drop-shadow(0 0 8px rgba(251,191,36,0.6));">${ach.icon}</div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:0.56rem;color:#fbbf24;font-family:monospace;letter-spacing:2px;margin-bottom:2px;">LOGRO DESBLOQUEADO</div>
+                <div style="font-family:var(--font-display);font-size:0.82rem;color:white;letter-spacing:1px;">${ach.name}</div>
+                <div style="font-size:0.62rem;color:#94a3b8;margin-top:1px;">${ach.desc}</div>
+            </div>
+            <i class="fa-solid fa-trophy" style="color:#fbbf24;opacity:0.6;font-size:1.1rem;"></i>
+        `;
+        container.appendChild(el);
+        requestAnimationFrame(() => { el.style.opacity='1'; el.style.transform='none'; });
+        setTimeout(() => { el.style.opacity='0'; el.style.transform='translateX(60px)'; setTimeout(()=>el.remove(), 400); }, 4500);
+    },
+
+    claimDaily() { if(this.daily.claimed) return; this.daily.claimed = true; this.stats.dailyCompleted = (this.stats.dailyCompleted||0)+1; this.addScore(0, 500); this.audio.playWin(10); this.showToast("¡RECOMPENSA RECLAMADA!", "Has ganado 500 Créditos", "gold"); this.renderDailyScreen(); this.save(); },
     addScore(pts, cash) { 
         this.credits += cash; 
         if(this.canvas && this.settings.performance) this.canvas.explode(null, null, CONFIG.COLORS.GOLD); 
@@ -1746,7 +2252,7 @@ const app = {
         if(parts[0] === 'clear') { document.getElementById('console-output').innerHTML = ''; }
     },
     setCritical(active) { const vign = document.querySelector('.vignette'); if(vign) { if(active) vign.classList.add('critical'); else vign.classList.remove('critical'); } },
-    applyTheme(themeId) { document.body.className = document.body.className.replace(/t_[a-z]+/g, "").trim(); if (themeId && themeId !== 't_default') document.body.classList.add(themeId); }
+    applyTheme(themeId) { document.body.className = document.body.className.replace(/t_[a-z0-9_]+/g, '').trim(); if (themeId && themeId !== 't_default') document.body.classList.add(themeId); }
 };
 
 window.onload = () => app.init();

@@ -48,11 +48,20 @@
             <div class="main-nav">
                 <div class="main-nav-brand">
                     <span class="nav-brand-text">PROTOCOLOS</span>
+                    <button id="btn-random-game" title="Partida aleatoria" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:5px 10px;cursor:pointer;color:#475569;font-size:0.7rem;font-family:monospace;letter-spacing:1px;transition:all 0.15s;display:flex;align-items:center;gap:5px;margin-left:8px;"
+                         onmouseenter="this.style.color='var(--primary)';this.style.borderColor='var(--primary)30';"
+                         onmouseleave="this.style.color='#475569';this.style.borderColor='rgba(255,255,255,0.08)';">
+                        <i class="fa-solid fa-shuffle"></i> ALEATORIO
+                    </button>
                 </div>
                 <div class="main-nav-tabs">
                     <button id="btn-daily" class="nav-tab nav-tab-daily">
                         <i class="fa-solid fa-calendar-check"></i>
                         <span>DIARIO</span>
+                    </button>
+                    <button id="btn-weekly" class="nav-tab nav-tab-weekly">
+                        <i class="fa-solid fa-calendar-week"></i>
+                        <span>SEMANAL</span>
                     </button>
                     <button id="btn-pass" class="nav-tab nav-tab-pass">
                         <i class="fa-solid fa-ticket"></i>
@@ -73,6 +82,16 @@
             </div>
 
             <!-- GRID DE JUEGOS -->
+            <div id="lobby-recommend" style="display:none;"></div>
+            <!-- FILTROS -->
+            <div class="lobby-filters" id="lobby-filters">
+                <button class="lf-btn active" data-cat="ALL"      onclick="window.app.setLobbyFilter('ALL',this)"><i class="fa-solid fa-grip"></i> TODOS</button>
+                <button class="lf-btn"        data-cat="REFLEJOS" onclick="window.app.setLobbyFilter('REFLEJOS',this)"><i class="fa-solid fa-bolt"></i> REFLEJOS</button>
+                <button class="lf-btn"        data-cat="MEMORIA"  onclick="window.app.setLobbyFilter('MEMORIA',this)"><i class="fa-solid fa-brain"></i> MEMORIA</button>
+                <button class="lf-btn"        data-cat="MENTAL"   onclick="window.app.setLobbyFilter('MENTAL',this)"><i class="fa-solid fa-calculator"></i> MENTAL</button>
+                <button class="lf-btn"        data-cat="ACCION"   onclick="window.app.setLobbyFilter('ACCION',this)"><i class="fa-solid fa-crosshairs"></i> ACCIÓN</button>
+                <button class="lf-btn"        data-cat="CONOCIMIENTO" onclick="window.app.setLobbyFilter('CONOCIMIENTO',this)"><i class="fa-solid fa-graduation-cap"></i> CONOCIMIENTO</button>
+            </div>
             <div class="lobby-grid" id="main-menu-grid"></div>
 
             <!-- BARRA DE ESTADO INFERIOR -->
@@ -84,6 +103,7 @@
                     <div class="status-player">
                         <span class="status-rank" id="player-rank">VAGABUNDO</span>
                         <span class="status-level">LVL <strong id="player-level">1</strong></span>
+                        <span id="status-title" style="display:none;font-size:0.52rem;color:#a855f7;font-family:monospace;letter-spacing:1px;margin-top:1px;"></span>
                     </div>
                 </div>
                 <div class="status-center">
@@ -95,6 +115,10 @@
                     </div>
                 </div>
                 <div class="status-right">
+                    <div class="streak-badge-bar" id="streak-bar" style="display:none;">
+                        <i class="fa-solid fa-fire streak-fire"></i>
+                        <span id="streak-days">0</span>
+                    </div>
                     <div class="status-credits">
                         <i class="fa-solid fa-coins"></i>
                         <span id="menu-credits">0</span>
@@ -129,7 +153,8 @@
 
         </section>
 
-        <section id="screen-daily" class="screen hidden"></section>
+        <section id="screen-daily"  class="screen hidden"></section>
+        <section id="screen-weekly" class="screen hidden"></section>
 
         <section id="screen-pass" class="screen hidden">
             <div class="np-shell">
@@ -225,32 +250,93 @@
         </div>
 
         <div id="modal-settings" class="modal hidden">
-            <h2 style="color:white; font-size:1.8rem; margin-bottom:20px; text-transform:uppercase; letter-spacing:2px;"><i class="fa-solid fa-sliders"></i> SISTEMA</h2>
-            <div class="settings-panel" style="width:100%; max-width:400px; text-align:left;">
-                <div class="setting-row">
-                    <label>VOLUMEN MAESTRO <span id="val-master">50%</span></label>
-                    <input type="range" id="rng-master" min="0" max="100" value="50" class="cyber-range">
+            <div style="width:100%;max-width:460px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;">
+                    <i class="fa-solid fa-sliders" style="color:var(--primary);font-size:1.2rem;"></i>
+                    <div style="font-family:var(--font-display);font-size:1.1rem;letter-spacing:3px;color:white;">SISTEMA</div>
+                    <div style="flex:1;height:1px;background:rgba(255,255,255,0.06);margin-left:8px;"></div>
                 </div>
-                <div class="setting-row">
-                    <label>EFECTOS (SFX) <span id="val-sfx">100%</span></label>
-                    <input type="range" id="rng-sfx" min="0" max="100" value="100" class="cyber-range">
+
+                <!-- Audio -->
+                <div style="margin-bottom:20px;">
+                    <div style="font-size:0.58rem;color:#334155;font-family:monospace;letter-spacing:3px;margin-bottom:10px;">AUDIO</div>
+                    <div class="setting-row">
+                        <label>VOLUMEN MAESTRO <span id="val-master">50%</span></label>
+                        <input type="range" id="rng-master" min="0" max="100" value="50" class="cyber-range">
+                    </div>
+                    <div class="setting-row">
+                        <label>EFECTOS (SFX) <span id="val-sfx">100%</span></label>
+                        <input type="range" id="rng-sfx" min="0" max="100" value="100" class="cyber-range">
+                    </div>
+                    <div class="setting-row">
+                        <label>AMBIENTE <span id="val-music">50%</span></label>
+                        <input type="range" id="rng-music" min="0" max="100" value="50" class="cyber-range">
+                    </div>
                 </div>
-                <div class="setting-row">
-                    <label>AMBIENTE <span id="val-music">50%</span></label>
-                    <input type="range" id="rng-music" min="0" max="100" value="50" class="cyber-range">
+
+                <!-- Visual -->
+                <div style="margin-bottom:20px;">
+                    <div style="font-size:0.58rem;color:#334155;font-family:monospace;letter-spacing:3px;margin-bottom:10px;">VISUAL</div>
+                    <div class="setting-row" style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <label style="margin:0;">PARTÍCULAS HQ</label>
+                            <div style="font-size:0.6rem;color:#334155;margin-top:2px;font-family:monospace;">Efectos de alta calidad</div>
+                        </div>
+                        <input type="checkbox" id="chk-performance" checked class="cyber-toggle">
+                    </div>
+                    <div class="setting-row" style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <label style="margin:0;">SCANLINES CRT</label>
+                            <div style="font-size:0.6rem;color:#334155;margin-top:2px;font-family:monospace;">Efecto de pantalla retro</div>
+                        </div>
+                        <input type="checkbox" id="chk-scanlines" class="cyber-toggle">
+                    </div>
+                    <div class="setting-row" style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <label style="margin:0;">SHAKE DE PANTALLA</label>
+                            <div style="font-size:0.6rem;color:#334155;margin-top:2px;font-family:monospace;">Vibración al perder</div>
+                        </div>
+                        <input type="checkbox" id="chk-shake" checked class="cyber-toggle">
+                    </div>
                 </div>
-                <div class="setting-row" style="display:flex; justify-content:space-between; align-items:center;">
-                    <label style="margin:0;">PARTÍCULAS (HQ)</label>
-                    <input type="checkbox" id="chk-performance" checked style="width:20px; height:20px;">
+
+                <!-- Accesibilidad -->
+                <div style="margin-bottom:20px;">
+                    <div style="font-size:0.58rem;color:#334155;font-family:monospace;letter-spacing:3px;margin-bottom:10px;">ACCESIBILIDAD</div>
+                    <div class="setting-row" style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <label style="margin:0;">REDUCIR MOVIMIENTO</label>
+                            <div style="font-size:0.6rem;color:#334155;margin-top:2px;font-family:monospace;">Menos animaciones intensas</div>
+                        </div>
+                        <input type="checkbox" id="chk-reduce-motion" class="cyber-toggle">
+                    </div>
+                </div>
+
+                <!-- Info del sistema -->
+                <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px 14px;margin-bottom:20px;">
+                    <div style="font-size:0.58rem;color:#1e293b;font-family:monospace;letter-spacing:2px;margin-bottom:6px;">DIAGNÓSTICO DEL SISTEMA</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                        <div style="font-size:0.62rem;color:#334155;font-family:monospace;">ID: <span style="color:#475569;">AGENT-007</span></div>
+                        <div style="font-size:0.62rem;color:#334155;font-family:monospace;">OS: <span style="color:#475569;">ARCADE v3.5</span></div>
+                        <div style="font-size:0.62rem;color:#334155;font-family:monospace;">PARTIDAS: <span id="sys-games" style="color:#475569;">0</span></div>
+                        <div style="font-size:0.62rem;color:#334155;font-family:monospace;">NIVEL: <span id="sys-level" style="color:var(--primary);">1</span></div>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:10px;">
+                    <button class="btn btn-secondary" id="btn-reset-data" style="flex:0;white-space:nowrap;font-size:0.68rem;color:#ef444460;border-color:#ef444420;">
+                        <i class="fa-solid fa-trash"></i> RESET
+                    </button>
+                    <button class="btn" id="btn-close-settings" style="flex:1;">
+                        <i class="fa-solid fa-floppy-disk"></i> GUARDAR
+                    </button>
                 </div>
             </div>
-            <div style="margin-top:20px; font-size:0.7rem; color:#64748b;">ID: AGENT-007 // ARCADE OS v3.5</div>
-            <button class="btn" id="btn-close-settings" style="margin-top:20px; width:100%;">GUARDAR</button>
         </div>
 
-        <div id="modal-info" class="modal hidden">
+        <div id="modal-info" class="modal hidden" onclick="if(event.target===this)this.classList.add('hidden');">
             <div id="info-content" style="text-align:left;"></div>
-            <button class="btn" id="btn-close-info" style="margin-top:20px; width:100%;">ENTENDIDO</button>
+            <button class="btn" id="btn-close-info" style="display:none;">ENTENDIDO</button>
         </div>
 
     </div>

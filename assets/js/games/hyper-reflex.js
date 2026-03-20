@@ -51,8 +51,9 @@ export class GameReflex {
         }
 
         const modes = [
-            { id:'mode-normal',   mc:'var(--reflex,#f97316)', icon:'fa-bolt',             name:'ESTÁNDAR', desc:'Promedio de 5 rondas' },
-            { id:'mode-hardcore', mc:'#ef4444',               icon:'fa-skull-crossbones',  name:'LETAL',    desc:'< 250ms o fin'       },
+            { id:'mode-normal',   mc:'var(--reflex,#f97316)', icon:'fa-bolt',             name:'ESTÁNDAR',  desc:'5 rondas · promedio final'  },
+            { id:'mode-hardcore', mc:'#ef4444',               icon:'fa-skull-crossbones', name:'LETAL',     desc:'< 250ms o game over'        },
+            { id:'mode-endless',  mc:'#a855f7',               icon:'fa-infinity',         name:'ENDLESS',   desc:'Hasta que falles · sin límite'},
         ];
 
         this.uiContainer.innerHTML = `
@@ -90,6 +91,7 @@ export class GameReflex {
 
         document.getElementById('mode-normal').onclick   = () => this.startGame('NORMAL');
         document.getElementById('mode-hardcore').onclick = () => this.startGame('HARDCORE');
+        document.getElementById('mode-endless').onclick  = () => this.startGame('ENDLESS');
         document.getElementById('reflex-back').onclick   = () => { if(this.onQuit) this.onQuit(0); };
     }
 
@@ -99,7 +101,7 @@ export class GameReflex {
         this.mode = mode;
         this.round = 0;
         this.times = [];
-        try { this.audio.playBuy(); } catch(e){}
+        this.maxRounds = mode === 'ENDLESS' ? 999 : 5;
         this.canvas.setMood('REFLEX');
         this.prepareRound();
     }
@@ -176,8 +178,8 @@ export class GameReflex {
         document.body.classList.add('shake-screen');
         setTimeout(() => document.body.classList.remove('shake-screen'), 500);
 
-        if (this.mode === 'HARDCORE') {
-            // Fin inmediato
+        if (this.mode === 'HARDCORE' || this.mode === 'ENDLESS') {
+            // Fin inmediato en estos modos
             setTimeout(() => this.finishGame(true), 1500);
         } else {
             this.times.push(1000); 
@@ -200,7 +202,8 @@ export class GameReflex {
             // Puntuación inversa: Menos tiempo = más puntos
             // Base 1000 - promedio
             score = Math.max(0, 1000 - avg);
-            if (this.mode === 'HARDCORE') score *= 2; 
+            if (this.mode === 'HARDCORE') score *= 2;
+            if (this.mode === 'ENDLESS')  score = this.round * 10 + score; // bonus por rondas completadas
 
             // Guardar récord de milisegundos para logros
             if(window.app) window.app.saveStat('bestReflex', avg);

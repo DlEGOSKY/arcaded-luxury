@@ -37,15 +37,55 @@ export class BioScanGame {
     }
 
     async init() {
-        // ... (LÓGICA DE INICIO IGUAL, SIN CAMBIOS) ...
-        if(window.app.credits < 20) {
-            this.uiContainer.innerHTML = `<div style="text-align:center;"><h2 style="color:var(--accent);">ACCESO DENEGADO</h2><p style="color:#94a3b8; margin-bottom:20px;">Créditos necesarios: $20</p><button class="btn btn-secondary" id="bio-exit">SALIR</button></div>`;
-            document.getElementById('bio-exit').onclick = () => { if(this.onGameOver) this.onGameOver(0); };
-            return;
+        if(window.app.credits < 20){
+            try{ window.app.showToast("FONDOS INSUFICIENTES","Costo: $20","danger"); }catch(e){}
+            if(this.onGameOver) this.onGameOver(0); return;
         }
-        
+        this.showModeSelect();
+    }
+
+    showModeSelect() {
+        const modes = [
+            { id:'bs-normal', mc:'#84cc16', icon:'fa-dna',      name:'ANÁLISIS',   desc:'Identifica la raza · desenfoque lento' },
+            { id:'bs-speed',  mc:'#fbbf24', icon:'fa-bolt',     name:'VELOCIDAD',  desc:'Timer reducido · respuesta rápida'     },
+            { id:'bs-expert', mc:'#ef4444', icon:'fa-flask',    name:'EXPERTO',    desc:'6 opciones · doble dificultad'         },
+        ];
+        this.uiContainer.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:28px;width:100%;">
+            <div style="text-align:center;">
+                <div style="font-family:var(--font-display);font-size:1.6rem;color:white;letter-spacing:4px;margin-bottom:4px;">BIO-SCAN</div>
+                <div style="font-size:0.65rem;color:#84cc16;letter-spacing:3px;font-family:monospace;">IDENTIFICACIÓN BIOLÓGICA</div>
+                <div style="width:120px;height:1px;background:#84cc16;margin:10px auto 0;opacity:0.5;"></div>
+            </div>
+            <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
+                ${modes.map(m=>`
+                <div style="width:160px;min-height:155px;background:rgba(10,16,30,0.9);border:1px solid ${m.mc}25;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:all 0.15s;padding:18px 12px;position:relative;overflow:hidden;"
+                     id="${m.id}"
+                     onmouseenter="this.style.transform='translateY(-4px)';this.style.borderColor='${m.mc}';this.style.boxShadow='0 8px 24px rgba(0,0,0,0.4)';"
+                     onmouseleave="this.style.transform='';this.style.borderColor='${m.mc}25';this.style.boxShadow='';">
+                    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${m.mc};opacity:0.6;"></div>
+                    <i class="fa-solid ${m.icon}" style="font-size:1.8rem;color:${m.mc};filter:drop-shadow(0 0 8px ${m.mc});"></i>
+                    <div style="font-family:var(--font-display);font-size:0.76rem;letter-spacing:2px;color:${m.mc};">${m.name}</div>
+                    <div style="font-size:0.6rem;color:#475569;font-family:monospace;text-align:center;line-height:1.5;">${m.desc}</div>
+                </div>`).join('')}
+            </div>
+            <button class="btn btn-secondary" id="bs-back" style="width:180px;">
+                <i class="fa-solid fa-arrow-left"></i> VOLVER AL LOBBY
+            </button>
+        </div>`;
+        document.getElementById('bs-normal').onclick = () => this.payAndStart('NORMAL');
+        document.getElementById('bs-speed').onclick  = () => this.payAndStart('SPEED');
+        document.getElementById('bs-expert').onclick = () => this.payAndStart('EXPERT');
+        document.getElementById('bs-back').onclick   = () => { if(this.onGameOver) this.onGameOver(0); };
+    }
+
+    async payAndStart(mode) {
+        this.mode = mode;
+        this.optionCount = mode === 'EXPERT' ? 6 : 4;
+        this.timerSpeed = mode === 'SPEED' ? 1.2 : 0.5;
+
         if(this.breeds.length === 0) {
-            this.uiContainer.innerHTML = '<div class="loader"></div><p style="margin-top:10px; color:var(--bio)">INICIALIZANDO BASE DE DATOS...</p>';
+            this.uiContainer.innerHTML = '<div class="loader"></div><p style="margin-top:10px;color:var(--bio)">CARGANDO BASE DE DATOS...</p>';
             try {
                 const res = await fetch('https://dog.ceo/api/breeds/list/all');
                 const data = await res.json();
@@ -60,7 +100,7 @@ export class BioScanGame {
         window.app.credits -= 20;
         document.getElementById('val-credits').innerText = window.app.credits;
         this.audio.playBuy();
-        this.canvas.setMood('BIO');
+        try{ this.canvas.setMood('BIO'); }catch(e){}
         this.score = 0;
         this.nextRound();
     }
@@ -76,7 +116,7 @@ export class BioScanGame {
             const breedPart = data.message.split('/breeds/')[1].split('/')[0];
             this.currentBreed = breedPart; 
             const options = [breedPart];
-            while(options.length < 4) {
+            while(options.length < (this.optionCount||4)) {
                 const r = this.breeds[Math.floor(Math.random() * this.breeds.length)];
                 if(!options.includes(r)) options.push(r);
             }
@@ -119,8 +159,9 @@ export class BioScanGame {
         const bioImg = document.getElementById('bio-img');
         let timeLeft = 100;
         if(bioImg) bioImg.style.filter = `blur(15px) grayscale(100%) sepia(100%) hue-rotate(50deg)`;
+        // timerSpeed handled
         this.timerInterval = setInterval(() => {
-            timeLeft -= 0.5;
+            timeLeft -= (this.timerSpeed||0.5);
             if(timerBar) {
                 timerBar.style.width = timeLeft + "%";
                 if(timeLeft < 20) timerBar.style.backgroundColor = CONFIG.COLORS.ACCENT;

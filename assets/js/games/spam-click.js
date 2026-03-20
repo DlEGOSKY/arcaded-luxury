@@ -244,4 +244,27 @@ export class SpamClickGame {
         document.getElementById('val-credits').innerText = window.app.credits;
         setTimeout(()=>{ if(this.onQuit) this.onQuit(this.score); },1400);
     }
+
+    pause() {
+        if(this.isPaused || !this.timerInterval) return;
+        this.isPaused = true;
+        this.pausedTimeLeft = this.timeLeft;
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+    }
+
+    resume() {
+        if(!this.isPaused) return;
+        this.isPaused = false;
+        // Reanudar el timer con el tiempo restante
+        const fill = document.getElementById('sc-timer-fill');
+        const startTime = Date.now();
+        const duration = this.pausedTimeLeft * 1000;
+        this.timerInterval = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            this.timeLeft = this.pausedTimeLeft - elapsed/1000;
+            if(fill) fill.style.width = Math.max(0,(this.timeLeft/this.totalTime)*100)+'%';
+            if(this.timeLeft <= 0) this.finish();
+        }, 50);
+    }
 }

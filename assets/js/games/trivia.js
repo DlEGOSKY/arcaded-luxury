@@ -39,24 +39,58 @@ export class TriviaGame {
     }
 
     init() {
-        if(window.app.credits < 15) {
-            this.uiContainer.innerHTML = `
-                <div style="text-align:center;">
-                    <h2 style="color:var(--accent); margin-bottom:10px;">FONDOS INSUFICIENTES</h2>
-                    <p style="color:#94a3b8; margin-bottom:20px;">Acceso denegado. Costo: $15</p>
-                    <button class="btn btn-secondary" id="btn-t-back">Volver al Lobby</button>
-                </div>`;
-            // Salida segura
-            document.getElementById('btn-t-back').onclick = () => { if(this.onQuit) this.onQuit(0); };
-            return;
+        if(window.app.credits < 15){
+            try{ window.app.showToast("FONDOS INSUFICIENTES","Costo: $15","danger"); }catch(e){}
+            if(this.onQuit) this.onQuit(0); return;
         }
-        
-        window.app.credits -= 15;
+        this.showModeSelect();
+    }
+
+    showModeSelect() {
+        const modes = [
+            { id:'triv-all',    mc:'#06b6d4', icon:'fa-brain',          name:'GENERAL',   desc:'Todas las categorías' },
+            { id:'triv-tech',   mc:'#3b82f6', icon:'fa-microchip',      name:'TECH',      desc:'Ciencia y tecnología'  },
+            { id:'triv-pop',    mc:'#a855f7', icon:'fa-gamepad',        name:'POP',       desc:'Cine, música, videojuegos' },
+            { id:'triv-speed',  mc:'#ef4444', icon:'fa-bolt',           name:'BLITZ',     desc:'5 segundos por pregunta' },
+        ];
+        this.uiContainer.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:28px;width:100%;">
+            <div style="text-align:center;">
+                <div style="font-family:var(--font-display);font-size:1.6rem;color:white;letter-spacing:4px;margin-bottom:4px;">NEURAL TRIVIA</div>
+                <div style="font-size:0.65rem;color:#06b6d4;letter-spacing:3px;font-family:monospace;">CONOCIMIENTO GENERAL</div>
+                <div style="width:120px;height:1px;background:#06b6d4;margin:10px auto 0;opacity:0.5;"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:500px;width:100%;padding:0 10px;">
+                ${modes.map(m=>`
+                <div style="background:rgba(10,16,30,0.9);border:1px solid ${m.mc}25;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:all 0.15s;padding:16px 10px;position:relative;overflow:hidden;min-height:120px;"
+                     id="${m.id}"
+                     onmouseenter="this.style.transform='translateY(-3px)';this.style.borderColor='${m.mc}';this.style.boxShadow='0 6px 20px rgba(0,0,0,0.4)';"
+                     onmouseleave="this.style.transform='';this.style.borderColor='${m.mc}25';this.style.boxShadow='';">
+                    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:${m.mc};opacity:0.6;"></div>
+                    <i class="fa-solid ${m.icon}" style="font-size:1.4rem;color:${m.mc};filter:drop-shadow(0 0 6px ${m.mc});"></i>
+                    <div style="font-family:var(--font-display);font-size:0.72rem;letter-spacing:2px;color:${m.mc};">${m.name}</div>
+                    <div style="font-size:0.58rem;color:#475569;font-family:monospace;text-align:center;">${m.desc}</div>
+                </div>`).join('')}
+            </div>
+            <button class="btn btn-secondary" id="triv-back" style="width:180px;">
+                <i class="fa-solid fa-arrow-left"></i> VOLVER AL LOBBY
+            </button>
+        </div>`;
+        document.getElementById('triv-all').onclick   = () => this.payAndStart('ALL', 15);
+        document.getElementById('triv-tech').onclick  = () => this.payAndStart('TECH', 15);
+        document.getElementById('triv-pop').onclick   = () => this.payAndStart('POP', 15);
+        document.getElementById('triv-speed').onclick = () => this.payAndStart('SPEED', 15);
+        document.getElementById('triv-back').onclick  = () => { if(this.onQuit) this.onQuit(0); };
+    }
+
+    payAndStart(mode, cost) {
+        this.mode = mode;
+        this.categoryFilter = { ALL:null, TECH:['CIENCIA','TECNOLOGÍA','ASTRONOMÍA'], POP:['CINE','MÚSICA','VIDEOJUEGOS','ARTE'], SPEED:null }[mode];
+        this.timePerQuestion = mode === 'SPEED' ? 5 : 15;
+        window.app.credits -= cost;
         document.getElementById('val-credits').innerText = window.app.credits;
-        
-        this.audio.playBuy();
-        this.canvas.setMood('CYAN');
-        
+        try{ this.audio.playBuy(); }catch(e){}
+        try{ this.canvas.setMood('CYAN'); }catch(e){}
         this.score = 0;
         this.nextQuestion();
     }
@@ -64,10 +98,12 @@ export class TriviaGame {
     nextQuestion() {
         this.isProcessing = false;
         if(this.timerInterval) clearInterval(this.timerInterval);
-        this.timeLeft = 15; 
+        this.timeLeft = this.timePerQuestion || 15; 
         
         // Seleccionar pregunta aleatoria
-        this.currentQ = TRIVIA_DATA[Math.floor(Math.random() * TRIVIA_DATA.length)];
+        const pool = this.categoryFilter ? TRIVIA_DATA.filter(q => this.categoryFilter.includes(q.c)) : TRIVIA_DATA;
+        const usePool = pool.length > 0 ? pool : TRIVIA_DATA;
+        this.currentQ = usePool[Math.floor(Math.random() * usePool.length)];
         
         // Mezclar respuestas
         let options = [this.currentQ.a, ...this.currentQ.i];
@@ -189,13 +225,13 @@ export class TriviaGame {
     pause() {
         this._wasPaused = true;
         if(this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval=null; }
-    },
+    }
     resume() {
         if(!this._wasPaused) return;
         this._wasPaused = false;
         // Re-iniciar el timer si el juego estaba activo
         // Los juegos setInterval se auto-resumirán con la siguiente interacción del usuario
-    },
+    }
 
 
     cleanup() {
