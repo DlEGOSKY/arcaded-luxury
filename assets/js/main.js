@@ -27,6 +27,7 @@ import { CyberTyperGame } from './games/cyber-typer.js';
 import { CyberPongGame } from './games/cyber-pong.js';
 import { SnakePlusGame }  from './games/snake-plus.js';
 import { CipherDecodeGame } from './games/cipher-decode.js';
+import { WordRushGame }     from './games/word-rush.js';
 
 const app = {
     state: CONFIG.STATES.WELCOME,
@@ -41,7 +42,8 @@ const app = {
     daily:  { date: '', tasks: [], claimed: false },
     weekly: { week: '', tasks: [], claimed: false },
     streak: { days: 0, lastDate: '', best: 0 },
-    invest: { date: '', amount: 0, risk: '', resolved: false, result: 0 },
+    invest: { date: '', amount: 0, risk: '', resolved: false, result: 0, history: [] },
+    favorites: [],
     settings: { 
         audio: { master: 0.5, sfx: 1.0, music: 0.5 },
         performance: true 
@@ -67,7 +69,8 @@ const app = {
             'cyber-typer': CyberTyperGame,
             'cyber-pong':    CyberPongGame,
             'snake-plus':    SnakePlusGame,
-            'cipher-decode': CipherDecodeGame
+            'cipher-decode': CipherDecodeGame,
+            'word-rush':      WordRushGame
         };
 
         let save = localStorage.getItem('arcade_save');
@@ -93,7 +96,8 @@ const app = {
                 if(d.daily)  this.daily  = d.daily;
                 if(d.weekly) this.weekly = d.weekly;
                 if(d.streak) this.streak = d.streak;
-                if(d.invest) this.invest = d.invest;
+                if(d.invest)     this.invest     = d.invest;
+                if(d.favorites)  this.favorites  = d.favorites;
                 if(d.settings) {
                     if(d.settings.audio) this.audio.vol = d.settings.audio;
                     if(d.settings.performance !== undefined) this.settings.performance = d.settings.performance;
@@ -141,6 +145,11 @@ const app = {
             this.changeState(CONFIG.STATES.MENU);
             if(this.shop.equipped.theme) this.audio.playHover();
         });
+        // Mensaje de lore aleatorio en boot
+        const LORE_MSGS = ['AGENTE, TU PRESENCIA HA SIDO DETECTADA.', 'PROTOCOLOS NEURALES SINCRONIZADOS.', 'BIENVENIDO DE VUELTA AL SISTEMA.', 'TODOS LOS MÓDULOS OPERATIVOS.', 'CALIBRACIÓN COMPLETADA. LISTO PARA COMBATE.', 'CONEXIÓN SEGURA ESTABLECIDA.', 'SISTEMA OPERATIVO. INICIO DE SESIÓN CONFIRMADO.', 'PROTOCOLOS DE SEGURIDAD ACTIVOS.'];
+        const loreLine = document.querySelector('.boot-line:last-child');
+        if(loreLine) loreLine.textContent = LORE_MSGS[Math.floor(Math.random() * LORE_MSGS.length)];
+
         // Mostrar stats si ya jugó antes
         const wrReturning = document.getElementById('welcome-returning');
         const wrLabel     = document.getElementById('wr-label');
@@ -419,7 +428,14 @@ const app = {
                     setTimeout(() => nextScreen.classList.remove('entering'), 350);
                     if(newState === CONFIG.STATES.MENU) {
                         this.renderMenu();
-                        this.updateUI(); 
+                        this.updateUI();
+                        // Notificación de racha
+                        if(this.streak && this.streak.days >= 3) {
+                            setTimeout(() => {
+                                const fire = this.streak.days >= 7 ? '🔥🔥' : '🔥';
+                                this.showToast(fire + ' RACHA: ' + this.streak.days + ' DÍAS', 'Bonus XP activo · +' + Math.min(50, this.streak.days*5) + ' XP por partida', 'gold');
+                            }, 600);
+                        } 
                     }
                 }, 50); 
             });
@@ -694,6 +710,24 @@ const app = {
     // --- RENDER MENU ---
     activeFilter: 'ALL',
 
+    toggleFavorite(gameId, e) {
+        if(e) e.stopPropagation();
+        if(!this.favorites) this.favorites = [];
+        const idx = this.favorites.indexOf(gameId);
+        if(idx >= 0) { this.favorites.splice(idx,1); }
+        else         { this.favorites.push(gameId); }
+        try { this.audio.playClick(); } catch(err) {}
+        this.save();
+        // Actualizar solo el botón sin re-renderizar todo
+        const btn = document.querySelector('.gcv2-fav[data-id="'+gameId+'"]');
+        if(btn) {
+            const isFav = this.favorites.includes(gameId);
+            btn.style.color  = isFav ? '#fbbf24' : 'rgba(255,255,255,0.2)';
+            btn.style.opacity = isFav ? '1' : '';
+            btn.title = isFav ? 'Quitar de favoritos' : 'Añadir a favoritos';
+        }
+    },
+
     setLobbyFilter(cat, btn) {
         this.activeFilter = cat;
         document.querySelectorAll('.lf-btn').forEach(b => b.classList.remove('active'));
@@ -868,6 +902,7 @@ const app = {
 
         container.innerHTML = CONFIG.GAMES_LIST.filter(g => {
             if(!g.id || g.unlockLevel) return true; // siempre incluir bloqueados visualmente
+            if(this.activeFilter === 'FAVS') return (this.favorites||[]).includes(g.id);
             return this.activeFilter === 'ALL' || g.cat === this.activeFilter;
         }).map(g => {
             const color    = CONFIG.COLORS[g.color] || '#fff';
@@ -896,7 +931,13 @@ const app = {
                      style="border-color:${color}25; --gc:${color};"
                      onmouseenter="this.style.borderColor='${color}60'; this.style.boxShadow='0 8px 24px ${color}20';"
                      onmouseleave="this.style.borderColor='${color}25'; this.style.boxShadow='';">
-                    <button class="gcv2-info" onclick="event.stopPropagation(); window.app.showGameInfo('${g.id}')">
+                    <button class="gcv2-fav" data-id="${g.id}"
+                        onclick="event.stopPropagation(); window.app.toggleFavorite('${g.id}',event)"
+                        style="position:absolute;top:4px;left:4px;background:transparent;border:none;font-size:0.78rem;cursor:pointer;color:${(this.favorites||[]).includes(g.id)?'#fbbf24':'rgba(255,255,255,0.15)'};padding:4px;z-index:10;transition:color 0.15s;"
+                        title="${(this.favorites||[]).includes(g.id)?'Quitar de favoritos':'Añadir a favoritos'}">
+                        <i class="fa-solid fa-star"></i>
+                    </button>
+                    <button class="gcv2-info" onclick="event.stopPropagation(); window.app.showGameInfo('${g.id}')">\
                         <i class="fa-solid fa-info"></i>
                     </button>
                     <div class="gcv2-body" onclick="window.app.launch('${g.id}')">
@@ -1049,6 +1090,44 @@ const app = {
         if (!entry) return 0;
         if (typeof entry === 'number') return entry;
         return entry.best || 0;
+    },
+
+
+    showLevelUpAnimation(newLevel, newRankName, rankChanged) {
+        const overlay = document.createElement('div');
+        overlay.id = 'levelup-overlay';
+        overlay.style.cssText = [
+            'position:fixed', 'inset:0', 'z-index:99998',
+            'display:flex', 'align-items:center', 'justify-content:center',
+            'background:rgba(0,0,0,0.85)', 'backdrop-filter:blur(8px)',
+            'animation:luFadeIn 0.4s ease',
+            'cursor:pointer',
+        ].join(';');
+
+        const rankColors = CONFIG.RANKS ? [...CONFIG.RANKS].reverse() : [];
+        const rankObj    = rankColors.find(r => newLevel >= r.lv) || { name: 'VAGABUNDO' };
+        const prevRank   = rankColors.find(r => (newLevel-1) >= r.lv) || rankObj;
+        const color      = rankChanged ? '#fbbf24' : 'var(--primary)';
+
+        overlay.innerHTML = '<style>' +
+            '@keyframes luFadeIn{from{opacity:0}to{opacity:1}}' +
+            '@keyframes luPop{from{opacity:0;transform:scale(0.5)}to{opacity:1;transform:scale(1)}}' +
+            '@keyframes luShine{0%,100%{opacity:0.5}50%{opacity:1}}' +
+            '</style>' +
+            '<div style="text-align:center;padding:40px;">' +
+            '<div style="font-size:0.65rem;color:#334155;font-family:monospace;letter-spacing:4px;margin-bottom:16px;">SUBIDA DE NIVEL</div>' +
+            '<div style="font-family:var(--font-display);font-size:5rem;color:' + color + ';animation:luPop 0.5s cubic-bezier(0.2,0,0,1.5) 0.2s both;line-height:1;filter:drop-shadow(0 0 30px ' + color + ');">' + newLevel + '</div>' +
+            '<div style="font-size:0.7rem;color:#64748b;font-family:monospace;letter-spacing:3px;margin:8px 0 4px;">NIVEL ALCANZADO</div>' +
+            (rankChanged ? '<div style="font-family:var(--font-display);font-size:1.1rem;color:#fbbf24;letter-spacing:3px;margin-top:12px;animation:luShine 1s ease infinite;">▲ RANGO: ' + rankObj.name.toUpperCase() + '</div>' : '<div style="font-family:var(--font-display);font-size:0.9rem;color:' + color + '60;letter-spacing:2px;margin-top:8px;">' + rankObj.name.toUpperCase() + '</div>') +
+            '<div style="font-size:0.58rem;color:#1e293b;font-family:monospace;margin-top:28px;letter-spacing:2px;">TAP PARA CONTINUAR</div>' +
+            '</div>';
+
+        document.body.appendChild(overlay);
+        overlay.onclick = () => overlay.remove();
+        setTimeout(() => { if(overlay.parentNode) overlay.remove(); }, 4000);
+
+        try { this.audio.playWin(10); } catch(e) {}
+        try { this.canvas.explode(window.innerWidth/2, window.innerHeight/2, color); } catch(e) {}
     },
 
     showGameOverScreen(score, gameId, onRetry, onQuit) {
@@ -1379,17 +1458,20 @@ const app = {
     gainXP(amount) { 
         this.stats.xp += amount; 
         let req = this.getReqXP(this.stats.level); 
-        let leveledUp = false; 
+        let leveledUp = false;
+        const prevLevel = this.stats.level;
         while (this.stats.xp >= req) { 
             this.stats.xp -= req; 
             this.stats.level++; 
             req = this.getReqXP(this.stats.level); 
             leveledUp = true; 
         } 
-        if (leveledUp) { 
-            this.audio.playWin(10); 
-            this.showToast(`¡NIVEL ${this.stats.level} ALCANZADO!`, "¡Rango Subido!", "purple"); 
-            this.credits += this.stats.level * 10; 
+        if (leveledUp) {
+            const prevRankName = this.getRankName(prevLevel);
+            const newRankName  = this.getRankName(this.stats.level);
+            const rankChanged  = prevRankName !== newRankName;
+            this.credits += this.stats.level * 10;
+            setTimeout(() => this.showLevelUpAnimation(this.stats.level, newRankName, rankChanged), 800);
         } 
         this.save(); 
         this.updateUI(); 
@@ -2094,7 +2176,7 @@ const app = {
         this.save();
     },
     closeProfile() { document.getElementById('modal-profile').classList.add('hidden'); },
-    save() { localStorage.setItem('arcade_save', JSON.stringify({ credits: this.credits, stats: this.stats, highScores: this.highScores, shop: { inventory: this.shop.inventory, equipped: this.shop.equipped }, daily: this.daily, weekly: this.weekly, streak: this.streak, invest: this.invest, settings: { audio: this.audio.vol, performance: this.settings.performance } })); },
+    save() { localStorage.setItem('arcade_save', JSON.stringify({ credits: this.credits, stats: this.stats, highScores: this.highScores, shop: { inventory: this.shop.inventory, equipped: this.shop.equipped }, daily: this.daily, weekly: this.weekly, streak: this.streak, invest: this.invest, favorites: this.favorites, settings: { audio: this.audio.vol, performance: this.settings.performance } })); },
     checkDailyReset() { const today = new Date().toDateString(); if (this.daily.date !== today || this.daily.tasks.length === 0) { this.daily.date = today; this.daily.claimed = false; this.daily.tasks = []; const rng = new SeededRandom(parseInt(today.replace(/\D/g,'')) || Date.now()); const gameIds = Object.keys(this.gameClasses); while(this.daily.tasks.length < 3) { const gid = gameIds[Math.floor(rng.next() * gameIds.length)]; if (!this.daily.tasks.find(t => t.gameId === gid)) this.daily.tasks.push({ gameId: gid, target: CONFIG.DAILY_TARGETS[gid] || 10, done: false }); } this.save(); } },
 
     checkWeeklyReset() {
@@ -2113,6 +2195,10 @@ const app = {
                 { gameId:'cyber-typer',  target:300, label:'Escribe 300 pts en Cyber Typer',      reward:850  },
                 { gameId:'glitch-hunt',  target:10,  label:'Atrapa 10 glitches',                  reward:750  },
                 { gameId:'math-rush',    target:80,  label:'Consigue 80 pts en Math Rush',        reward:700  },
+                { gameId:'word-rush',    target:40,  label:'Consigue 40 pts en Word Rush',        reward:800  },
+                { gameId:'snake-plus',   target:50,  label:'Llega a 50 puntos en Snake ++',       reward:750  },
+                { gameId:'cipher-decode',target:60,  label:'Descifra mensajes por 60 pts',        reward:900  },
+                { gameId:'void-dodger',  target:20,  label:'Sobrevive 20 segundos en Void Dodger',reward:850  },
             ];
             const rng = new SeededRandom(parseInt(weekKey.replace(/\D/g,'')) || Date.now());
             const shuffled = [...WEEKLY_MISSIONS].sort(()=>rng.next()-0.5);
@@ -2364,6 +2450,10 @@ const app = {
         const result = Math.round(this.invest.amount * pct);
         this.invest.result = result; this.invest.resolved = true;
         this.credits += result;
+        // Guardar en historial
+        if(!this.invest.history) this.invest.history = [];
+        this.invest.history.unshift({ date: inv.date, amount: inv.amount, risk: inv.risk, result });
+        if(this.invest.history.length > 10) this.invest.history.pop();
         const sign = result >= 0 ? '+' : '';
         setTimeout(() => this.showToast(
             result >= 0 ? 'INVERSIÓN RENTABLE' : 'PÉRDIDA DE CAPITAL',
@@ -2385,26 +2475,58 @@ const app = {
     },
 
     renderInvestPanel() {
-        const inv   = this.invest || {};
-        const today = new Date().toDateString();
-        const hasActive = inv.date === today && inv.amount > 0 && !inv.resolved;
-        const hasResult = inv.resolved && inv.date && inv.date !== today;
+        var inv     = this.invest || {};
+        var today   = new Date().toDateString();
+        var hasActive = inv.date === today && inv.amount > 0 && !inv.resolved;
+        var hasResult = inv.resolved && inv.date && inv.date !== today;
+        var history   = inv.history || [];
+        var RISK_RANGES = {LOW:'-5%/+15%', MEDIUM:'-20%/+40%', HIGH:'-50%/+100%'};
+
+        // Historial compacto
+        var histHTML = '';
+        if(history.length > 0) {
+            histHTML = '<div style="margin-top:7px;border-top:1px solid rgba(255,255,255,0.05);padding-top:5px;">';
+            histHTML += '<div style="font-size:0.5rem;color:#1e293b;font-family:monospace;letter-spacing:2px;margin-bottom:3px;">HISTORIAL</div>';
+            history.slice(0,3).forEach(function(h) {
+                var col  = h.result >= 0 ? '#10b981' : '#ef4444';
+                var sign = h.result >= 0 ? '+' : '';
+                histHTML += '<div style="display:flex;justify-content:space-between;font-size:0.55rem;font-family:monospace;color:#334155;padding:1px 0;">' +
+                    '<span>' + (h.date||'').slice(0,6) + ' ' + h.risk + '</span>' +
+                    '<span style="color:' + col + ';">' + sign + (h.result||0).toLocaleString() + ' CR</span>' +
+                    '</div>';
+            });
+            histHTML += '</div>';
+        }
+
         if(hasActive) {
-            return '<div style="margin:0 0 6px;padding:10px 14px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.2);border-radius:10px;font-family:monospace;font-size:0.62rem;color:#a855f7;">' +
-                '<i class="fa-solid fa-clock"></i> INVERSIÓN ACTIVA &middot; ' + inv.amount.toLocaleString() + ' CR &middot; ' + inv.risk + ' &middot; Resultado mañana</div>';
+            return '<div style="margin:0 0 6px;padding:12px 14px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.25);border-radius:10px;">' +
+                '<div style="font-size:0.6rem;color:#a855f7;font-family:monospace;"><i class=\"fa-solid fa-clock\"></i> INVERSIÓN ACTIVA &middot; ' +
+                inv.amount.toLocaleString() + ' CR &middot; ' + inv.risk + ' &middot; ' + (RISK_RANGES[inv.risk]||'') + '</div>' +
+                '<div style="font-size:0.55rem;color:#475569;font-family:monospace;margin-top:3px;">Resultado mañana</div>' +
+                histHTML + '</div>';
         }
+
         if(hasResult) {
-            const col = inv.result >= 0 ? '#10b981' : '#ef4444';
-            return '<div style="margin:0 0 6px;padding:10px 14px;background:' + col + '0f;border:1px solid ' + col + '30;border-radius:10px;font-family:monospace;font-size:0.62rem;color:' + col + ';">' +
-                '<i class="fa-solid fa-chart-line"></i> RESULTADO: ' + (inv.result >= 0?'+':'') + inv.result.toLocaleString() + ' CR sobre ' + inv.amount.toLocaleString() + ' CR</div>';
+            var col  = inv.result >= 0 ? '#10b981' : '#ef4444';
+            var sign = inv.result >= 0 ? '+' : '';
+            var pct  = inv.amount > 0 ? Math.round((inv.result/inv.amount)*100) : 0;
+            return '<div style="margin:0 0 6px;padding:12px 14px;background:' + col + '0a;border:1px solid ' + col + '30;border-radius:10px;">' +
+                '<div style="display:flex;justify-content:space-between;margin-bottom:4px;">' +
+                '<div style="font-size:0.58rem;color:' + col + ';font-family:monospace;"><i class=\"fa-solid fa-chart-line\"></i> RESULTADO DE AYER</div>' +
+                '<div style="font-size:0.58rem;color:' + col + ';font-family:monospace;">' + sign + pct + '%</div></div>' +
+                '<div style="font-family:var(--font-display);font-size:0.95rem;color:' + col + ';">' + sign + inv.result.toLocaleString() + ' CR</div>' +
+                '<div style="font-size:0.52rem;color:#334155;font-family:monospace;">sobre ' + inv.amount.toLocaleString() + ' CR invertidos</div>' +
+                histHTML + '</div>';
         }
-        const OPTS = [
+
+        // Panel de nueva inversión
+        var OPTS = [
             {risk:'LOW',    label:'Bajo',  pct:'-5%/+15%',  color:'#10b981', amounts:[100,500,1000]},
             {risk:'MEDIUM', label:'Medio', pct:'-20%/+40%', color:'#f59e0b', amounts:[500,2000,5000]},
             {risk:'HIGH',   label:'Alto',  pct:'-50%/+100%',color:'#ef4444', amounts:[1000,5000,10000]},
         ];
-        let html = '<div style="margin:0 0 6px;padding:10px 14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;">';
-        html += '<div style="font-size:0.55rem;color:#334155;font-family:monospace;letter-spacing:2px;margin-bottom:7px;"><i class="fa-solid fa-chart-bar"></i> MERCADO NEGRO</div>';
+        var html = '<div style="margin:0 0 6px;padding:10px 14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;">';
+        html += '<div style="font-size:0.55rem;color:#334155;font-family:monospace;letter-spacing:2px;margin-bottom:8px;"><i class=\"fa-solid fa-chart-bar\"></i> MERCADO NEGRO</div>';
         html += '<div style="display:flex;gap:6px;">';
         OPTS.forEach(function(o) {
             html += '<div style="flex:1;background:rgba(255,255,255,0.02);border:1px solid ' + o.color + '20;border-radius:7px;padding:7px 8px;">';
@@ -2412,13 +2534,16 @@ const app = {
             html += '<div style="font-size:0.52rem;color:#475569;font-family:monospace;margin-bottom:5px;">' + o.pct + '</div>';
             html += '<div style="display:flex;gap:3px;flex-wrap:wrap;">';
             o.amounts.forEach(function(a) {
-                var lbl = a >= 1000 ? (a/1000) + 'k' : a;
-                html += '<button onclick="window.app.makeInvestment(' + a + ',\'' + o.risk + '\')" ' +
-                    'style="background:' + o.color + '15;border:1px solid ' + o.color + '25;border-radius:4px;padding:2px 5px;font-size:0.52rem;color:' + o.color + ';font-family:monospace;cursor:pointer;">' + lbl + '</button>';
+                var lbl = a >= 1000 ? (a/1000) + 'k' : String(a);
+                var risk = o.risk;
+                html += '<button onclick="window.app.makeInvestment(' + String(a) + ',\"' + risk + '\")" ' +
+                    'style="background:' + o.color + '15;border:1px solid ' + o.color + '25;border-radius:4px;' +
+                    'padding:2px 5px;font-size:0.52rem;color:' + o.color + ';font-family:monospace;cursor:pointer;">' +
+                    lbl + '</button>';
             });
             html += '</div></div>';
         });
-        html += '</div></div>';
+        html += '</div>' + histHTML + '</div>';
         return html;
     },
 

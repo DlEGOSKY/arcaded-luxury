@@ -94,6 +94,7 @@ export const CONFIG = {
         // --- JUEGO SECRETO ---
         { id: 'cyber-pong',   name: 'CYBER PONG',  icon: 'fa-solid fa-table-tennis-paddle-ball', color: 'PONG',   desc: 'Duelo IA [CLASSIC]',   unlockReq: 'pass_lvl_5', cat: 'ACCION' },
         { id: 'snake-plus',   name: 'Snake ++',    icon: 'fa-solid fa-arrow-right-long',         color: 'BIO',    desc: 'Protocolo Serpiente',                       cat: 'ACCION' },
+        { id: 'word-rush',    name: 'Word Rush',    icon: 'fa-solid fa-spell-check',  color: 'CYAN',   desc: 'Protocolo Léxico',                         cat: 'MENTAL'  },
         { id: 'cipher-decode',name: 'Cipher Decode',icon: 'fa-solid fa-lock',                    color: 'VAULT',  desc: 'Descifra el Mensaje',                       cat: 'MENTAL' }
     ],
 
@@ -119,6 +120,7 @@ export const CONFIG = {
         'cyber-typer': { desc: 'Intercepta el código malicioso.', mech: 'Escribe las palabras.', obj: 'Evita la brecha.' },
         'cyber-pong':    { desc: 'Simulación de tenis virtual.', mech: 'Devuelve la bola y vence a la IA.', obj: 'Anota goles.', diff: 'Clásico.' },
         'snake-plus':    { desc: 'Guía la serpiente sin chocar.', mech: 'Come manzanas para crecer. WASD o flechas.', obj: 'Máxima longitud.', diff: 'Clásico.' },
+        'word-rush':     { desc: 'Adivina la palabra oculta.', mech: 'Verde=posición correcta, Amarillo=letra existe, Gris=no existe.', obj: 'Adivinar en menos intentos.', diff: 'Mental.' },
         'cipher-decode': { desc: 'Descifra mensajes encriptados.', mech: 'Selecciona el carácter correcto para cada símbolo.', obj: 'Velocidad y precisión.', diff: 'Mental.' }
     },
 
@@ -127,7 +129,7 @@ export const CONFIG = {
         'hyper-reflex': 400, 'spam-click': 30, 'neon-sniper': 50, 'orbit-lock': 40, 'memory-flash': 45,
         'vault-cracker': 1, 'phase-shifter': 50, 'math-rush': 50, 'color-trap': 10, 'holo-match': 1,
         'void-dodger': 15.0, 'glitch-hunt': 5, 'orbit-tracker': 20.0, 'cyber-typer': 500, 'cyber-pong': 5,
-        'snake-plus': 30, 'cipher-decode': 50
+        'snake-plus': 30, 'cipher-decode': 50, 'word-rush': 40
     },
 
     SHOP: [
