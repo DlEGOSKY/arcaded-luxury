@@ -297,6 +297,18 @@ export class HoloMatchGame {
         if(this.onQuit) this.onQuit(this.score);
     }
 
+    pause() {
+        if(!this.isRunning) return;
+        this._wasPaused = true;
+        if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId=null; }
+    },
+    resume() {
+        if(!this._wasPaused) return;
+        this._wasPaused = false;
+        if(this.isRunning){ this.lastTime=performance.now(); this.gameLoopId=requestAnimationFrame(()=>this.loop()); }
+    },
+
+
     gameOver() {
         if(!this.isRunning) return;
         this.isRunning = false;

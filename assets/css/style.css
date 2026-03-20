@@ -5655,3 +5655,292 @@ body.t_receipt .stat-value, body.t_receipt .agent-title { color: #000; text-shad
     white-space: nowrap;
 }
 
+
+
+/* =====================================================
+   FIX NEON PASS — botones de reclamar son clickeables
+   ===================================================== */
+
+/* El overflow-y: hidden cortaba el área de click de los botones */
+.np-track-wrap {
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    padding-bottom: 40px !important;
+}
+
+/* Asegurar que los botones tienen pointer-events */
+.np-btn-claim {
+    pointer-events: auto !important;
+    position: relative;
+    z-index: 20;
+}
+
+.np-card {
+    overflow: visible !important;
+    position: relative;
+    z-index: 5;
+}
+
+/* Screen-pass debe tener overflow que permita scroll horizontal del track */
+#screen-pass {
+    overflow: hidden !important;
+}
+#screen-pass .np-shell {
+    overflow: hidden !important;
+}
+#screen-pass .np-track-wrap {
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    padding-bottom: 50px !important;
+}
+
+
+
+/* =====================================================
+   NOTIFICACIONES V2 — Más ricas y expresivas
+   ===================================================== */
+
+#toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 99000;
+    pointer-events: none;
+}
+
+.toast-v2 {
+    background: rgba(8,14,26,0.96);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-left: 3px solid var(--ta, var(--primary));
+    border-radius: 12px;
+    padding: 12px 14px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 0.5px rgba(255,255,255,0.04);
+    overflow: hidden;
+    position: relative;
+    opacity: 0;
+    transform: translateX(40px) scale(0.95);
+    transition: opacity 0.3s cubic-bezier(0.2,0,0,1), transform 0.3s cubic-bezier(0.2,0,0,1.3);
+    pointer-events: auto;
+}
+.toast-v2.tv2-show {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+}
+.toast-v2.tv2-hide {
+    opacity: 0;
+    transform: translateX(40px) scale(0.95);
+    transition-duration: 0.35s;
+}
+
+.tv2-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--ta, #3b82f6) 15%, transparent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.9rem;
+    color: var(--ta, #3b82f6);
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.tv2-body { flex: 1; min-width: 0; padding-bottom: 12px; }
+.tv2-title {
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    color: white;
+    letter-spacing: 0.5px;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.tv2-msg {
+    font-size: 0.68rem;
+    color: #475569;
+    font-family: monospace;
+    margin-top: 2px;
+    line-height: 1.3;
+}
+
+/* Barra de progreso al fondo */
+.tv2-progress {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: rgba(255,255,255,0.04);
+}
+.tv2-bar {
+    height: 100%;
+    background: var(--ta, var(--primary));
+    width: 100%;
+    animation: toastProgress linear forwards;
+    opacity: 0.6;
+}
+@keyframes toastProgress {
+    from { width: 100%; }
+    to   { width: 0%; }
+}
+
+/* Colores específicos por tipo */
+.toast-gold   { --ta: #fbbf24; }
+.toast-purple { --ta: #a855f7; }
+.toast-success{ --ta: #10b981; }
+.toast-danger { --ta: #ef4444; }
+.toast-daily  { --ta: #f97316; }
+
+/* Hover para leer con más tiempo */
+.toast-v2:hover .tv2-bar { animation-play-state: paused; }
+
+
+
+/* =====================================================
+   BOTÓN DE PAUSA EN HUD
+   ===================================================== */
+
+.hud-pause {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #475569;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.hud-pause:hover {
+    background: rgba(255,255,255,0.1);
+    color: white;
+    border-color: rgba(255,255,255,0.25);
+}
+
+/* =====================================================
+   MENÚ DE PAUSA V2 — con botones de acción
+   ===================================================== */
+
+#pause-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 500000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(8px);
+    animation: pauseFadeIn 0.2s ease;
+}
+#pause-overlay.pause-hiding {
+    animation: pauseFadeOut 0.25s ease forwards;
+}
+@keyframes pauseFadeIn  { from { opacity:0; } to { opacity:1; } }
+@keyframes pauseFadeOut { to   { opacity:0; } }
+
+.pause-panel {
+    background: rgba(8,14,26,0.97);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    padding: 36px 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    text-align: center;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.7);
+    animation: pausePanelIn 0.25s cubic-bezier(0.2,0,0,1.3);
+    min-width: 300px;
+}
+@keyframes pausePanelIn { from { transform:scale(0.88); opacity:0; } to { transform:scale(1); opacity:1; } }
+
+.pause-icon-ring {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: rgba(168,85,247,0.12);
+    border: 1.5px solid rgba(168,85,247,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: #a855f7;
+    margin-bottom: 4px;
+}
+
+.pause-title {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    color: white;
+    letter-spacing: 4px;
+    margin: 0;
+}
+
+.pause-sub {
+    font-size: 0.65rem;
+    color: #334155;
+    font-family: monospace;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+}
+
+.pause-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    margin-top: 8px;
+}
+
+.pause-btn {
+    width: 100%;
+    padding: 11px 20px;
+    border-radius: 10px;
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    letter-spacing: 2px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+}
+
+.pause-btn-primary {
+    background: rgba(168,85,247,0.15);
+    border-color: rgba(168,85,247,0.4);
+    color: #c084fc;
+}
+.pause-btn-primary:hover {
+    background: rgba(168,85,247,0.25);
+    border-color: #a855f7;
+    color: white;
+}
+
+.pause-btn-danger {
+    background: rgba(239,68,68,0.08);
+    border-color: rgba(239,68,68,0.2);
+    color: #475569;
+}
+.pause-btn-danger:hover {
+    background: rgba(239,68,68,0.15);
+    border-color: rgba(239,68,68,0.5);
+    color: #ef4444;
+}
+
+.pause-hint {
+    font-size: 0.55rem;
+    color: #1e293b;
+    font-family: monospace;
+    letter-spacing: 1px;
+    margin-top: 4px;
+}
+

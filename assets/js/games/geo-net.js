@@ -136,7 +136,7 @@ export class GeoNetGame {
                 <button id="btn-overclock" style="font-size:0.62rem;font-family:monospace;letter-spacing:2px;padding:6px 14px;background:${this.isOverclocked?'rgba(251,191,36,0.2)':'rgba(255,255,255,0.04)'};border:1px solid ${this.isOverclocked?'rgba(251,191,36,0.5)':'rgba(255,255,255,0.1)'};color:${this.isOverclocked?'#fbbf24':'#475569'};border-radius:6px;cursor:pointer;transition:all 0.15s;">
                     <i class="fa-solid fa-bolt"></i> OVERCLOCK: ${this.isOverclocked?'ON':'OFF'}
                 </button>
-                <button class="btn btn-secondary" onclick="window.app.game.onQuit(0)" style="font-size:0.72rem;">
+                <button class="btn btn-secondary" onclick="window.app.game?.onQuit(0)" style="font-size:0.72rem;">
                     <i class="fa-solid fa-arrow-left"></i> DESCONECTAR
                 </button>
             </div>
@@ -195,9 +195,16 @@ export class GeoNetGame {
             const neighbors = (this.currentCountry.borders||[]).map(id=>this.countryMap.get(id)).filter(Boolean);
             if(neighbors.length === 0){ this.currentCountry = null; this.nextQuestion(); return; }
             this.currentQuestion = neighbors[Math.floor(Math.random()*neighbors.length)];
-            this.currentCheckFn = btn => (this.currentCountry.borders||[]).includes(btn.dataset.id);
-            // Pregunta: se muestra el país central, opciones son países (correcto = vecino)
-            const distractors = this.getRandom(all, 3, [this.currentQuestion.cca2, this.currentCountry.cca2]);
+            // FIX: verificar que el botón elegido ES el vecino correcto (no cualquier vecino)
+            const correctId = this.currentQuestion.cca2;
+            this.currentCheckFn = btn => btn.dataset.id === correctId;
+            // Distractores: países que NO son vecinos del país central
+            const nonNeighbors = all.filter(c => 
+                c.cca2 !== correctId && 
+                c.cca2 !== this.currentCountry.cca2 &&
+                !(this.currentCountry.borders||[]).includes(c.cca2)
+            );
+            const distractors = nonNeighbors.sort(()=>Math.random()-0.5).slice(0, 3);
             this.renderFrontera([this.currentQuestion, ...distractors]);
         } else if(this.mode === 'INTEL') {
             this.currentQuestion = all.filter(c=>c.capital&&c.capital.length>0)[Math.floor(Math.random()*all.filter(c=>c.capital&&c.capital.length>0).length)];

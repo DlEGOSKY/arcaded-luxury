@@ -195,6 +195,18 @@ export class VoidDodgerGame {
     }
 
     // --- CORRECCIÓN CRÍTICA: Fin de Juego ---
+    pause() {
+        if(!this.isRunning) return;
+        this._wasPaused = true;
+        if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId = null; }
+    },
+    resume() {
+        if(!this._wasPaused) return;
+        this._wasPaused = false;
+        if(this.isRunning) this.loop();
+    },
+
+
     gameOver() {
         this.isRunning = false;
         if(this.gameLoopId) cancelAnimationFrame(this.gameLoopId);

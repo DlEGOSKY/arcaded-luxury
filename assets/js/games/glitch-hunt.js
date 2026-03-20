@@ -211,6 +211,18 @@ export class GlitchHuntGame {
         this.gameLoopId = requestAnimationFrame(ts2=>this.loop(ts2));
     }
 
+    pause() {
+        if(!this.isRunning) return;
+        this._wasPaused = true;
+        if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId=null; }
+    },
+    resume() {
+        if(!this._wasPaused) return;
+        this._wasPaused = false;
+        if(this.isRunning){ this.lastTime=performance.now(); this.gameLoopId=requestAnimationFrame(ts=>this.loop(ts)); }
+    },
+
+
     gameOver() {
         this.isRunning = false;
         if(this.gameLoopId) cancelAnimationFrame(this.gameLoopId);

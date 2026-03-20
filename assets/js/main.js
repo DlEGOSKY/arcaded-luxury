@@ -225,6 +225,17 @@ const app = {
         
         // Consola de Depuración
         document.addEventListener('keydown', (e) => { if (e.key === 'F1' || e.code === 'F1') { e.preventDefault(); this.toggleConsole(); } });
+
+        // Escape y P para pausar/reanudar durante el juego
+        document.addEventListener('keydown', (e) => {
+            const isGame = document.getElementById('screen-game')?.classList.contains('active');
+            if(!isGame) return;
+            if(e.code === 'Escape' || e.code === 'KeyP') {
+                e.preventDefault();
+                if(this._pauseOverlayEl) this._autoResume();
+                else this._manualPause();
+            }
+        });
         const consoleInput = document.getElementById('console-input');
         if(consoleInput) consoleInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') this.execCommand(e.target.value); });
         const debugTrigger = document.getElementById('debug-trigger');
@@ -244,7 +255,13 @@ const app = {
 
     // ---- Sistema de auto-pausa ----
     _pauseOverlayEl: null,
-    _autoPause() {
+    _manualPause() {
+        const isGame = document.getElementById('screen-game')?.classList.contains('active');
+        if(!isGame || this._pauseOverlayEl) return;
+        this._autoPause(true);
+    },
+
+    _autoPause(manual = false) {
         // Solo pausar si hay un juego activo corriendo
         const isGame = document.getElementById('screen-game')?.classList.contains('active');
         if(!isGame || this._pauseOverlayEl) return;
@@ -255,26 +272,39 @@ const app = {
             try { this.game.pause(); } catch(e) {}
         }
 
-        // Overlay de pausa
         const overlay = document.createElement('div');
         overlay.id = 'pause-overlay';
         overlay.innerHTML = `
             <div class="pause-panel">
-                <div class="pause-icon"><i class="fa-solid fa-pause"></i></div>
-                <div class="pause-title">SISTEMA EN ESPERA</div>
-                <div class="pause-sub">Vuelve a la pestaña para continuar</div>
-                <button class="pause-resume-btn" id="pause-resume-btn">
-                    <i class="fa-solid fa-play"></i> REANUDAR
-                </button>
+                <div class="pause-icon-ring">
+                    <i class="fa-solid fa-pause"></i>
+                </div>
+                <div class="pause-title">PAUSA</div>
+                <div class="pause-sub">${manual ? 'Pausa manual activada' : 'Ventana perdió el foco'}</div>
+                <div class="pause-actions">
+                    <button class="pause-btn pause-btn-primary" id="pause-resume-btn">
+                        <i class="fa-solid fa-play"></i> CONTINUAR
+                    </button>
+                    <button class="pause-btn pause-btn-danger" id="pause-quit-btn">
+                        <i class="fa-solid fa-xmark"></i> ABANDONAR
+                    </button>
+                </div>
+                <div class="pause-hint">ESC · P para continuar</div>
             </div>`;
         document.body.appendChild(overlay);
         this._pauseOverlayEl = overlay;
+
         document.getElementById('pause-resume-btn').onclick = () => this._autoResume();
+        document.getElementById('pause-quit-btn').onclick = () => {
+            this._autoResume();
+            setTimeout(() => { const btn = document.getElementById('btn-quit'); if(btn) btn.click(); }, 100);
+        };
     },
+
     _autoResume() {
         if(!this._pauseOverlayEl) return;
-        this._pauseOverlayEl.remove();
-        this._pauseOverlayEl = null;
+        this._pauseOverlayEl.classList.add('pause-hiding');
+        setTimeout(() => { this._pauseOverlayEl?.remove(); this._pauseOverlayEl = null; }, 250);
         try { this.canvas.resumeBackground(); } catch(e) {}
         if(this.game && typeof this.game.resume === 'function') {
             try { this.game.resume(); } catch(e) {}
@@ -956,14 +986,42 @@ const app = {
     showToast(title, msg, type = 'default') {
         const container = document.getElementById('toast-container');
         if(!container) return;
+
         const el = document.createElement('div');
-        el.className = `toast ${type}`;
-        // FA icons en lugar de emojis
-        const icons = { gold: 'fa-trophy', purple: 'fa-arrow-up', daily: 'fa-calendar-check', success: 'fa-check', danger: 'fa-skull', default: 'fa-bell' };
-        const iconName = icons[type] || icons.default;
-        el.innerHTML = `<div class="toast-icon"><i class="fa-solid ${iconName}"></i></div><div class="toast-content"><span class="toast-title">${title}</span>${msg ? `<span class="toast-msg">${msg}</span>` : ''}</div>`;
+
+        // Configuración por tipo — icono, color de acento, duración
+        const cfg = {
+            gold:    { icon:'fa-trophy',       accent:'#fbbf24', dur:4000 },
+            purple:  { icon:'fa-arrow-up',      accent:'#a855f7', dur:3500 },
+            success: { icon:'fa-check',         accent:'#10b981', dur:2800 },
+            danger:  { icon:'fa-skull',         accent:'#ef4444', dur:3000 },
+            daily:   { icon:'fa-calendar-check',accent:'#f97316', dur:3500 },
+            default: { icon:'fa-bell',          accent:'var(--primary)', dur:2500 },
+        };
+        const c = cfg[type] || cfg.default;
+        const accentHex = c.accent.startsWith('#') ? c.accent : '#3b82f6';
+
+        el.className = `toast-v2 toast-${type}`;
+        el.style.setProperty('--ta', c.accent);
+        el.innerHTML = `
+            <div class="tv2-icon"><i class="fa-solid ${c.icon}"></i></div>
+            <div class="tv2-body">
+                <div class="tv2-title">${title}</div>
+                ${msg ? `<div class="tv2-msg">${msg}</div>` : ''}
+            </div>
+            <div class="tv2-progress"><div class="tv2-bar" style="animation-duration:${c.dur}ms;"></div></div>`;
+
         container.appendChild(el);
-        setTimeout(() => { el.style.animation = 'slideOut 0.3s forwards'; setTimeout(() => el.remove(), 300); }, 3000);
+
+        // Forzar reflow para animar
+        void el.offsetWidth;
+        el.classList.add('tv2-show');
+
+        setTimeout(() => {
+            el.classList.remove('tv2-show');
+            el.classList.add('tv2-hide');
+            setTimeout(() => el.remove(), 400);
+        }, c.dur);
     },
     getRankName(level) { const ranks = [...CONFIG.RANKS].reverse(); const r = ranks.find(r => level >= r.lv); return r ? r.name : "VAGABUNDO"; },
     getReqXP(level) { return Math.floor(100 * level * 1.5); },

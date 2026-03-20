@@ -188,6 +188,19 @@ export class CyberPongGame {
         this.animationId = requestAnimationFrame(() => this.loop());
     }
 
+    pause() {
+        if(!this.isPlaying) return;
+        this._wasPaused = true;
+        cancelAnimationFrame(this.animationId);
+        this.animationId = null;
+    }
+    resume() {
+        if(!this._wasPaused) return;
+        this._wasPaused = false;
+        if(this.isPlaying) this.animationId = requestAnimationFrame(() => this.loop());
+    }
+
+
     end() {
         this.isPlaying = false;
         this.cleanup();

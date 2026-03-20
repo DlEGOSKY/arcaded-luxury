@@ -225,5 +225,17 @@ export class OrbitLockGame {
         this.animationId = requestAnimationFrame(()=>this.loop());
     }
 
+    pause() {
+        if(!this.isRunning) return;
+        this._wasPaused = true;
+        if(this.animationId) { cancelAnimationFrame(this.animationId); this.animationId = null; }
+    },
+    resume() {
+        if(!this._wasPaused) return;
+        this._wasPaused = false;
+        if(this.isRunning) this.loop();
+    },
+
+
     gameOver() { this.cleanup(); if(this.onQuit)this.onQuit(this.score); }
 }

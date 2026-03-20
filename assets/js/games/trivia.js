@@ -186,6 +186,18 @@ export class TriviaGame {
     }
     
     // Método de limpieza extra por si se llama desde fuera
+    pause() {
+        this._wasPaused = true;
+        if(this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval=null; }
+    },
+    resume() {
+        if(!this._wasPaused) return;
+        this._wasPaused = false;
+        // Re-iniciar el timer si el juego estaba activo
+        // Los juegos setInterval se auto-resumirán con la siguiente interacción del usuario
+    },
+
+
     cleanup() {
         if(this.timerInterval) clearInterval(this.timerInterval);
     }
