@@ -192,6 +192,16 @@ export class GameReflex {
     }
 
     // --- CORRECCIÓN CRÍTICA ---
+    pause() {
+        if(this._paused) return;
+        this._paused = true;
+        clearTimeout(this.timeoutId);
+    }
+    resume() {
+        if(!this._paused) return;
+        this._paused = false;
+        if(this.state === 'WAITING') this.prepareRound();
+    }
     finishGame(failed = false) {
         let score = 0;
         

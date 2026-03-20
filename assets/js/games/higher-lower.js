@@ -190,6 +190,15 @@ export class HigherLowerGame {
     }
 
     triggerVirusFail(){ if(!this.virusTimer)return; try{window.app.showToast('¡VIRUS EJECUTADO!','Sistema corrompido','danger');}catch(e){} try{this.audio.playLose();}catch(e){} this.endGameLogic(); }
+    pause() {
+        this._paused = true;
+        if(this.blitzTimerInterval) { clearInterval(this.blitzTimerInterval); this.blitzTimerInterval = null; }
+    }
+    resume() {
+        if(!this._paused) return;
+        this._paused = false;
+        if(this.currentMode === 'BLITZ' && this.blitzTimeLeft > 0) this.startBlitzTimer();
+    }
     startBlitzTimer(){ this.blitzTimeLeft=60; if(this.blitzTimerInterval)clearInterval(this.blitzTimerInterval); this.blitzTimerInterval=setInterval(()=>{ this.blitzTimeLeft--; const t=document.getElementById('hl-blitz-fill'); if(t) t.style.width=(this.blitzTimeLeft/60*100)+'%'; const tv=document.getElementById('hl-timer-val'); if(tv) tv.textContent=this.blitzTimeLeft+'s'; if(this.blitzTimeLeft<=0){clearInterval(this.blitzTimerInterval);this.endGameLogic();} },1000); }
 
     init() {

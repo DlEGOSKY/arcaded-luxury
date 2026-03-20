@@ -41,6 +41,7 @@ const app = {
     daily:  { date: '', tasks: [], claimed: false },
     weekly: { week: '', tasks: [], claimed: false },
     streak: { days: 0, lastDate: '', best: 0 },
+    invest: { date: '', amount: 0, risk: '', resolved: false, result: 0 },
     settings: { 
         audio: { master: 0.5, sfx: 1.0, music: 0.5 },
         performance: true 
@@ -92,6 +93,7 @@ const app = {
                 if(d.daily)  this.daily  = d.daily;
                 if(d.weekly) this.weekly = d.weekly;
                 if(d.streak) this.streak = d.streak;
+                if(d.invest) this.invest = d.invest;
                 if(d.settings) {
                     if(d.settings.audio) this.audio.vol = d.settings.audio;
                     if(d.settings.performance !== undefined) this.settings.performance = d.settings.performance;
@@ -106,6 +108,7 @@ const app = {
         this.checkDailyReset();
         this.checkWeeklyReset();
         this.checkStreakUpdate();
+        this.checkInvestment();
         this.renderMenu();
         this.updateUI();
         
@@ -133,7 +136,20 @@ const app = {
         const safeBind = (id, fn) => { const el = document.getElementById(id); if(el) el.onclick = fn; };
 
         // Botones Principales
-        safeBind('btn-start', () => { this.audio.playClick(); this.changeState(CONFIG.STATES.MENU); if(this.shop.equipped.theme) this.audio.playHover(); });
+        safeBind('btn-start', () => {
+            this.audio.playClick();
+            this.changeState(CONFIG.STATES.MENU);
+            if(this.shop.equipped.theme) this.audio.playHover();
+        });
+        // Mostrar stats si ya jugó antes
+        const wrReturning = document.getElementById('welcome-returning');
+        const wrLabel     = document.getElementById('wr-label');
+        const wrStats     = document.getElementById('wr-stats');
+        if(wrReturning && this.stats.gamesPlayed > 0) {
+            wrReturning.style.display = 'flex';
+            if(wrLabel) wrLabel.textContent = 'Bienvenido de vuelta — ' + this.getRankName(this.stats.level || 1).toUpperCase();
+            if(wrStats) wrStats.textContent = this.stats.gamesPlayed + ' partidas · LVL ' + (this.stats.level||1) + ' · ' + this.credits.toLocaleString() + ' CR';
+        }
         safeBind('btn-profile', () => this.showProfile());
         safeBind('btn-shop', () => { this.audio.playClick(); this.changeState(CONFIG.STATES.SHOP); this.shop.init(); });
         safeBind('btn-shop-back', () => { this.audio.playClick(); this.changeState(CONFIG.STATES.MENU); });
@@ -252,16 +268,24 @@ const app = {
         // ABORTAR JUEGO — ahora solo btn-quit en el HUD
         safeBind('btn-quit', () => { this.audio.playClick(); this.endGame(); });
 
-        // Hover Sounds
+        // Hover Sounds — SFX por categoría
+        const CAT_FREQS = { REFLEJOS:600, MEMORIA:400, MENTAL:500, ACCION:350, CONOCIMIENTO:450 };
         document.addEventListener('mouseover', (e) => {
             const target = e.target.closest('.btn, .nav-tab, .game-card-v2, .shop-card-v2, .daily-card, .gcv2-info, .pv2-avatar-opt, .np-card, .sc-btn, .scv2-btn');
-            if (target) { 
-                if (this.lastHovered !== target) { 
-                    this.lastHovered = target; 
-                    this.audio.playHover(); 
-                } 
-            } else { 
-                this.lastHovered = null; 
+            if (target) {
+                if (this.lastHovered !== target) {
+                    this.lastHovered = target;
+                    if(target.classList.contains('game-card-v2')) {
+                        const gid  = target.dataset.gameId;
+                        const game = gid && CONFIG.GAMES_LIST.find(g => g.id === gid);
+                        const freq = (game && game.cat) ? (CAT_FREQS[game.cat] || 400) : 400;
+                        try { this.audio.playTone(freq, 'sine', 0.04, 0.08); } catch(err) {}
+                    } else {
+                        this.audio.playHover();
+                    }
+                }
+            } else {
+                this.lastHovered = null;
             }
         });
         
@@ -390,7 +414,9 @@ const app = {
 
             requestAnimationFrame(() => { 
                 setTimeout(() => { 
-                    nextScreen.classList.add('active'); 
+                    nextScreen.classList.add('active');
+                    nextScreen.classList.add('entering');
+                    setTimeout(() => nextScreen.classList.remove('entering'), 350);
                     if(newState === CONFIG.STATES.MENU) {
                         this.renderMenu();
                         this.updateUI(); 
@@ -676,6 +702,110 @@ const app = {
         this.renderMenu();
     },
 
+
+    // ─── TUTORIAL INTERACTIVO ───────────────────────────────
+    startTutorial() {
+        if(this.stats.tutorialDone) return;
+        this.tutStep = 0;
+        const steps = [
+            { target: '.main-nav-brand',    title: 'PROTOCOLOS',        desc: 'Bienvenido al sistema. Aquí verás el nombre y el botón de partida aleatoria.',               pos: 'bottom' },
+            { target: '.main-nav-tabs',     title: 'NAVEGACIÓN',        desc: 'Accede al Protocolo Diario, Misiones Semanales, Neon Pass, Tienda y tu Perfil.',            pos: 'bottom' },
+            { target: '.lobby-filters',     title: 'FILTROS',           desc: 'Filtra los juegos por categoría: Reflejos, Memoria, Mental, Acción o Conocimiento.',        pos: 'bottom' },
+            { target: '.game-card-v2',      title: 'JUEGOS',            desc: 'Haz click para jugar. El ícono (i) muestra info del juego. Acumulas récords y XP.',         pos: 'right'  },
+            { target: '.status-bar',        title: 'ESTADO DEL AGENTE', desc: 'Tu rango, barra de XP, créditos y racha diaria. Todo progresa con cada partida.',           pos: 'top'    },
+        ];
+        this._tutSteps = steps;
+        this._showTutStep(0);
+    },
+
+    _showTutStep(idx) {
+        this._removeTutorial();
+        const steps = this._tutSteps;
+        if(idx >= steps.length) { this._finishTutorial(); return; }
+
+        const step = steps[idx];
+        const el   = document.querySelector(step.target);
+        if(!el) { this._showTutStep(idx + 1); return; }
+
+        const rect = el.getBoundingClientRect();
+        const pad  = 8;
+
+        // Crear overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'tutorial-overlay';
+        overlay.className = 'tutorial-overlay';
+
+        // Spotlight
+        const spot = document.createElement('div');
+        spot.className = 'tutorial-spotlight';
+        spot.style.cssText = [
+            'left:'   + (rect.left   - pad) + 'px',
+            'top:'    + (rect.top    - pad) + 'px',
+            'width:'  + (rect.width  + pad*2) + 'px',
+            'height:' + (rect.height + pad*2) + 'px',
+        ].join(';');
+        overlay.appendChild(spot);
+
+        // Tooltip
+        const tt   = document.createElement('div');
+        tt.className = 'tutorial-tooltip';
+
+        // Dots
+        const dotsHTML = steps.map((_,i) =>
+            '<div class="tut-dot' + (i===idx?' active':'') + '"></div>'
+        ).join('');
+
+        tt.innerHTML = [
+            '<div class="tut-step">PASO ' + (idx+1) + ' / ' + steps.length + '</div>',
+            '<div class="tut-title">' + step.title + '</div>',
+            '<div class="tut-desc">'  + step.desc  + '</div>',
+            '<div class="tut-actions">',
+            '  <div class="tut-dots">' + dotsHTML + '</div>',
+            '  <div style="display:flex;gap:6px;">',
+            '    <button class="tut-btn-skip" id="tut-skip">SALTAR</button>',
+            '    <button class="tut-btn-next" id="tut-next">' + (idx===steps.length-1?'LISTO':'SIGUIENTE') + '</button>',
+            '  </div>',
+            '</div>',
+        ].join('');
+
+        // Posición del tooltip
+        const ttW = 280, ttH = 150;
+        let ttLeft, ttTop;
+        if(step.pos === 'bottom') {
+            ttLeft = Math.min(rect.left, window.innerWidth  - ttW - 16);
+            ttTop  = rect.bottom + pad + 10;
+        } else if(step.pos === 'top') {
+            ttLeft = Math.min(rect.left, window.innerWidth  - ttW - 16);
+            ttTop  = rect.top - ttH - pad - 10;
+        } else {
+            ttLeft = rect.right + pad + 10;
+            ttTop  = rect.top;
+        }
+        ttLeft = Math.max(8, ttLeft);
+        ttTop  = Math.max(8, ttTop);
+        tt.style.left = ttLeft + 'px';
+        tt.style.top  = ttTop  + 'px';
+        overlay.appendChild(tt);
+        document.body.appendChild(overlay);
+
+        // Eventos
+        tt.querySelector('#tut-next').onclick = () => { try{this.audio.playClick();}catch(e){} this._showTutStep(idx + 1); };
+        tt.querySelector('#tut-skip').onclick = () => { try{this.audio.playClick();}catch(e){} this._finishTutorial(); };
+        this.tutStep = idx;
+    },
+
+    _removeTutorial() {
+        const el = document.getElementById('tutorial-overlay');
+        if(el) el.remove();
+    },
+
+    _finishTutorial() {
+        this._removeTutorial();
+        this.stats.tutorialDone = true;
+        this.save();
+        this.showToast('SISTEMA DOMINADO', 'Tutorial completado. ¡A jugar!', 'success');
+    },
+
     renderRecommendation() {
         const el = document.getElementById('lobby-recommend');
         if(!el) return;
@@ -729,6 +859,10 @@ const app = {
         if(!container) return;
         if(!this.stats.unlockedGames) this.stats.unlockedGames = [];
 
+        // Tutorial primera vez
+        if(!this.stats.tutorialDone && this.stats.gamesPlayed === 0) {
+            setTimeout(() => this.startTutorial(), 800);
+        }
         // Banner de recomendación
         this.renderRecommendation();
 
@@ -758,7 +892,7 @@ const app = {
             }
 
             return `
-                <div class="game-card-v2"
+                <div class="game-card-v2" data-game-id="${g.id}"
                      style="border-color:${color}25; --gc:${color};"
                      onmouseenter="this.style.borderColor='${color}60'; this.style.boxShadow='0 8px 24px ${color}20';"
                      onmouseleave="this.style.borderColor='${color}25'; this.style.boxShadow='';">
@@ -1002,6 +1136,10 @@ const app = {
                     <div class="cod-agent-info">
                         <div class="cod-agent-name">AGENTE</div>
                         <div class="cod-agent-rank">${this.getRankName(this.stats.level)}</div>
+                        ${(() => {
+                            const t = CONFIG.TITLES && CONFIG.TITLES.find(t => t.id === this.stats.equippedTitle);
+                            return t ? '<div style="font-size:0.52rem;color:#a855f7;font-family:monospace;letter-spacing:1px;margin-top:1px;">' + t.name + '</div>' : '';
+                        })()}
                     </div>
                     <div class="cod-agent-level" style="color:${gameColor};">LVL ${this.stats.level}</div>
                 </div>
@@ -1352,7 +1490,7 @@ const app = {
                 </div>`;
         }).join('');
 
-        // Récords con sparklines
+        // Récords con sparklines SVG
         const recordsHTML = CONFIG.GAMES_LIST
             .filter(g => this.highScores[g.id])
             .map(g => {
@@ -1360,22 +1498,40 @@ const app = {
                 const best   = typeof entry === 'number' ? entry : (entry.best || 0);
                 const hist   = typeof entry === 'object' ? (entry.history || []) : [];
                 const gColor = CONFIG.COLORS[g.color] || '#64748b';
-                const bars   = hist.length > 1
-                    ? hist.slice(0,6).reverse().map(h => {
-                        const mx  = Math.max(...hist.slice(0,6).map(x => x.score));
-                        const pct = mx > 0 ? Math.max(20, (h.score/mx)*100) : 50;
-                        return `<div style="width:4px;height:${Math.round(pct*0.18)}px;background:${gColor};opacity:.7;border-radius:1px;align-self:flex-end;"></div>`;
-                    }).join('') : '';
+                const rank      = this.calculateRank(g.id, best);
+                const rankColors = { S:'#fbbf24', A:'#10b981', B:'#3b82f6', F:'#475569' };
+                const rankColor  = rankColors[rank] || '#475569';
+                let sparkSVG = '';
+                if(hist.length > 1) {
+                    const pts = hist.slice(0,8).reverse();
+                    const mx  = Math.max(...pts.map(x=>x.score), 1);
+                    const W=52, H=18;
+                    const coords = pts.map((p,i) => {
+                        const x = (i/(pts.length-1))*W;
+                        const y = H - (p.score/mx)*(H-3) - 1;
+                        return x.toFixed(1)+','+y.toFixed(1);
+                    }).join(' ');
+                    const lastPt = pts[pts.length-1];
+                    const lastX  = W;
+                    const lastY  = (H - (lastPt.score/mx)*(H-3) - 1).toFixed(1);
+                    sparkSVG = '<svg width="'+W+'" height="'+H+'" style="overflow:visible;flex-shrink:0;">' +
+                        '<polyline points="'+coords+'" fill="none" stroke="'+gColor+'" stroke-width="1.5" stroke-linejoin="round" opacity="0.7"/>' +
+                        '<circle cx="'+lastX+'" cy="'+lastY+'" r="2.5" fill="'+gColor+'"/>' +
+                        '</svg>';
+                }
                 return `
                     <div class="pv2-record-row">
                         <div class="pv2-rec-icon" style="background:${gColor}15;color:${gColor};">
                             <i class="${g.icon}"></i>
                         </div>
                         <div class="pv2-rec-name">${g.name}</div>
-                        <div class="pv2-rec-spark">${bars}</div>
-                        <div class="pv2-rec-score" style="color:${gColor};">${best.toLocaleString()}</div>
+                        <div class="pv2-rec-spark">${sparkSVG}</div>
+                        <div style="display:flex;align-items:center;gap:5px;">
+                            <span style="font-family:var(--font-display);font-size:0.6rem;color:${rankColor};">${rank}</span>
+                            <div class="pv2-rec-score" style="color:${gColor};">${best.toLocaleString()}</div>
+                        </div>
                     </div>`;
-            }).join('') || `<div style="color:#334155;font-size:0.78rem;padding:8px 0;">Sin récords todavía</div>`;
+            }).join('') || '<div style="color:#334155;font-size:0.78rem;padding:8px 0;">Sin récords todavía</div>';
 
         // Leaderboard — usar XP total acumulado
         const playerTotalXP = ((this.stats.level-1) * 100) + (this.stats.xp||0);
@@ -1834,6 +1990,79 @@ const app = {
                     ctx.shadowBlur=0;
                 });
                 ctx.globalAlpha=1;
+            },
+
+            amongus() {
+                ctx.fillStyle='rgba(3,6,20,0.15)'; ctx.fillRect(0,0,W,H);
+                const t=Date.now()*0.001;
+                const colors=['#c8181b','#1d3de8','#1c9e33','#f07c1b','#9b2dca','#71491e','#38ffdd'];
+                P.forEach(p=>{
+                    if(!p.col){p.col=colors[Math.floor(Math.random()*colors.length)];p.dead=Math.random()<0.15;}
+                    p.y+=0.4+p.size*0.1; p.x+=Math.sin(t+p.vx)*0.3;
+                    if(p.y>H){p.y=-20;p.x=Math.random()*W;}
+                    ctx.save(); ctx.translate(p.x,p.y);
+                    if(p.dead) ctx.rotate(Math.PI/2);
+                    ctx.fillStyle=p.col; ctx.globalAlpha=p.alpha;
+                    ctx.beginPath(); ctx.ellipse(0,3,7,9,0,0,Math.PI*2); ctx.fill();
+                    ctx.fillStyle='rgba(150,220,255,0.85)';
+                    ctx.beginPath(); ctx.ellipse(-1,-2,4,3,0,0,Math.PI*2); ctx.fill();
+                    ctx.fillStyle=p.col; ctx.fillRect(5,0,4,7);
+                    ctx.restore();
+                });
+                ctx.globalAlpha=1;
+            },
+
+            undertale() {
+                ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.fillRect(0,0,W,H);
+                const t=Date.now()*0.001;
+                const pulse=1+Math.sin(t*2)*0.06;
+                const hx=W/2, hy=H*0.45;
+                ctx.save(); ctx.translate(hx,hy); ctx.scale(pulse,pulse);
+                ctx.fillStyle='#ff0038'; ctx.shadowBlur=20; ctx.shadowColor='#ff0038';
+                ctx.beginPath();
+                ctx.moveTo(0,6); ctx.bezierCurveTo(-16,-8,-28,8,-14,20);
+                ctx.lineTo(0,34); ctx.lineTo(14,20);
+                ctx.bezierCurveTo(28,8,16,-8,0,6); ctx.fill();
+                ctx.restore(); ctx.shadowBlur=0;
+                P.forEach(p=>{
+                    const angle=Math.atan2(p.y-hy,p.x-hx);
+                    p.x+=Math.cos(angle+Math.PI)*1.5; p.y+=Math.sin(angle+Math.PI)*1.5;
+                    if(Math.hypot(p.x-hx,p.y-hy)>Math.min(W,H)*0.5){p.x=hx+(Math.random()-0.5)*40;p.y=hy+(Math.random()-0.5)*40;}
+                    ctx.globalAlpha=p.alpha*0.6;
+                    ctx.fillStyle=Math.random()<0.5?'#ff0038':'#fff';
+                    ctx.font=(8+p.size)+'px monospace'; ctx.fillText('*',p.x,p.y);
+                });
+                ctx.globalAlpha=1;
+            },
+
+            hollow() {
+                ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.fillRect(0,0,W,H);
+                const t=Date.now()*0.001;
+                P.forEach(p=>{
+                    p.y-=0.5+p.size*0.15; p.x+=Math.sin(t*0.5+p.vx)*0.5;
+                    if(p.y<-10){p.y=H+10;p.x=Math.random()*W;}
+                    const flicker=0.3+Math.sin(t*3+p.vx)*0.3;
+                    ctx.globalAlpha=p.alpha*flicker;
+                    ctx.fillStyle=Math.random()<0.1?'#b8a0d8':'#ffffff';
+                    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*0.4,0,Math.PI*2); ctx.fill();
+                });
+                ctx.globalAlpha=1;
+            },
+
+            stardew() {
+                ctx.fillStyle='rgba(4,8,4,0.15)'; ctx.fillRect(0,0,W,H);
+                const t=Date.now()*0.001;
+                const syms=['\u2605','\u273f','\u266a','\u25c6','\u2726'];
+                const cols=['#ffd700','#ff69b4','#90ee90','#87ceeb','#ffa500'];
+                P.forEach(p=>{
+                    if(!p.sym){p.sym=syms[Math.floor(Math.random()*syms.length)];p.col=cols[Math.floor(Math.random()*cols.length)];}
+                    p.y+=0.8+p.size*0.2; p.x+=Math.sin(t*0.8+p.vx)*0.6;
+                    if(p.y>H){p.y=-10;p.x=Math.random()*W;}
+                    ctx.globalAlpha=p.alpha*0.8; ctx.fillStyle=p.col;
+                    ctx.font=(10+p.size*2)+'px monospace'; ctx.textAlign='center';
+                    ctx.fillText(p.sym,p.x,p.y);
+                });
+                ctx.globalAlpha=1; ctx.textAlign='left';
             }
         };
 
@@ -1855,13 +2084,17 @@ const app = {
     setAvatar(icon) { this.stats.avatar = icon; this.audio.playClick(); this.showProfile(); this.updateUI(); this.save(); },
     setTitle(titleId) {
         this.stats.equippedTitle = this.stats.equippedTitle === titleId ? null : titleId;
+        this.audio.playClick(); this.showProfile(); this.updateUI(); this.save();
+    },
+    setTitle(titleId) {
+        this.stats.equippedTitle = this.stats.equippedTitle === titleId ? null : titleId;
         this.audio.playClick();
         this.showProfile();
         this.updateUI();
         this.save();
     },
     closeProfile() { document.getElementById('modal-profile').classList.add('hidden'); },
-    save() { localStorage.setItem('arcade_save', JSON.stringify({ credits: this.credits, stats: this.stats, highScores: this.highScores, shop: { inventory: this.shop.inventory, equipped: this.shop.equipped }, daily: this.daily, weekly: this.weekly, streak: this.streak, settings: { audio: this.audio.vol, performance: this.settings.performance } })); },
+    save() { localStorage.setItem('arcade_save', JSON.stringify({ credits: this.credits, stats: this.stats, highScores: this.highScores, shop: { inventory: this.shop.inventory, equipped: this.shop.equipped }, daily: this.daily, weekly: this.weekly, streak: this.streak, invest: this.invest, settings: { audio: this.audio.vol, performance: this.settings.performance } })); },
     checkDailyReset() { const today = new Date().toDateString(); if (this.daily.date !== today || this.daily.tasks.length === 0) { this.daily.date = today; this.daily.claimed = false; this.daily.tasks = []; const rng = new SeededRandom(parseInt(today.replace(/\D/g,'')) || Date.now()); const gameIds = Object.keys(this.gameClasses); while(this.daily.tasks.length < 3) { const gid = gameIds[Math.floor(rng.next() * gameIds.length)]; if (!this.daily.tasks.find(t => t.gameId === gid)) this.daily.tasks.push({ gameId: gid, target: CONFIG.DAILY_TARGETS[gid] || 10, done: false }); } this.save(); } },
 
     checkWeeklyReset() {
@@ -1993,7 +2226,8 @@ const app = {
                 <div class="dp-label">${pct}% · ${claimed ? 'COMPLETADO HOY' : 'RENUEVA EN MEDIANOCHE'}</div>
             </div>
             <div class="daily-tasks-v3">${tasksHTML}</div>
-            <div class="daily-claim-v3">
+            ${this.renderInvestPanel()}
+                        <div class="daily-claim-v3">
                 <button class="btn btn-secondary" onclick="window.app.audio.playClick(); window.app.changeState('menu');" style="flex-shrink:0;">
                     <i class="fa-solid fa-arrow-left"></i>
                 </button>
@@ -2118,6 +2352,74 @@ const app = {
         container.appendChild(el);
         requestAnimationFrame(() => { el.style.opacity='1'; el.style.transform='none'; });
         setTimeout(() => { el.style.opacity='0'; el.style.transform='translateX(60px)'; setTimeout(()=>el.remove(), 400); }, 4500);
+    },
+
+    checkInvestment() {
+        if(!this.invest || !this.invest.date || !this.invest.amount) return;
+        const today = new Date().toDateString();
+        if(this.invest.date === today || this.invest.resolved) return;
+        const RISKS = { LOW:{min:-0.05,max:0.15}, MEDIUM:{min:-0.20,max:0.40}, HIGH:{min:-0.50,max:1.00} };
+        const r = RISKS[this.invest.risk] || RISKS.LOW;
+        const pct = r.min + Math.random() * (r.max - r.min);
+        const result = Math.round(this.invest.amount * pct);
+        this.invest.result = result; this.invest.resolved = true;
+        this.credits += result;
+        const sign = result >= 0 ? '+' : '';
+        setTimeout(() => this.showToast(
+            result >= 0 ? 'INVERSIÓN RENTABLE' : 'PÉRDIDA DE CAPITAL',
+            sign + result.toLocaleString() + ' CR sobre ' + this.invest.amount.toLocaleString() + ' CR',
+            result >= 0 ? 'gold' : 'danger'
+        ), 1200);
+        this.save();
+    },
+
+    makeInvestment(amount, risk) {
+        if(this.credits < amount) { this.showToast('FONDOS INSUFICIENTES', 'Necesitas ' + amount.toLocaleString() + ' CR', 'danger'); return; }
+        if(this.invest && this.invest.date === new Date().toDateString() && this.invest.amount > 0 && !this.invest.resolved) {
+            this.showToast('YA INVERTISTE HOY', 'Espera el resultado de mañana', 'danger'); return;
+        }
+        this.credits -= amount;
+        this.invest = { date: new Date().toDateString(), amount, risk, resolved: false, result: 0 };
+        this.save(); this.updateUI(); this.renderDailyScreen();
+        this.showToast('INVERSIÓN REGISTRADA', amount.toLocaleString() + ' CR · ' + risk, 'purple');
+    },
+
+    renderInvestPanel() {
+        const inv   = this.invest || {};
+        const today = new Date().toDateString();
+        const hasActive = inv.date === today && inv.amount > 0 && !inv.resolved;
+        const hasResult = inv.resolved && inv.date && inv.date !== today;
+        if(hasActive) {
+            return '<div style="margin:0 0 6px;padding:10px 14px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.2);border-radius:10px;font-family:monospace;font-size:0.62rem;color:#a855f7;">' +
+                '<i class="fa-solid fa-clock"></i> INVERSIÓN ACTIVA &middot; ' + inv.amount.toLocaleString() + ' CR &middot; ' + inv.risk + ' &middot; Resultado mañana</div>';
+        }
+        if(hasResult) {
+            const col = inv.result >= 0 ? '#10b981' : '#ef4444';
+            return '<div style="margin:0 0 6px;padding:10px 14px;background:' + col + '0f;border:1px solid ' + col + '30;border-radius:10px;font-family:monospace;font-size:0.62rem;color:' + col + ';">' +
+                '<i class="fa-solid fa-chart-line"></i> RESULTADO: ' + (inv.result >= 0?'+':'') + inv.result.toLocaleString() + ' CR sobre ' + inv.amount.toLocaleString() + ' CR</div>';
+        }
+        const OPTS = [
+            {risk:'LOW',    label:'Bajo',  pct:'-5%/+15%',  color:'#10b981', amounts:[100,500,1000]},
+            {risk:'MEDIUM', label:'Medio', pct:'-20%/+40%', color:'#f59e0b', amounts:[500,2000,5000]},
+            {risk:'HIGH',   label:'Alto',  pct:'-50%/+100%',color:'#ef4444', amounts:[1000,5000,10000]},
+        ];
+        let html = '<div style="margin:0 0 6px;padding:10px 14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;">';
+        html += '<div style="font-size:0.55rem;color:#334155;font-family:monospace;letter-spacing:2px;margin-bottom:7px;"><i class="fa-solid fa-chart-bar"></i> MERCADO NEGRO</div>';
+        html += '<div style="display:flex;gap:6px;">';
+        OPTS.forEach(function(o) {
+            html += '<div style="flex:1;background:rgba(255,255,255,0.02);border:1px solid ' + o.color + '20;border-radius:7px;padding:7px 8px;">';
+            html += '<div style="font-size:0.58rem;color:' + o.color + ';font-family:var(--font-display);letter-spacing:1px;">' + o.label + '</div>';
+            html += '<div style="font-size:0.52rem;color:#475569;font-family:monospace;margin-bottom:5px;">' + o.pct + '</div>';
+            html += '<div style="display:flex;gap:3px;flex-wrap:wrap;">';
+            o.amounts.forEach(function(a) {
+                var lbl = a >= 1000 ? (a/1000) + 'k' : a;
+                html += '<button onclick="window.app.makeInvestment(' + a + ',\'' + o.risk + '\')" ' +
+                    'style="background:' + o.color + '15;border:1px solid ' + o.color + '25;border-radius:4px;padding:2px 5px;font-size:0.52rem;color:' + o.color + ';font-family:monospace;cursor:pointer;">' + lbl + '</button>';
+            });
+            html += '</div></div>';
+        });
+        html += '</div></div>';
+        return html;
     },
 
     claimDaily() { if(this.daily.claimed) return; this.daily.claimed = true; this.stats.dailyCompleted = (this.stats.dailyCompleted||0)+1; this.addScore(0, 500); this.audio.playWin(10); this.showToast("¡RECOMPENSA RECLAMADA!", "Has ganado 500 Créditos", "gold"); this.renderDailyScreen(); this.save(); },

@@ -144,11 +144,36 @@ export class CyberPongGame {
             this.audio.playTone(200, 'square', 0.05);
         }
 
-        // IA
+        // IA predictiva — predice dónde llegará la bola
+        const aiSpeed  = 5 + this.difficulty;
+        let targetY;
+        if(this.ball.dx > 0) {
+            // Bola yendo hacia la IA — predecir rebotes
+            let bx = this.ball.x, by = this.ball.y, bdx = this.ball.dx, bdy = this.ball.dy;
+            const aiX = this.canvas.width - this.paddleWidth - 20;
+            let steps = 0;
+            while(bx < aiX && steps < 200) {
+                bx += bdx; by += bdy; steps++;
+                if(by < 0)                        { by = -by; bdy = -bdy; }
+                if(by > this.canvas.height)        { by = 2*this.canvas.height - by; bdy = -bdy; }
+            }
+            // Añadir error humano proporcional a la dificultad
+            const errorRange = Math.max(0, 40 - this.difficulty * 8);
+            const error = (Math.random() - 0.5) * errorRange;
+            // En modo CHAOS la IA comete más errores
+            const chaosError = this.mode === 'CHAOS' ? (Math.random()-0.5)*60 : 0;
+            targetY = by + error + chaosError;
+        } else {
+            // Bola alejándose — volver al centro gradualmente
+            targetY = this.canvas.height / 2;
+        }
+
         const centerPaddle = this.aiY + this.paddleHeight / 2;
-        if(centerPaddle < this.ball.y - 35) this.aiY += (5 + this.difficulty);
-        else if(centerPaddle > this.ball.y + 35) this.aiY -= (5 + this.difficulty);
-        
+        const diff = targetY - centerPaddle;
+        if(Math.abs(diff) > 4) {
+            this.aiY += Math.sign(diff) * Math.min(aiSpeed, Math.abs(diff));
+        }
+
         if(this.aiY < 0) this.aiY = 0;
         if(this.aiY > this.canvas.height - this.paddleHeight) this.aiY = this.canvas.height - this.paddleHeight;
 

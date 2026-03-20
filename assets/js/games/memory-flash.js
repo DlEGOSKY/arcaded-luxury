@@ -261,4 +261,14 @@ export class MemoryFlashGame {
             if(this.onQuit) this.onQuit(finalScore);
         }, 800);
     }
+    pause() {
+        if(this._paused) return;
+        this._paused = true;
+        this.isRunning = false;
+    }
+    resume() {
+        if(!this._paused) return;
+        this._paused = false;
+        this.isRunning = true;
+    }
 }

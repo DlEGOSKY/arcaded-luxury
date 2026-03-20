@@ -127,6 +127,15 @@ export class BioScanGame {
         }
     }
 
+    pause() {
+        this._paused = true;
+        if(this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval = null; }
+    }
+    resume() {
+        if(!this._paused) return;
+        this._paused = false;
+        if(!this.isProcessing) this.startTimer();
+    }
     formatBreed(str) { return str.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '); }
 
     render(imgUrl, options) {

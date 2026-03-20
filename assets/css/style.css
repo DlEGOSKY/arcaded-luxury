@@ -6743,3 +6743,268 @@ body.reduce-motion * {
 }
 .lf-btn i { font-size: 0.55rem; }
 
+
+
+/* =====================================================
+   WELCOME SCREEN V2 — Boot animado
+   ===================================================== */
+.welcome-root {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 28px;
+    padding: 40px 20px;
+}
+
+/* Logo */
+.welcome-logo {
+    text-align: center;
+    animation: wFadeIn 0.6s ease forwards;
+}
+.welcome-logo-top {
+    font-family: var(--font-display);
+    font-size: clamp(2.5rem, 8vw, 5rem);
+    letter-spacing: 12px;
+    color: white;
+    line-height: 1;
+}
+.welcome-logo-sub {
+    font-size: clamp(0.6rem, 2vw, 0.85rem);
+    letter-spacing: 8px;
+    color: var(--primary);
+    font-family: monospace;
+    margin-top: 4px;
+}
+.welcome-logo-line {
+    width: 80px;
+    height: 1px;
+    background: var(--primary);
+    margin: 12px auto 0;
+    opacity: 0.5;
+    animation: wExpand 0.5s ease 0.4s both;
+}
+@keyframes wExpand { from{width:0} to{width:80px} }
+
+/* Boot log */
+.welcome-boot {
+    font-family: monospace;
+    font-size: 0.7rem;
+    color: #334155;
+    line-height: 1.8;
+    text-align: left;
+    width: 100%;
+    max-width: 320px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 8px;
+    padding: 12px 16px;
+}
+.boot-line {
+    opacity: 0;
+    animation: wFadeIn 0.3s ease var(--d,0s) forwards;
+    letter-spacing: 0.5px;
+}
+
+/* Returning player */
+.welcome-returning {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-family: monospace;
+    font-size: 0.7rem;
+    color: #475569;
+    animation: wFadeIn 0.4s ease 1.4s both;
+}
+.wr-stats {
+    font-size: 0.62rem;
+    color: #334155;
+}
+
+/* CTA button */
+.welcome-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 36px;
+    background: rgba(59,130,246,0.12);
+    border: 1px solid rgba(59,130,246,0.4);
+    border-radius: 12px;
+    color: var(--primary);
+    font-family: var(--font-display);
+    font-size: 0.88rem;
+    letter-spacing: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.welcome-btn:hover {
+    background: rgba(59,130,246,0.25);
+    box-shadow: 0 0 30px rgba(59,130,246,0.2);
+    transform: translateY(-2px);
+    color: white;
+}
+.welcome-version {
+    font-size: 0.52rem;
+    color: #1e293b;
+    font-family: monospace;
+    letter-spacing: 2px;
+    opacity: 0;
+    animation: wFadeIn 0.3s ease 2s forwards;
+}
+
+@keyframes wFadeIn { from{opacity:0} to{opacity:1} }
+
+/* =====================================================
+   TRANSICIONES DE PANTALLA — suaves
+   ===================================================== */
+.screen {
+    transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.2,0,0,1) !important;
+}
+.screen.entering {
+    animation: screenEnter 0.3s cubic-bezier(0.2,0,0,1) forwards;
+}
+@keyframes screenEnter {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+
+
+/* =====================================================
+   TEMAS V3 — Clásicos de gaming
+   ===================================================== */
+
+/* Diablo II — rojo sangre oscuro */
+body.t_diablo {
+    --primary: #b91c1c; --gold: #dc2626; --accent: #991b1b; --success: #b91c1c;
+    --bg-dark: #080000; --text-main: #fca5a5;
+}
+body.t_diablo .main-nav { background: rgba(15,0,0,0.98); border-bottom-color: rgba(185,28,28,0.35); }
+body.t_diablo .game-card-v2 { background: rgba(20,2,2,0.95); border-color: rgba(185,28,28,0.15); }
+body.t_diablo .game-card-v2:hover { border-color: #b91c1c; box-shadow: 0 0 20px rgba(185,28,28,0.4); }
+body.t_diablo .lobby-grid { background: radial-gradient(ellipse at center, #1a0000 0%, #080000 80%); }
+body.t_diablo .status-bar { background: rgba(15,0,0,0.98); border-top-color: rgba(185,28,28,0.35); }
+body.t_diablo .btn { background: rgba(185,28,28,0.12); border-color: rgba(185,28,28,0.45); color: #fca5a5; }
+body.t_diablo .btn:hover { background: rgba(185,28,28,0.28); box-shadow: 0 0 18px rgba(185,28,28,0.4); }
+body.t_diablo .vignette { background: radial-gradient(circle, transparent 25%, rgba(80,0,0,0.7) 100%); opacity: 1; }
+body.t_diablo .scanlines { opacity: 0.25; }
+
+/* Counter-Strike 1.6 — verde militar sobre oscuro */
+body.t_cs16 {
+    --primary: #4a7c59; --gold: #8fbc8f; --accent: #2d5a3d; --success: #4a7c59;
+    --bg-dark: #0a0c08; --text-main: #c8d4c0;
+    --font-ui: 'Courier New', monospace;
+}
+body.t_cs16 .main-nav { background: rgba(10,14,8,0.99); border-bottom-color: rgba(74,124,89,0.3); }
+body.t_cs16 .game-card-v2 { background: rgba(12,16,10,0.96); border-color: rgba(74,124,89,0.15); border-radius: 2px; }
+body.t_cs16 .game-card-v2:hover { border-color: #4a7c59; box-shadow: 0 0 15px rgba(74,124,89,0.35); }
+body.t_cs16 .lobby-grid { background: #0a0c08; }
+body.t_cs16 .status-bar { background: rgba(10,14,8,0.99); border-top-color: rgba(74,124,89,0.3); }
+body.t_cs16 .btn { background: rgba(74,124,89,0.1); border-color: rgba(74,124,89,0.4); color: #8fbc8f; border-radius: 2px; }
+body.t_cs16 .btn:hover { background: rgba(74,124,89,0.22); }
+
+/* Quake — marrón industrial con detalles naranja */
+body.t_quake {
+    --primary: #d97706; --gold: #f59e0b; --accent: #b45309; --success: #d97706;
+    --bg-dark: #0c0800; --text-main: #d4b483;
+    --font-ui: 'Courier New', monospace;
+}
+body.t_quake .main-nav { background: rgba(15,10,0,0.98); border-bottom-color: rgba(217,119,6,0.3); }
+body.t_quake .game-card-v2 { background: rgba(20,12,2,0.95); border-color: rgba(217,119,6,0.12); border-radius: 2px; }
+body.t_quake .game-card-v2:hover { border-color: #d97706; box-shadow: 0 0 18px rgba(217,119,6,0.35); }
+body.t_quake .lobby-grid { background: #0c0800; }
+body.t_quake .status-bar { background: rgba(15,10,0,0.98); border-top-color: rgba(217,119,6,0.3); }
+body.t_quake .btn { background: rgba(217,119,6,0.1); border-color: rgba(217,119,6,0.4); color: #d97706; border-radius: 2px; }
+body.t_quake .scanlines { opacity: 0.4; }
+
+/* Windows XP Error — BSOD azul */
+body.t_xperror {
+    --primary: #1560bd; --gold: #1e88e5; --accent: #0d47a1; --success: #1560bd;
+    --bg-dark: #0050cd; --text-main: #ffffff;
+    --font-ui: 'Courier New', monospace;
+}
+body.t_xperror .main-nav { background: rgba(0,60,170,0.99); border-bottom-color: rgba(255,255,255,0.2); }
+body.t_xperror .game-card-v2 { background: rgba(0,50,150,0.9); border-color: rgba(255,255,255,0.2); border-radius: 0; }
+body.t_xperror .game-card-v2:hover { border-color: white; box-shadow: none; background: rgba(0,70,190,0.9); }
+body.t_xperror .lobby-grid { background: #0050cd; }
+body.t_xperror .status-bar { background: rgba(0,60,170,0.99); border-top-color: rgba(255,255,255,0.15); }
+body.t_xperror .btn { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.5); color: white; border-radius: 0; }
+body.t_xperror .btn:hover { background: rgba(255,255,255,0.3); }
+body.t_xperror .scanlines { display: none; }
+body.t_xperror .vignette { display: none; }
+
+/* StarCraft — azul protoss con detalles dorados */
+body.t_starcraft {
+    --primary: #3b82f6; --gold: #fbbf24; --accent: #2563eb; --success: #3b82f6;
+    --bg-dark: #020510; --text-main: #b8cfef;
+}
+body.t_starcraft .main-nav { background: rgba(2,5,20,0.99); border-bottom-color: rgba(59,130,246,0.3); }
+body.t_starcraft .game-card-v2 { background: rgba(3,8,25,0.96); border-color: rgba(59,130,246,0.12); }
+body.t_starcraft .game-card-v2:hover { border-color: #3b82f6; box-shadow: 0 0 20px rgba(59,130,246,0.35), 0 0 4px rgba(251,191,36,0.2); }
+body.t_starcraft .lobby-grid { background: radial-gradient(ellipse at top, #040a20 0%, #020510 70%); }
+body.t_starcraft .status-bar { background: rgba(2,5,20,0.99); border-top-color: rgba(59,130,246,0.3); }
+body.t_starcraft .btn { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.4); color: #60a5fa; }
+body.t_starcraft .btn:hover { background: rgba(59,130,246,0.22); box-shadow: 0 0 16px rgba(59,130,246,0.3); }
+body.t_starcraft .vignette { background: radial-gradient(circle, transparent 30%, rgba(0,0,20,0.7) 100%); opacity: 1; }
+
+
+
+/* =====================================================
+   TUTORIAL INTERACTIVO — Onboarding primera vez
+   ===================================================== */
+.tutorial-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99990;
+    pointer-events: none;
+}
+.tutorial-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(2px);
+}
+.tutorial-spotlight {
+    position: absolute;
+    border-radius: 12px;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.72);
+    border: 2px solid rgba(59,130,246,0.8);
+    pointer-events: none;
+    transition: all 0.4s cubic-bezier(0.2,0,0,1);
+    animation: spotPulse 2s ease-in-out infinite;
+}
+@keyframes spotPulse {
+    0%,100% { box-shadow: 0 0 0 9999px rgba(0,0,0,0.72), 0 0 0 4px rgba(59,130,246,0.2); }
+    50%      { box-shadow: 0 0 0 9999px rgba(0,0,0,0.72), 0 0 0 8px rgba(59,130,246,0.4); }
+}
+.tutorial-tooltip {
+    position: absolute;
+    background: rgba(8,14,26,0.98);
+    border: 1px solid rgba(59,130,246,0.4);
+    border-radius: 14px;
+    padding: 16px 20px;
+    max-width: 300px;
+    min-width: 220px;
+    pointer-events: auto;
+    animation: tutFadeIn 0.3s ease;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    z-index: 99991;
+}
+@keyframes tutFadeIn { from{opacity:0;transform:scale(0.9)} to{opacity:1;transform:scale(1)} }
+.tut-step   { font-size: 0.52rem; color: #334155; font-family: monospace; letter-spacing: 2px; margin-bottom: 6px; }
+.tut-title  { font-family: var(--font-display); font-size: 0.88rem; color: white; letter-spacing: 2px; margin-bottom: 6px; }
+.tut-desc   { font-size: 0.72rem; color: #94a3b8; line-height: 1.5; margin-bottom: 14px; }
+.tut-actions { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.tut-btn-next { background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.4); color: #60a5fa;
+    border-radius: 8px; padding: 7px 16px; font-family: var(--font-display); font-size: 0.68rem;
+    letter-spacing: 2px; cursor: pointer; transition: all 0.15s; }
+.tut-btn-next:hover { background: rgba(59,130,246,0.3); }
+.tut-btn-skip { background: none; border: none; color: #334155; font-size: 0.62rem; font-family: monospace;
+    cursor: pointer; padding: 7px 8px; transition: color 0.15s; }
+.tut-btn-skip:hover { color: #475569; }
+.tut-dots { display: flex; gap: 5px; }
+.tut-dot { width: 6px; height: 6px; border-radius: 50%; background: #1e293b; transition: all 0.2s; }
+.tut-dot.active { background: var(--primary); }
+

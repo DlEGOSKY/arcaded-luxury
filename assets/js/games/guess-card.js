@@ -137,6 +137,8 @@ export class GuessCardGame {
         </div>`;
     }
 
+    pause() { this._paused = true; }
+    resume() { this._paused = false; }
     buildRoundHistory() {
         return this.roundHistory.map(r =>
             `<div class="oracle-round-dot ${r}" title="${r}"></div>`

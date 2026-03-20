@@ -188,6 +188,12 @@ export const CONFIG = {
 
       
 
+
+        { id: 't_diablo',    type: 'THEME', name: 'Diablo II',      icon: 'fa-solid fa-fire-flame-curved', desc: 'El Santuario en llamas. Rojo sangre.',         price: 4000,   val: 't_diablo'    },
+        { id: 't_cs16',      type: 'THEME', name: 'Counter-Strike', icon: 'fa-solid fa-gun',               desc: 'CT side. 1.6 forever.',                        price: 2500,   val: 't_cs16'      },
+        { id: 't_quake',     type: 'THEME', name: 'Quake',          icon: 'fa-solid fa-q',                 desc: 'Frags por segundo. Brown y oscuro.',           price: 3000,   val: 't_quake'     },
+        { id: 't_xperror',   type: 'THEME', name: 'XP Error',       icon: 'fa-brands fa-windows',          desc: 'Fatal Exception. Pantalla azul de la muerte.', price: 1500,   val: 't_xperror'   },
+        { id: 't_starcraft', type: 'THEME', name: 'StarCraft',       icon: 'fa-solid fa-star',              desc: 'Protoss azul. Por Aiur.',                     price: 3500,   val: 't_starcraft' },
         { id: 'p_circle', type: 'PARTICLE', name: 'Chispas', icon: 'fa-solid fa-circle', desc: 'Efecto estándar.', price: 0, val: 'circle' },
         { id: 'p_square', type: 'PARTICLE', name: 'Vóxeles', icon: 'fa-solid fa-cube', desc: 'Cubos de datos.', price: 500, val: 'square' },
         { id: 'p_star', type: 'PARTICLE', name: 'Polvo Estelar', icon: 'fa-solid fa-star', desc: 'Brilla intensamente.', price: 1200, val: 'star' },
@@ -233,7 +239,11 @@ export const CONFIG = {
         { id: 'cc_portal',    type: 'CALLCARD', name: 'Portal',           icon: 'fa-solid fa-circle-dot',       desc: 'The cake is a lie. Portales azul y naranja.',         price: 3500,  val: 'portal',    ref: 'Portal' },
         { id: 'cc_celeste',   type: 'CALLCARD', name: 'Celeste',          icon: 'fa-solid fa-mountain',         desc: 'Sube la montaña. Cada caída es un paso.',             price: 2800,  val: 'celeste',   ref: 'Celeste' },
         { id: 'cc_halflife',  type: 'CALLCARD', name: 'Half-Life',        icon: 'fa-solid fa-flask',            desc: 'Resonance Cascade. Freeman no está.',                 price: 4500,  val: 'halflife',  ref: 'Half-Life' },
-        { id: 'cc_cyberpunk', type: 'CALLCARD', name: 'Night City',       icon: 'fa-solid fa-city',             desc: 'Wake the f*** up, Samurai. Tenemos una ciudad que quemar.', price: 5000, val: 'cyberpunk', ref: 'Cyberpunk 2077' }
+        { id: 'cc_cyberpunk', type: 'CALLCARD', name: 'Night City',       icon: 'fa-solid fa-city',             desc: 'Wake the f*** up, Samurai. Tenemos una ciudad que quemar.', price: 5000, val: 'cyberpunk', ref: 'Cyberpunk 2077' },
+        { id: 'cc_amongus',  type: 'CALLCARD', name: 'Among Us',     icon: 'fa-solid fa-user-astronaut', desc: 'Sus. Emergencia en la nave.',                  price: 2200,  val: 'amongus',   ref: 'Among Us' },
+        { id: 'cc_undertale',type: 'CALLCARD', name: 'Undertale',    icon: 'fa-solid fa-heart',          desc: 'Stay determined. No maten nada.',              price: 3800,  val: 'undertale', ref: 'Undertale' },
+        { id: 'cc_hollow',   type: 'CALLCARD', name: 'Hollow Knight',icon: 'fa-solid fa-chess-knight',   desc: 'El reino olvidado. Mantis y sombras.',         price: 4200,  val: 'hollow',    ref: 'Hollow Knight' },
+        { id: 'cc_stardew',  type: 'CALLCARD', name: 'Stardew',      icon: 'fa-solid fa-seedling',       desc: 'La granja te espera. Pelikan Town.',           price: 2000,  val: 'stardew',   ref: 'Stardew Valley' }
     ],
 
     SKILLS: {
