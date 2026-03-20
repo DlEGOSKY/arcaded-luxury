@@ -27,6 +27,8 @@ import { CyberTyperGame } from './games/cyber-typer.js';
 import { CyberPongGame } from './games/cyber-pong.js';
 import { SnakePlusGame }  from './games/snake-plus.js';
 import { CipherDecodeGame } from './games/cipher-decode.js';
+import { PixelDrawGame }    from './games/pixel-draw.js';
+import { NumberGridGame }   from './games/number-grid.js';
 import { WordRushGame }     from './games/word-rush.js';
 
 const app = {
@@ -44,6 +46,7 @@ const app = {
     streak: { days: 0, lastDate: '', best: 0 },
     invest: { date: '', amount: 0, risk: '', resolved: false, result: 0, history: [] },
     favorites: [],
+    tournament: null,
     settings: { 
         audio: { master: 0.5, sfx: 1.0, music: 0.5 },
         performance: true 
@@ -70,6 +73,8 @@ const app = {
             'cyber-pong':    CyberPongGame,
             'snake-plus':    SnakePlusGame,
             'cipher-decode': CipherDecodeGame,
+            'pixel-draw':     PixelDrawGame,
+            'number-grid':    NumberGridGame,
             'word-rush':      WordRushGame
         };
 
@@ -97,7 +102,8 @@ const app = {
                 if(d.weekly) this.weekly = d.weekly;
                 if(d.streak) this.streak = d.streak;
                 if(d.invest)     this.invest     = d.invest;
-                if(d.favorites)  this.favorites  = d.favorites;
+                if(d.favorites)   this.favorites   = d.favorites;
+                if(d.tournament)  this.tournament  = d.tournament;
                 if(d.settings) {
                     if(d.settings.audio) this.audio.vol = d.settings.audio;
                     if(d.settings.performance !== undefined) this.settings.performance = d.settings.performance;
@@ -113,6 +119,7 @@ const app = {
         this.checkWeeklyReset();
         this.checkStreakUpdate();
         this.checkInvestment();
+        this.initTournament();
         this.renderMenu();
         this.updateUI();
         
@@ -1028,6 +1035,7 @@ const app = {
             }
             
             this.gainXP(xpGain);
+        this.submitTournamentScore(gameId, score);
             if (typeof this.game.score === 'number' && this.activeGameId) {
                 // Marcar misión diaria
                 const task = this.daily.tasks.find(t => t.gameId === this.activeGameId);
@@ -2176,7 +2184,7 @@ const app = {
         this.save();
     },
     closeProfile() { document.getElementById('modal-profile').classList.add('hidden'); },
-    save() { localStorage.setItem('arcade_save', JSON.stringify({ credits: this.credits, stats: this.stats, highScores: this.highScores, shop: { inventory: this.shop.inventory, equipped: this.shop.equipped }, daily: this.daily, weekly: this.weekly, streak: this.streak, invest: this.invest, favorites: this.favorites, settings: { audio: this.audio.vol, performance: this.settings.performance } })); },
+    save() { localStorage.setItem('arcade_save', JSON.stringify({ credits: this.credits, stats: this.stats, highScores: this.highScores, shop: { inventory: this.shop.inventory, equipped: this.shop.equipped }, daily: this.daily, weekly: this.weekly, streak: this.streak, invest: this.invest, favorites: this.favorites, tournament: this.tournament, settings: { audio: this.audio.vol, performance: this.settings.performance } })); },
     checkDailyReset() { const today = new Date().toDateString(); if (this.daily.date !== today || this.daily.tasks.length === 0) { this.daily.date = today; this.daily.claimed = false; this.daily.tasks = []; const rng = new SeededRandom(parseInt(today.replace(/\D/g,'')) || Date.now()); const gameIds = Object.keys(this.gameClasses); while(this.daily.tasks.length < 3) { const gid = gameIds[Math.floor(rng.next() * gameIds.length)]; if (!this.daily.tasks.find(t => t.gameId === gid)) this.daily.tasks.push({ gameId: gid, target: CONFIG.DAILY_TARGETS[gid] || 10, done: false }); } this.save(); } },
 
     checkWeeklyReset() {
@@ -2252,6 +2260,107 @@ const app = {
         this.renderWeeklyScreen();
         this.save();
     },
+
+    // ─── TORNEOS SEMANALES ──────────────────────────────────
+    initTournament() {
+        const today = new Date();
+        const weekKey = today.getFullYear() + '-W' + Math.ceil(today.getDate()/7) + '-' + today.getMonth();
+
+        if(!this.tournament) this.tournament = {};
+        if(this.tournament.week === weekKey) return; // ya inicializado
+
+        // Juego del torneo — rotación semanal
+        const tourneyGames = [
+            'higher-lower','cyber-pong','snake-plus','void-dodger','color-trap',
+            'neon-sniper','word-rush','memory-flash','hyper-reflex','cipher-decode'
+        ];
+        const seed = parseInt(weekKey.replace(/\D/g,'')) || 1;
+        const gameId = tourneyGames[seed % tourneyGames.length];
+        const rng = new SeededRandom(seed);
+
+        this.tournament = {
+            week:    weekKey,
+            gameId:  gameId,
+            scores:  this.tournament.scores || [],
+            best:    0,
+            endDate: this.getWeekEnd(),
+        };
+        this.save();
+    },
+
+    getWeekEnd() {
+        const d = new Date();
+        const day = d.getDay();
+        const diff = (7 - day) % 7 || 7;
+        d.setDate(d.getDate() + diff);
+        return d.toLocaleDateString('es', {day:'2-digit', month:'2-digit'});
+    },
+
+    submitTournamentScore(gameId, score) {
+        if(!this.tournament || this.tournament.gameId !== gameId) return;
+        if(score > (this.tournament.best || 0)) {
+            this.tournament.best = score;
+            // Insertar en leaderboard simulado con rivales
+            const entry = { name:'TÚ', score, isPlayer: true };
+            if(!this.tournament.scores) this.tournament.scores = [];
+            this.tournament.scores = this.tournament.scores.filter(s => !s.isPlayer);
+            this.tournament.scores.push(entry);
+            this.tournament.scores.sort((a,b) => b.score - a.score);
+            this.save();
+            const pos = this.tournament.scores.findIndex(s => s.isPlayer) + 1;
+            if(pos <= 3) {
+                this.showToast('TOP ' + pos + ' EN EL TORNEO', 'Puntuación: ' + score.toLocaleString(), 'gold');
+            }
+        }
+    },
+
+    renderTournamentPanel() {
+        if(!this.tournament) return '';
+        const t    = this.tournament;
+        const game = CONFIG.GAMES_LIST.find(g => g.id === t.gameId);
+        if(!game) return '';
+        const color = CONFIG.COLORS[game.color] || '#3b82f6';
+
+        // Leaderboard simulado con rivales + jugador
+        const rivals = (CONFIG.RIVALS || []).slice(0,6).map((r, i) => ({
+            name: r.name, score: Math.round(r.xp * 0.8 + Math.random()*500), isPlayer: false, color: r.color||'#64748b'
+        }));
+        const playerEntry = { name: 'TÚ', score: t.best || 0, isPlayer: true, color: color };
+        const board = [...rivals, playerEntry].sort((a,b) => b.score - a.score).slice(0,7);
+        const playerPos = board.findIndex(e => e.isPlayer) + 1;
+
+        const medals = ['🥇','🥈','🥉'];
+        const lbHTML = board.map((e, i) =>
+            '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);">' +
+            '<div style="width:20px;text-align:center;font-size:' + (i<3?'0.8':'0.58') + 'rem;">' + (medals[i]||('#'+(i+1))) + '</div>' +
+            '<div style="flex:1;font-size:0.65rem;color:' + (e.isPlayer?'white':e.color) + ';font-family:' + (e.isPlayer?'var(--font-display)':'monospace') + ';">' + e.name + '</div>' +
+            '<div style="font-size:0.65rem;color:' + (e.isPlayer?color:'#475569') + ';font-family:var(--font-display);">' + (e.score||0).toLocaleString() + '</div>' +
+            '</div>'
+        ).join('');
+
+        return '<div style="margin:0 0 6px;padding:12px 14px;background:' + color + '06;border:1px solid ' + color + '20;border-radius:10px;">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">' +
+            '<div style="font-size:0.55rem;color:' + color + ';font-family:monospace;letter-spacing:2px;"><i class=\"fa-solid fa-trophy\"></i> TORNEO SEMANAL</div>' +
+            '<div style="font-size:0.52rem;color:#334155;font-family:monospace;">hasta ' + t.endDate + '</div>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">' +
+            '<div style="background:' + color + '15;border:1px solid ' + color + '30;border-radius:7px;padding:6px 10px;display:flex;align-items:center;gap:6px;cursor:pointer;" onclick="window.app.launch(\'' + t.gameId + '\')">' +
+            '<i class=\"' + game.icon + '\" style=\"color:' + color + ';\"></i>' +
+            '<div>' +
+            '<div style=\"font-family:var(--font-display);font-size:0.68rem;color:' + color + ';letter-spacing:1px;\">' + game.name + '</div>' +
+            '<div style=\"font-size:0.52rem;color:#334155;font-family:monospace;\">JUEGO ACTIVO</div>' +
+            '</div>' +
+            '</div>' +
+            '<div style="text-align:right;">' +
+            '<div style="font-family:var(--font-display);font-size:0.9rem;color:' + color + ';">' + (t.best||0).toLocaleString() + '</div>' +
+            '<div style="font-size:0.5rem;color:#334155;font-family:monospace;">TU MEJOR</div>' +
+            '</div>' +
+            '</div>' +
+            lbHTML +
+            (playerPos <= 3 ? '<div style="margin-top:6px;text-align:center;font-size:0.55rem;color:#fbbf24;font-family:monospace;">🏆 TOP ' + playerPos + ' — CALLCARD EXCLUSIVA AL FINAL</div>' : '') +
+            '</div>';
+    },
+
     renderDailyScreen() {
         this.canvas.setMood('DAILY');
         const container = document.getElementById('screen-daily');
@@ -2312,6 +2421,7 @@ const app = {
                 <div class="dp-label">${pct}% · ${claimed ? 'COMPLETADO HOY' : 'RENUEVA EN MEDIANOCHE'}</div>
             </div>
             <div class="daily-tasks-v3">${tasksHTML}</div>
+            ${this.renderTournamentPanel()}
             ${this.renderInvestPanel()}
                         <div class="daily-claim-v3">
                 <button class="btn btn-secondary" onclick="window.app.audio.playClick(); window.app.changeState('menu');" style="flex-shrink:0;">

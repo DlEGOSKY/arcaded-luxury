@@ -102,81 +102,75 @@ export class CanvasManager {
     // DIBUJADO GENÉRICO (ACTUALIZADO)
     drawParticle(ctx, p, colorOverride = null) {
         let type = 'circle';
-        // Detectar tipo equipado
-        if (window.app && window.app.shop && window.app.shop.equipped) {
+        if (window.app && window.app.shop && window.app.shop.equipped && window.app.shop.equipped.particle) {
             const pId = window.app.shop.equipped.particle;
-            if (pId.includes('square')) type = 'square';
-            else if (pId.includes('star')) type = 'star';
-            else if (pId.includes('code')) type = 'code';
-            else if (pId.includes('bio')) type = 'bio';   // NUEVO
-            else if (pId.includes('money')) type = 'money'; // NUEVO
-            else if (pId.includes('heart')) type = 'heart'; // NUEVO
+            if      (pId.includes('square')) type = 'square';
+            else if (pId.includes('star'))   type = 'star';
+            else if (pId.includes('code'))   type = 'code';
+            else if (pId.includes('bio'))    type = 'bio';
+            else if (pId.includes('money'))  type = 'money';
+            else if (pId.includes('heart'))  type = 'heart';
+            else if (pId.includes('pizza'))  type = 'pizza';
+            else if (pId.includes('matrix')) type = 'matrix';
+            else if (pId.includes('stars') || pId.includes('star')) type = 'star';
+            else if (pId.includes('bubble')) type = 'bubble';
+            else if (pId.includes('note'))   type = 'note';
+            else if (pId.includes('diamond'))type = 'diamond';
+            else if (pId.includes('cross'))  type = 'cross';
+            else if (pId.includes('ring'))   type = 'ring';
         }
 
-        if(colorOverride) ctx.fillStyle = colorOverride;
+        const color = colorOverride || ctx.fillStyle;
+        ctx.fillStyle = color;
 
-        // Lógica de dibujado
-        if(type === 'square') { 
-            ctx.fillRect(p.x - p.size, p.y - p.size, p.size*2, p.size*2); 
-        } 
-        else if (type === 'star') { 
+        if (type === 'square') {
+            ctx.fillRect(p.x - p.size, p.y - p.size, p.size*2, p.size*2);
+        } else if (type === 'star') {
             this.drawStar(ctx, p.x, p.y, 5, p.size*2, p.size);
-        } 
-        else if (type === 'code') { 
-            ctx.font = `${p.size*4}px monospace`;
-            ctx.fillText(p.char || '1', p.x, p.y); 
+        } else if (type === 'diamond') {
+            const s = p.size * 1.4;
+            ctx.beginPath(); ctx.moveTo(p.x, p.y-s); ctx.lineTo(p.x+s, p.y);
+            ctx.lineTo(p.x, p.y+s); ctx.lineTo(p.x-s, p.y); ctx.closePath(); ctx.fill();
+        } else if (type === 'code' || type === 'matrix') {
+            ctx.font = Math.round(p.size*3.5)+'px monospace';
+            ctx.fillStyle = type === 'matrix' ? '#00ff41' : color;
+            ctx.fillText(p.char || String.fromCharCode(48+Math.floor(Math.random()*74)), p.x, p.y);
+        } else if (type === 'bio') {
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size*0.6, 0, Math.PI*2);
+            ctx.fillStyle = '#10b981'; ctx.fill();
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+            ctx.strokeStyle = '#10b981'; ctx.lineWidth = 1; ctx.stroke();
+        } else if (type === 'money') {
+            ctx.font = 'bold '+Math.round(p.size*3)+'px monospace';
+            ctx.fillStyle = '#85bb65'; ctx.fillText('$', p.x, p.y);
+        } else if (type === 'heart') {
+            const s = p.size;
+            ctx.beginPath(); ctx.moveTo(p.x, p.y+s*0.5);
+            ctx.bezierCurveTo(p.x-s*1.5,p.y-s*0.8,p.x-s*2.5,p.y+s*0.8,p.x,p.y+s*2);
+            ctx.bezierCurveTo(p.x+s*2.5,p.y+s*0.8,p.x+s*1.5,p.y-s*0.8,p.x,p.y+s*0.5);
+            ctx.fillStyle = '#ef4444'; ctx.fill();
+        } else if (type === 'pizza') {
+            const s = p.size*1.5;
+            ctx.beginPath(); ctx.moveTo(p.x,p.y-s); ctx.lineTo(p.x+s,p.y+s); ctx.lineTo(p.x-s,p.y+s); ctx.closePath();
+            ctx.fillStyle='#f97316'; ctx.fill();
+            ctx.beginPath(); ctx.arc(p.x,p.y,s*0.3,0,Math.PI*2); ctx.fillStyle='#ef4444'; ctx.fill();
+        } else if (type === 'note') {
+            ctx.font='bold '+Math.round(p.size*3.5)+'px monospace'; ctx.fillStyle=color;
+            ctx.fillText(p.size>3?'♪':'♫',p.x,p.y);
+        } else if (type === 'cross') {
+            const s=p.size;
+            ctx.fillRect(p.x-s*0.3,p.y-s,s*0.6,s*2); ctx.fillRect(p.x-s,p.y-s*0.3,s*2,s*0.6);
+        } else if (type === 'ring') {
+            ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+            ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke();
+        } else if (type === 'bubble') {
+            ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+            ctx.strokeStyle=color; ctx.lineWidth=1.5; ctx.stroke();
+            ctx.beginPath(); ctx.arc(p.x-p.size*0.3,p.y-p.size*0.3,p.size*0.25,0,Math.PI*2);
+            ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.fill();
+        } else {
+            ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
         }
-        // --- NUEVOS EFECTOS (Usando Emojis) ---
-        else if (type === 'bio') {
-            ctx.font = `${p.size*4}px Arial`;
-            ctx.fillText("☣️", p.x, p.y);
-        }
-        else if (type === 'money') {
-            ctx.font = `${p.size*4}px Arial`;
-            ctx.fillStyle = '#85bb65'; // Forzar color billete
-            ctx.fillText("$", p.x, p.y);
-        }
-        else if (type === 'heart') {
-            ctx.font = `${p.size*4}px Arial`;
-            ctx.fillText("❤️", p.x, p.y);
-        }
-
-        // EN drawParticle(ctx, p, colorOverride = null) ...
-
-        // ... (código anterior square, star, code) ...
-
-        // --- NUEVOS EFECTOS ---
-        else if (type === 'pizza') {
-            ctx.font = `${p.size*4}px Arial`;
-            ctx.fillText("🍕", p.x, p.y);
-        }
-        else if (type === 'note') {
-            ctx.font = `${p.size*4}px Arial`;
-            ctx.fillStyle = colorOverride || '#fff';
-            // Alternar entre corchea y semicorchea
-            ctx.fillText(p.size > 3 ? "♪" : "♫", p.x, p.y);
-        }
-        else if (type === 'bubble') {
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.strokeStyle = colorOverride || 'rgba(255,255,255,0.5)';
-            ctx.lineWidth = 2;
-            ctx.stroke(); // Solo borde, sin relleno (hollow)
-            // Brillo blanco pequeño
-            ctx.beginPath();
-            ctx.arc(p.x - p.size*0.3, p.y - p.size*0.3, p.size*0.2, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(255,255,255,0.8)';
-            ctx.fill();
-        }
-        
-        // ... (resto del código)
-        // --------------------------------------
-        else { 
-            // Círculo por defecto
-            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); 
-        }
-
-        
     }
 
     drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {

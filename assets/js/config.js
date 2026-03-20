@@ -94,6 +94,8 @@ export const CONFIG = {
         // --- JUEGO SECRETO ---
         { id: 'cyber-pong',   name: 'CYBER PONG',  icon: 'fa-solid fa-table-tennis-paddle-ball', color: 'PONG',   desc: 'Duelo IA [CLASSIC]',   unlockReq: 'pass_lvl_5', cat: 'ACCION' },
         { id: 'snake-plus',   name: 'Snake ++',    icon: 'fa-solid fa-arrow-right-long',         color: 'BIO',    desc: 'Protocolo Serpiente',                       cat: 'ACCION' },
+        { id: 'pixel-draw',   name: 'Pixel Draw',   icon: 'fa-solid fa-paintbrush',  color: 'REFLEX', desc: 'Protocolo Artístico',  cat: 'MEMORIA' },
+        { id: 'number-grid',  name: 'Number Grid',  icon: 'fa-solid fa-hashtag',     color: 'MATH',   desc: 'Protocolo Numérico',   cat: 'REFLEJOS' },
         { id: 'word-rush',    name: 'Word Rush',    icon: 'fa-solid fa-spell-check',  color: 'CYAN',   desc: 'Protocolo Léxico',                         cat: 'MENTAL'  },
         { id: 'cipher-decode',name: 'Cipher Decode',icon: 'fa-solid fa-lock',                    color: 'VAULT',  desc: 'Descifra el Mensaje',                       cat: 'MENTAL' }
     ],
@@ -120,6 +122,8 @@ export const CONFIG = {
         'cyber-typer': { desc: 'Intercepta el código malicioso.', mech: 'Escribe las palabras.', obj: 'Evita la brecha.' },
         'cyber-pong':    { desc: 'Simulación de tenis virtual.', mech: 'Devuelve la bola y vence a la IA.', obj: 'Anota goles.', diff: 'Clásico.' },
         'snake-plus':    { desc: 'Guía la serpiente sin chocar.', mech: 'Come manzanas para crecer. WASD o flechas.', obj: 'Máxima longitud.', diff: 'Clásico.' },
+        'pixel-draw':    { desc: 'Copia el sprite píxel a píxel.', mech: 'Pinta la grilla 8x8 copiando el modelo.', obj: 'Máxima precisión.', diff: 'Creativo.' },
+        'number-grid':   { desc: 'Toca los números en orden.', mech: 'Encuentra y toca del 1 al N lo más rápido posible.', obj: 'Velocidad y memoria visual.', diff: 'Reflejos.' },
         'word-rush':     { desc: 'Adivina la palabra oculta.', mech: 'Verde=posición correcta, Amarillo=letra existe, Gris=no existe.', obj: 'Adivinar en menos intentos.', diff: 'Mental.' },
         'cipher-decode': { desc: 'Descifra mensajes encriptados.', mech: 'Selecciona el carácter correcto para cada símbolo.', obj: 'Velocidad y precisión.', diff: 'Mental.' }
     },
@@ -323,7 +327,15 @@ export const CONFIG = {
         { lvl: 35, type: 'HARDWARE',    val: 'up_credit',      name: 'Credit Miner v1',      icon: 'fa-microchip',                rarity: 'legendary', desc: '+10% créditos permanente' },
         { lvl: 40, type: 'CREDITS',     val: 5000,             name: 'Reserva Federal',      icon: 'fa-coins',                    rarity: 'legendary', desc: '+5000 CR' },
         { lvl: 45, type: 'PARTICLE',    val: 'p_pizza',        name: 'FX: Pizza Time',       icon: 'fa-pizza-slice',              rarity: 'epic',      desc: 'Secreto desclasificado' },
-        { lvl: 50, type: 'CREDITS',     val: 10000,            name: 'JACKPOT FINAL',        icon: 'fa-trophy',                   rarity: 'legendary', desc: 'El final del camino' }
+        { lvl: 50, type: 'CREDITS',     val: 10000,            name: 'JACKPOT FINAL',        icon: 'fa-trophy',                   rarity: 'legendary', desc: 'El final del camino' },
+        { lvl: 52, type: 'CREDITS',  val: 2000,         name: 'Bono Semestral',    icon: 'fa-coins',               rarity: 'rare',      desc: '+2000 CR' },
+        { lvl: 55, type: 'THEME',    val: 't_diablo',   name: 'Diablo II',         icon: 'fa-fire-flame-curved',   rarity: 'epic',      desc: 'El Santuario en llamas' },
+        { lvl: 58, type: 'CREDITS',  val: 3000,         name: 'Capital Oscuro II', icon: 'fa-briefcase',           rarity: 'rare',      desc: '+3000 CR' },
+        { lvl: 60, type: 'CALLCARD', val: 'undertale',  name: 'Undertale',         icon: 'fa-heart',               rarity: 'legendary', desc: 'Stay determined' },
+        { lvl: 62, type: 'PARTICLE', val: 'p_bio',      name: 'FX: Tóxico II',     icon: 'fa-biohazard',           rarity: 'epic',      desc: 'Nivel peligroso' },
+        { lvl: 65, type: 'THEME',    val: 't_starcraft', name: 'StarCraft',        icon: 'fa-star',                rarity: 'legendary', desc: 'Por Aiur' },
+        { lvl: 68, type: 'CREDITS',  val: 5000,         name: 'Fondo Oscuro II',   icon: 'fa-coins',               rarity: 'epic',      desc: '+5000 CR' },
+        { lvl: 70, type: 'CALLCARD', val: 'hollow',     name: 'Hollow Knight',     icon: 'fa-chess-knight',        rarity: 'legendary', desc: 'El reino olvidado' },
     ],
 
     TITLES: [
