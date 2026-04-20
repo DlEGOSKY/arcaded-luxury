@@ -186,6 +186,13 @@ export class PhaseShifterGame {
     }
 
 
+    cleanup() {
+        this.isRunning = false;
+        if(this.animationId) { cancelAnimationFrame(this.animationId); this.animationId = null; }
+        if(this._quitTimer) { clearTimeout(this._quitTimer); this._quitTimer = null; }
+        const layer=document.getElementById('ps-click-layer'); if(layer)layer.remove();
+        window.removeEventListener('keydown', this.handleInput);
+    }
     gameOver() {
         this.isRunning = false;
         if(this.animationId) cancelAnimationFrame(this.animationId);
@@ -193,6 +200,6 @@ export class PhaseShifterGame {
         window.removeEventListener('keydown', this.handleInput);
         const prize = this.score * 5;
         window.app.credits += prize; window.app.save();
-        setTimeout(()=>{ if(this.onQuit)this.onQuit(this.score); },400);
+        this._quitTimer = setTimeout(()=>{ if(this.onQuit)this.onQuit(this.score); },400);
     }
 }

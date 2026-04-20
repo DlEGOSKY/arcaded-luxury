@@ -302,7 +302,10 @@ export class NeonSniperGame {
     pause() {
         if(!this.isRunning) return;
         this._wasPaused = true;
-        if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId = null; }
+        // Bug fix real: el original cancelaba this.gameLoopId, pero el campo
+        // de RAF aqui se llama this.gameLoopRef (ver constructor y loop).
+        // El pause() no pausaba realmente el RAF — ahora si.
+        if(this.gameLoopRef) { cancelAnimationFrame(this.gameLoopRef); this.gameLoopRef = null; }
     }
     resume() {
         if(!this._wasPaused) return;
@@ -310,6 +313,16 @@ export class NeonSniperGame {
         if(this.isRunning) this.loop();
     }
 
+    cleanup() {
+        this.isRunning = false;
+        if(this.gameLoopRef) { cancelAnimationFrame(this.gameLoopRef); this.gameLoopRef = null; }
+        window.removeEventListener('mousemove',  this.handleMouseMove);
+        window.removeEventListener('mousedown',  this.handleInput);
+        window.removeEventListener('touchstart', this.handleInput);
+        window.removeEventListener('keydown',    this.handleKeyDown);
+        window.removeEventListener('contextmenu',this.handleContextMenu);
+        document.body.classList.remove('sniper-cursor-active');
+    }
 
     gameOver(){
         this.isRunning=false;

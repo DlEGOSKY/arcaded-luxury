@@ -222,6 +222,10 @@ export class GlitchHuntGame {
         if(this.isRunning){ this.lastTime=performance.now(); this.gameLoopId=requestAnimationFrame(ts=>this.loop(ts)); }
     }
 
+    cleanup() {
+        this.isRunning = false;
+        if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId = null; }
+    }
 
     gameOver() {
         this.isRunning = false;

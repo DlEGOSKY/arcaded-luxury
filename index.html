@@ -5,19 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Arcade Mini Games: Luxury Edition</title>
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.9.2/dist/pixi.min.js" defer></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="assets/css/style.css">
+    <style>
+        /* Fallback mínimo: garantiza que la pantalla welcome sea visible si el CSS
+           externo tarda en cargar. NO matar animaciones — dejar que corran. */
+        #screen-welcome { opacity: 1; pointer-events: auto; z-index: 20; }
+    </style>
 </head>
 <body>
 
-    <div class="crt-overlay"></div>
-    <div class="scanlines"></div>
     <div class="vignette"></div>
+    <div class="scanlines"></div>
     <div id="flash-layer"></div>
 
     <!-- TUTORIAL INTERACTIVO -->
@@ -52,7 +57,7 @@
 
     <div id="ui-layer">
         
-        <section id="screen-welcome" class="screen">
+        <section id="screen-welcome" class="screen active">
             <div class="welcome-root" id="welcome-root">
                 <!-- Logo -->
                 <div class="welcome-logo">
@@ -77,7 +82,7 @@
                 </div>
 
                 <!-- CTA -->
-                <button id="btn-start" class="welcome-btn" style="opacity:0;animation:wFadeIn 0.4s ease 1.6s forwards;">
+                <button id="btn-start" class="welcome-btn">
                     <span>CONECTAR SISTEMA</span>
                     <i class="fa-solid fa-arrow-right"></i>
                 </button>
@@ -92,9 +97,7 @@
             <div class="main-nav">
                 <div class="main-nav-brand">
                     <span class="nav-brand-text">PROTOCOLOS</span>
-                    <button id="btn-random-game" title="Partida aleatoria" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:5px 10px;cursor:pointer;color:#475569;font-size:0.7rem;font-family:monospace;letter-spacing:1px;transition:all 0.15s;display:flex;align-items:center;gap:5px;margin-left:8px;"
-                         onmouseenter="this.style.color='var(--primary)';this.style.borderColor='var(--primary)30';"
-                         onmouseleave="this.style.color='#475569';this.style.borderColor='rgba(255,255,255,0.08)';">
+                    <button id="btn-random-game" class="btn-random-game" title="Partida aleatoria (presiona para jugar uno al azar)">
                         <i class="fa-solid fa-shuffle"></i> ALEATORIO
                     </button>
                 </div>
@@ -193,6 +196,37 @@
                 </div>
             </div>
 
+            <!-- Toolbar: búsqueda + filtros por categoría + toggles -->
+            <div class="shop-toolbar">
+                <div class="shop-search">
+                    <i class="fa-solid fa-magnifying-glass shop-search-icon"></i>
+                    <input type="text" id="shop-search" placeholder="Buscar items..." autocomplete="off">
+                    <button id="shop-search-clear" class="shop-search-clear" title="Limpiar">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="shop-filter-chips" id="shop-filter-chips">
+                    <button class="shop-chip active" data-cat="all">TODO</button>
+                    <button class="shop-chip" data-cat="THEME"><i class="fa-solid fa-desktop"></i> TEMAS</button>
+                    <button class="shop-chip" data-cat="CALLCARD"><i class="fa-solid fa-id-badge"></i> CARDS</button>
+                    <button class="shop-chip" data-cat="PARTICLE"><i class="fa-solid fa-sparkles"></i> FX</button>
+                    <button class="shop-chip" data-cat="AVATAR"><i class="fa-solid fa-user-astronaut"></i> AVATARS</button>
+                    <button class="shop-chip" data-cat="HARDWARE"><i class="fa-solid fa-microchip"></i> HW</button>
+                    <button class="shop-chip" data-cat="CONSUMABLE"><i class="fa-solid fa-flask"></i> ITEMS</button>
+                    <button class="shop-chip" data-cat="LOOTBOX"><i class="fa-solid fa-boxes-stacked"></i> CAJAS</button>
+                </div>
+                <div class="shop-toggles">
+                    <label class="shop-toggle-pill">
+                        <input type="checkbox" id="shop-show-affordable">
+                        <span>SOLO ALCANZABLES</span>
+                    </label>
+                    <label class="shop-toggle-pill">
+                        <input type="checkbox" id="shop-hide-owned">
+                        <span>OCULTAR COMPRADOS</span>
+                    </label>
+                </div>
+            </div>
+
             <!-- TODO scrollable: supply-crate + grid de items -->
             <div class="vault-grid-container" id="shop-grid"></div>
 
@@ -232,6 +266,24 @@
                         </div>
                         <button id="btn-pass-back" class="np-back-btn">
                             <i class="fa-solid fa-arrow-left"></i> VOLVER
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TOOLBAR: filtros + stats + jump to current -->
+                <div class="np-toolbar">
+                    <div class="np-filters">
+                        <button class="np-filter-btn active" data-filter="all">TODOS</button>
+                        <button class="np-filter-btn" data-filter="claimable"><i class="fa-solid fa-gift"></i> LISTOS</button>
+                        <button class="np-filter-btn" data-filter="unlocked"><i class="fa-solid fa-unlock"></i> DESBLOQUEADOS</button>
+                        <button class="np-filter-btn" data-filter="locked"><i class="fa-solid fa-lock"></i> BLOQUEADOS</button>
+                        <button class="np-filter-btn" data-filter="claimed"><i class="fa-solid fa-check"></i> RECLAMADOS</button>
+                    </div>
+                    <div class="np-stats-mini">
+                        <span id="np-stats-claimed">0</span><span class="np-stats-sep">/</span><span id="np-stats-total">100</span>
+                        <span class="np-stats-lbl">RECLAMADOS</span>
+                        <button id="btn-pass-jump" class="np-jump-btn" title="Ir al nivel actual">
+                            <i class="fa-solid fa-location-crosshairs"></i>
                         </button>
                     </div>
                 </div>
@@ -355,16 +407,56 @@
                         </div>
                         <input type="checkbox" id="chk-reduce-motion" class="cyber-toggle">
                     </div>
+                    <div class="setting-row" style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <label style="margin:0;">NOTIFICACIONES</label>
+                            <div style="font-size:0.6rem;color:#334155;margin-top:2px;font-family:monospace;">Toasts de logros y misiones</div>
+                        </div>
+                        <input type="checkbox" id="chk-notifs" checked class="cyber-toggle">
+                    </div>
+                </div>
+
+                <!-- Pantalla -->
+                <div style="margin-bottom:20px;">
+                    <div style="font-size:0.58rem;color:#334155;font-family:monospace;letter-spacing:3px;margin-bottom:10px;">PANTALLA</div>
+                    <div class="setting-row" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+                        <div style="flex:1;">
+                            <label style="margin:0;">PANTALLA COMPLETA</label>
+                            <div style="font-size:0.6rem;color:#334155;margin-top:2px;font-family:monospace;">Maximizar la experiencia</div>
+                        </div>
+                        <button id="btn-fullscreen" class="btn btn-secondary" style="font-size:0.62rem;padding:8px 14px;white-space:nowrap;">
+                            <i class="fa-solid fa-expand"></i> <span id="fullscreen-label">ACTIVAR</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Datos -->
+                <div style="margin-bottom:20px;">
+                    <div style="font-size:0.58rem;color:#334155;font-family:monospace;letter-spacing:3px;margin-bottom:10px;">DATOS</div>
+                    <div style="display:flex;gap:8px;">
+                        <button id="btn-export-save" class="btn btn-secondary" style="flex:1;font-size:0.62rem;padding:10px;">
+                            <i class="fa-solid fa-download"></i> EXPORTAR
+                        </button>
+                        <button id="btn-import-save" class="btn btn-secondary" style="flex:1;font-size:0.62rem;padding:10px;">
+                            <i class="fa-solid fa-upload"></i> IMPORTAR
+                        </button>
+                        <input type="file" id="import-save-input" accept=".json,application/json" style="display:none;">
+                    </div>
+                    <div style="font-size:0.55rem;color:#1e293b;font-family:monospace;margin-top:6px;text-align:center;">
+                        Respaldo local en formato JSON
+                    </div>
                 </div>
 
                 <!-- Info del sistema -->
                 <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px 14px;margin-bottom:20px;">
-                    <div style="font-size:0.58rem;color:#1e293b;font-family:monospace;letter-spacing:2px;margin-bottom:6px;">DIAGNÓSTICO DEL SISTEMA</div>
+                    <div style="font-size:0.58rem;color:#1e293b;font-family:monospace;letter-spacing:2px;margin-bottom:6px;">DIAGNÓSTICO</div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                        <div style="font-size:0.62rem;color:#334155;font-family:monospace;">ID: <span style="color:#475569;">AGENT-007</span></div>
+                        <div style="font-size:0.62rem;color:#334155;font-family:monospace;">AGENTE: <span id="sys-agent" style="color:var(--primary);">—</span></div>
                         <div style="font-size:0.62rem;color:#334155;font-family:monospace;">OS: <span style="color:#475569;">ARCADE v3.5</span></div>
                         <div style="font-size:0.62rem;color:#334155;font-family:monospace;">PARTIDAS: <span id="sys-games" style="color:#475569;">0</span></div>
                         <div style="font-size:0.62rem;color:#334155;font-family:monospace;">NIVEL: <span id="sys-level" style="color:var(--primary);">1</span></div>
+                        <div style="font-size:0.62rem;color:#334155;font-family:monospace;">SAVE: <span id="sys-save-size" style="color:#475569;">—</span></div>
+                        <div style="font-size:0.62rem;color:#334155;font-family:monospace;">ÚLTIMO: <span id="sys-save-date" style="color:#475569;">—</span></div>
                     </div>
                 </div>
 
@@ -386,7 +478,7 @@
 
     </div>
 
-    <script type="module" src="assets/js/main.js"></script>
+    <script type="module" src="assets/js/main.js?v=12"></script>
 
 </body>
 </html>

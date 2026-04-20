@@ -187,6 +187,12 @@ export class MathRushGame {
         if(this.isRunning){ this.lastTime=performance.now(); this.gameLoopId=requestAnimationFrame(()=>this.loop()); }
     }
 
+    cleanup() {
+        this.isRunning = false;
+        if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId = null; }
+        if(this.spawnTimer) { clearTimeout(this.spawnTimer); this.spawnTimer = null; }
+        if(this.keyHandler) window.removeEventListener('keydown', this.keyHandler);
+    }
 
     gameOver() {
         this.isRunning = false;

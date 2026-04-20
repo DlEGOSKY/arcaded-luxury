@@ -19,7 +19,87 @@ export class ShopSystem {
 
     init() {
         this.container = document.getElementById('shop-grid');
+        this.filters = { search: '', category: 'all', affordable: false, hideOwned: false };
         this.render();
+        this._bindToolbar();
+    }
+
+    _bindToolbar() {
+        // Búsqueda
+        const searchEl = document.getElementById('shop-search');
+        const clearEl  = document.getElementById('shop-search-clear');
+        if(searchEl) {
+            searchEl.oninput = (e) => {
+                this.filters.search = e.target.value.toLowerCase().trim();
+                this._applyFilters();
+                if(clearEl) clearEl.style.display = this.filters.search ? 'flex' : 'none';
+            };
+        }
+        if(clearEl) {
+            clearEl.style.display = 'none';
+            clearEl.onclick = () => {
+                if(searchEl) searchEl.value = '';
+                this.filters.search = '';
+                clearEl.style.display = 'none';
+                this._applyFilters();
+            };
+        }
+
+        // Chips de categoría
+        document.querySelectorAll('.shop-chip').forEach(chip => {
+            chip.onclick = () => {
+                try { window.app.audio.playClick(); } catch(e) {}
+                document.querySelectorAll('.shop-chip').forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                this.filters.category = chip.dataset.cat;
+                this._applyFilters();
+            };
+        });
+
+        // Toggles
+        const aff = document.getElementById('shop-show-affordable');
+        if(aff) aff.onchange = (e) => { this.filters.affordable = e.target.checked; this._applyFilters(); };
+        const hide = document.getElementById('shop-hide-owned');
+        if(hide) hide.onchange = (e) => { this.filters.hideOwned = e.target.checked; this._applyFilters(); };
+    }
+
+    _applyFilters() {
+        if(!this.container) return;
+        const f = this.filters;
+        const credits = window.app?.credits || 0;
+
+        // Filtrar cards individuales
+        const cards = this.container.querySelectorAll('.shop-card-v2');
+        cards.forEach(card => {
+            const cat       = card.dataset.cat || '';
+            const itemId    = card.dataset.itemId || '';
+            const price     = parseInt(card.dataset.price || '0', 10);
+            const name      = (card.dataset.name || '').toLowerCase();
+            const desc      = (card.dataset.desc || '').toLowerCase();
+            const isOwned   = this.inventory.includes(itemId);
+
+            let show = true;
+            if(f.category !== 'all' && cat !== f.category) show = false;
+            if(f.search && !name.includes(f.search) && !desc.includes(f.search)) show = false;
+            if(f.affordable && price > credits) show = false;
+            if(f.hideOwned && isOwned && cat !== 'CONSUMABLE' && cat !== 'LOOTBOX') show = false;
+
+            card.style.display = show ? '' : 'none';
+        });
+
+        // Ocultar secciones (category headers y grids) si ninguna card es visible
+        this.container.querySelectorAll('.vault-section-title').forEach(title => {
+            const grid = title.nextElementSibling;
+            if(!grid) return;
+            const visibleCards = grid.querySelectorAll('.shop-card-v2:not([style*="display: none"])').length;
+            const hide = visibleCards === 0;
+            title.style.display = hide ? 'none' : '';
+            grid.style.display  = hide ? 'none' : '';
+        });
+
+        // Supply crate solo visible cuando category=all o category=LOOTBOX
+        const crate = document.getElementById('supply-crate-wrap');
+        if(crate) crate.style.display = (f.category === 'all' || f.category === 'LOOTBOX') ? '' : 'none';
     }
 
     render() {
@@ -151,8 +231,15 @@ export class ShopSystem {
                 }
 
                 const card = document.createElement('div');
-                card.className = `shop-card-v2 ${isOwned ? 'owned' : ''} ${isEquipped ? 'equipped' : ''}`;
+                const unaffordable = !isOwned && item.price > (window.app?.credits || 0);
+                card.className = `shop-card-v2 ${isOwned ? 'owned' : ''} ${isEquipped ? 'equipped' : ''} ${unaffordable ? 'unaffordable' : ''}`;
                 card.style.setProperty('--ic', ic);
+                // Datos para filtrado
+                card.dataset.cat    = type;
+                card.dataset.itemId = item.id;
+                card.dataset.price  = item.price || 0;
+                card.dataset.name   = item.name || '';
+                card.dataset.desc   = item.desc || '';
 
                 card.innerHTML = `
                     <div class="scv2-icon" style="color:${ic};">
@@ -336,5 +423,7 @@ export class ShopSystem {
         const shopCr = document.getElementById('shop-credits');
         if(shopCr) shopCr.innerText = window.app.credits.toLocaleString();
         this.render();
+        // Re-aplicar filtros tras re-render (mantener búsqueda/categoría activa)
+        if(this.filters) this._applyFilters();
     }
 }

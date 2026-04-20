@@ -455,4 +455,11 @@ export class HigherLowerGame {
         if(this.blitzTimerInterval)clearInterval(this.blitzTimerInterval);
         if(this.onQuit)this.onQuit(this.score);
     }
+
+    cleanup() {
+        if(this.virusTimer)      { clearTimeout(this.virusTimer);       this.virusTimer = null; }
+        if(this.animationTimer)  { clearTimeout(this.animationTimer);   this.animationTimer = null; }
+        if(this.blitzTimerInterval) { clearInterval(this.blitzTimerInterval); this.blitzTimerInterval = null; }
+        document.body.classList.remove('frenzy-mode');
+    }
 }

@@ -315,6 +315,11 @@ export class CyberTyperGame {
         if(this.isRunning) this.gameLoopId = requestAnimationFrame(t => this.loop(t));
     }
 
+    cleanup() {
+        this.isRunning = false;
+        if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId = null; }
+        if(this.handleKeyDown) window.removeEventListener('keydown', this.handleKeyDown);
+    }
 
     gameOver() {
         this.isRunning = false;

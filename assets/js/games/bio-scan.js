@@ -11,6 +11,7 @@ export class BioScanGame {
         this.timerInterval = null;
         this.score = 0;
         this.isProcessing = false;
+        this._quitTimers = [];
         this.uiContainer = document.getElementById('game-ui-overlay');
         
         this.injectStyles();
@@ -91,8 +92,14 @@ export class BioScanGame {
                 const data = await res.json();
                 this.breeds = Object.keys(data.message);
             } catch(e) {
-                this.uiContainer.innerHTML = '<p style="color:var(--accent)">ERROR DE RED.</p>';
-                setTimeout(() => { if(this.onGameOver) this.onGameOver(0); }, 2000);
+                this.uiContainer.innerHTML = `
+                <div class="game-error-panel">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <div class="gep-title">ERROR DE RED</div>
+                    <div class="gep-msg">No se pudo cargar la base de datos biométrica. Verifica tu conexión.</div>
+                    <div class="gep-hint">REGRESANDO AL LOBBY...</div>
+                </div>`;
+                this._quitTimers.push(setTimeout(() => { if(this.onGameOver) this.onGameOver(0); }, 2500));
                 return;
             }
         }
@@ -127,6 +134,11 @@ export class BioScanGame {
         }
     }
 
+    cleanup() {
+        if(this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval = null; }
+        this._quitTimers.forEach(id => clearTimeout(id));
+        this._quitTimers = [];
+    }
     pause() {
         this._paused = true;
         if(this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval = null; }
@@ -200,9 +212,9 @@ export class BioScanGame {
         window.app.showToast("SUJETO PERDIDO", "Tiempo agotado", "danger");
         
         // Esperamos 2 segundos para ver el error y llamamos al MAIN
-        setTimeout(() => {
-            if(this.onGameOver) this.onGameOver(this.score); // ✅ USAMOS LA INTELIGENCIA DEL MAIN
-        }, 2000);
+        this._quitTimers.push(setTimeout(() => {
+            if(this.onGameOver) this.onGameOver(this.score);
+        }, 2000));
     }
 
     check(isCorrect, clickedBtn) {
@@ -238,9 +250,9 @@ export class BioScanGame {
         } else {
             this.audio.playLose();
             // Esperamos 1.5s y llamamos al MAIN
-            setTimeout(() => {
-                if(this.onGameOver) this.onGameOver(this.score); // ✅ AQUÍ TAMBIÉN
-            }, 1500);
+            this._quitTimers.push(setTimeout(() => {
+                if(this.onGameOver) this.onGameOver(this.score);
+            }, 1500));
         }
     }
 }

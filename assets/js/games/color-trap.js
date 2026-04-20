@@ -307,6 +307,10 @@ export class ColorTrapGame {
         if(this.isRunning){ this.lastTime=performance.now(); this.gameLoopId=requestAnimationFrame(()=>this.loop()); }
     }
 
+    cleanup() {
+        this.isRunning = false;
+        if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId = null; }
+    }
 
     gameOver() {
         if(!this.isRunning) return;

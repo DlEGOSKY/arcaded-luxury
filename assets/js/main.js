@@ -1,38 +1,60 @@
 import { CONFIG } from './config.js';
-import { CanvasManager, SeededRandom } from './utils.js';
+import { CanvasManager } from './utils.js';
 import { AudioController } from './audio.js'; 
 import { ShopSystem } from './shop.js';
+import { initSettingsUI } from './systems/settings.js';
+import * as Pass from './systems/pass.js';
+import * as Missions from './systems/daily-weekly.js';
+import * as EasterEggs from './systems/easter-eggs.js';
+import * as Tutorial from './systems/tutorial.js';
+import * as Profile from './systems/profile-v2.js';
+import * as Invest from './systems/invest.js';
+import * as Season from './systems/season.js';
+import * as Tournament from './systems/tournament.js';
+import * as Notifications from './systems/notifications.js';
+import * as GameInfo from './systems/game-info.js';
+import * as Vs from './systems/vs-mode.js';
+import * as Lootbox from './systems/lootbox.js';
+import * as DevConsole from './systems/dev-console.js';
+import * as Theme from './systems/theme.js';
+import * as Callcard from './systems/callcard.js';
+import * as Persistence from './systems/persistence.js';
+import * as UI from './systems/ui.js';
 
-// --- JUEGOS ---
-import { HigherLowerGame } from './games/higher-lower.js';
-import { GuessCardGame } from './games/guess-card.js';
-import { TriviaGame } from './games/trivia.js';
-import { BioScanGame } from './games/bio-scan.js';
-import { GeoNetGame } from './games/geo-net.js';
-import { GameReflex } from './games/hyper-reflex.js';
-import { SpamClickGame } from './games/spam-click.js';
-import { NeonSniperGame } from './games/neon-sniper.js';
-import { OrbitLockGame } from './games/orbit-lock.js';
-import { MemoryFlashGame } from './games/memory-flash.js';
-import { VaultCrackerGame } from './games/vault-cracker.js';
-import { PhaseShifterGame } from './games/phase-shifter.js';
-import { MathRushGame } from './games/math-rush.js';
-import { ColorTrapGame } from './games/color-trap.js';
-import { HoloMatchGame } from './games/holo-match.js';
-import { VoidDodgerGame } from './games/void-dodger.js';
-import { GlitchHuntGame } from './games/glitch-hunt.js';
-import { OrbitTrackerGame } from './games/orbit-tracker.js';
-import { CyberTyperGame } from './games/cyber-typer.js';
-// --- NUEVO JUEGO IMPORTADO ---
-import { CyberPongGame } from './games/cyber-pong.js';
-import { SnakePlusGame }  from './games/snake-plus.js';
-import { CipherDecodeGame } from './games/cipher-decode.js';
-import { PixelDrawGame }    from './games/pixel-draw.js';
-import { NumberGridGame }   from './games/number-grid.js';
-import { SimonSaysGame }     from './games/simon-says.js';
-import { PatternRushGame }   from './games/pattern-rush.js';
-import { ReactionChainGame } from './games/reaction-chain.js';
-import { WordRushGame }      from './games/word-rush.js';
+// --- JUEGOS (lazy import: se cargan solo al lanzar el juego) ---
+// Cada entrada es una factory async que retorna la clase.
+// Mejora dramáticamente el tiempo de boot inicial ya que no cargamos
+// los 28 módulos de juegos hasta que el usuario realmente los necesita.
+const GAME_LOADERS = {
+    'higher-lower':   () => import('./games/higher-lower.js').then(m => m.HigherLowerGame),
+    'guess-card':     () => import('./games/guess-card.js').then(m => m.GuessCardGame),
+    'trivia':         () => import('./games/trivia.js').then(m => m.TriviaGame),
+    'bio-scan':       () => import('./games/bio-scan.js').then(m => m.BioScanGame),
+    'geo-net':        () => import('./games/geo-net.js').then(m => m.GeoNetGame),
+    'hyper-reflex':   () => import('./games/hyper-reflex.js').then(m => m.GameReflex),
+    'spam-click':     () => import('./games/spam-click.js').then(m => m.SpamClickGame),
+    'neon-sniper':    () => import('./games/neon-sniper.js').then(m => m.NeonSniperGame),
+    'orbit-lock':     () => import('./games/orbit-lock.js').then(m => m.OrbitLockGame),
+    'memory-flash':   () => import('./games/memory-flash.js').then(m => m.MemoryFlashGame),
+    'vault-cracker':  () => import('./games/vault-cracker.js').then(m => m.VaultCrackerGame),
+    'phase-shifter':  () => import('./games/phase-shifter.js').then(m => m.PhaseShifterGame),
+    'math-rush':      () => import('./games/math-rush.js').then(m => m.MathRushGame),
+    'color-trap':     () => import('./games/color-trap.js').then(m => m.ColorTrapGame),
+    'holo-match':     () => import('./games/holo-match.js').then(m => m.HoloMatchGame),
+    'void-dodger':    () => import('./games/void-dodger.js').then(m => m.VoidDodgerGame),
+    'glitch-hunt':    () => import('./games/glitch-hunt.js').then(m => m.GlitchHuntGame),
+    'orbit-tracker':  () => import('./games/orbit-tracker.js').then(m => m.OrbitTrackerGame),
+    'cyber-typer':    () => import('./games/cyber-typer.js').then(m => m.CyberTyperGame),
+    'cyber-pong':     () => import('./games/cyber-pong.js').then(m => m.CyberPongGame),
+    'snake-plus':     () => import('./games/snake-plus.js').then(m => m.SnakePlusGame),
+    'cipher-decode':  () => import('./games/cipher-decode.js').then(m => m.CipherDecodeGame),
+    'pixel-draw':     () => import('./games/pixel-draw.js').then(m => m.PixelDrawGame),
+    'number-grid':    () => import('./games/number-grid.js').then(m => m.NumberGridGame),
+    'simon-says':     () => import('./games/simon-says.js').then(m => m.SimonSaysGame),
+    'pattern-rush':   () => import('./games/pattern-rush.js').then(m => m.PatternRushGame),
+    'reaction-chain': () => import('./games/reaction-chain.js').then(m => m.ReactionChainGame),
+    'word-rush':      () => import('./games/word-rush.js').then(m => m.WordRushGame),
+};
 
 const app = {
     state: CONFIG.STATES.WELCOME,
@@ -68,78 +90,21 @@ const app = {
         // Inicializar audio con el primer clic del usuario
         document.addEventListener('click', () => { if(this.audio) this.audio.init(); }, { once: true });
 
-        this.gameClasses = {
-            'higher-lower': HigherLowerGame, 'guess-card': GuessCardGame, 'trivia': TriviaGame,
-            'bio-scan': BioScanGame, 'geo-net': GeoNetGame, 'hyper-reflex': GameReflex,
-            'spam-click': SpamClickGame, 'neon-sniper': NeonSniperGame, 'orbit-lock': OrbitLockGame,
-            'memory-flash': MemoryFlashGame, 'vault-cracker': VaultCrackerGame, 'phase-shifter': PhaseShifterGame,
-            'math-rush': MathRushGame, 'color-trap': ColorTrapGame, 'holo-match': HoloMatchGame,
-            'void-dodger': VoidDodgerGame, 'glitch-hunt': GlitchHuntGame, 'orbit-tracker': OrbitTrackerGame,
-            'cyber-typer': CyberTyperGame,
-            'cyber-pong':    CyberPongGame,
-            'snake-plus':    SnakePlusGame,
-            'cipher-decode': CipherDecodeGame,
-            'pixel-draw':     PixelDrawGame,
-            'number-grid':    NumberGridGame,
-            'simon-says':     SimonSaysGame,
-            'pattern-rush':   PatternRushGame,
-            'reaction-chain': ReactionChainGame,
-            'word-rush':      WordRushGame
-        };
+        // Referencia al mapa de loaders — el consumo externo (vs-mode, daily-weekly)
+        // sigue funcionando con Object.keys y la verificacion de existencia.
+        this.gameClasses = GAME_LOADERS;
 
-        let save = localStorage.getItem('arcade_save');
-        if(save) { 
-            try {
-                let d = JSON.parse(save); 
-                this.credits = d.credits || 100; 
-                this.stats = d.stats || this.stats;
-                
-                // Asegurar inicialización de estadísticas
-                if(!this.stats.xp) this.stats.xp = 0;
-                if(!this.stats.level) this.stats.level = 1;
-                if(!this.stats.avatar) this.stats.avatar = 'fa-user-astronaut';
-                if(!this.stats.passClaimed) this.stats.passClaimed = []; 
-                if(!this.stats.unlockedGames) this.stats.unlockedGames = []; 
-                
-                this.highScores = d.highScores || {}; 
-                
-                if(d.shop) { 
-                    this.shop.load(d.shop); 
-                    this.applyTheme(this.shop.equipped.theme); 
-                }
-                if(d.daily)  this.daily  = d.daily;
-                if(d.weekly) this.weekly = d.weekly;
-                if(d.streak) this.streak = d.streak;
-                if(d.invest)     this.invest     = d.invest;
-                if(d.favorites)   this.favorites   = d.favorites;
-                if(d.tournament)  this.tournament  = d.tournament;
-                if(d.notifLog)    this.notifLog    = d.notifLog;
-                if(d.agentName)   this.agentName   = d.agentName;
-                if(d.season)      this.season      = d.season;
-                // Badge de notificaciones
-                const unread = (this.notifLog||[]).filter(n=>!n.read).length;
-                setTimeout(() => {
-                    const badge = document.getElementById('notif-badge');
-                    if(badge && unread > 0) { badge.textContent = unread; badge.style.display = 'flex'; }
-                }, 500);
-                if(d.settings) {
-                    if(d.settings.audio) this.audio.vol = d.settings.audio;
-                    if(d.settings.performance !== undefined) this.settings.performance = d.settings.performance;
-                }
-            } catch(e) { console.error("Error cargando save", e); }
-        }
-        
-        // --- PARCHE DE MIGRACIÓN ---
-        this.runMigrationFix();
-        // ---------------------------
+        // --- CARGA DE SAVE + MIGRACION (delegado a systems/persistence.js) ---
+        try { Persistence.load(this); }           catch(e) { console.error('persistence.load', e); }
+        try { Persistence.runMigrationFix(this); } catch(e) { console.error('persistence.runMigrationFix', e); }
 
-        this.checkDailyReset();
-        this.checkWeeklyReset();
-        this.checkStreakUpdate();
-        this.checkInvestment();
-        this.initEasterEggs();
-        this.initSeason();
-        this.initTournament();
+        try { this.checkDailyReset(); }   catch(e) { console.error('checkDailyReset', e); }
+        try { this.checkWeeklyReset(); }  catch(e) { console.error('checkWeeklyReset', e); }
+        try { this.checkStreakUpdate(); } catch(e) { console.error('checkStreakUpdate', e); }
+        try { this.checkInvestment(); }   catch(e) { console.error('checkInvestment', e); }
+        try { this.initEasterEggs(); }    catch(e) { console.error('initEasterEggs', e); }
+        try { this.initSeason(); }        catch(e) { console.error('initSeason', e); }
+        try { this.initTournament(); }    catch(e) { console.error('initTournament', e); }
         // Notif si el torneo termina pronto (2 días o menos)
         setTimeout(() => {
             try {
@@ -155,28 +120,18 @@ const app = {
                 }
             } catch(e) {}
         }, 3000);
-        this.renderMenu();
-        this.updateUI();
+        try { this.renderMenu(); } catch(e) { console.error('renderMenu', e); }
+        try { this.updateUI(); }   catch(e) { console.error('updateUI', e); }
         
-        // Retrasar ligeramente la pantalla de bienvenida para asegurar carga
+        // Pantalla de bienvenida — siempre se activa aunque haya errores arriba
         setTimeout(() => this.changeState(CONFIG.STATES.WELCOME), 100);
         
-        this.setupEventListeners();
+        try { this.setupEventListeners(); } catch(e) { console.error('setupEventListeners', e); }
     },
 
-    // --- FUNCIÓN DE MIGRACIÓN ---
-    runMigrationFix() {
-        // Si ya reclamaste el nivel 5 pero no tienes 'cyber-pong' desbloqueado...
-        if (this.stats.passClaimed && this.stats.passClaimed.includes(5) && !this.stats.unlockedGames.includes('cyber-pong')) {
-            console.log("MIGRATION FIX: Desbloqueando Cyber Pong automáticamente...");
-            this.stats.unlockedGames.push('cyber-pong');
-            this.save();
-        }
-        // Aseguramos que unlockedGames sea un array válido siempre
-        if (!Array.isArray(this.stats.unlockedGames)) {
-            this.stats.unlockedGames = [];
-        }
-    },
+    // --- PERSISTENCIA (delegado a systems/persistence.js) ---
+    runMigrationFix() { return Persistence.runMigrationFix(this); },
+    save()            { return Persistence.save(this); },
 
     setupEventListeners() {
         const safeBind = (id, fn) => { const el = document.getElementById(id); if(el) el.onclick = fn; };
@@ -234,110 +189,8 @@ const app = {
         const closeInfoBtn = document.getElementById('btn-close-info');
         if(closeInfoBtn) closeInfoBtn.onclick = (e) => { e.preventDefault(); document.getElementById('modal-info').classList.add('hidden'); };
 
-        // SETTINGS
-        safeBind('btn-settings', () => {
-            this.audio.playClick();
-            const modal = document.getElementById('modal-settings');
-            if(modal) {
-                modal.classList.remove('hidden');
-                const updateSlider = (id, val) => { const el = document.getElementById(id); if(el) el.value = val * 100; };
-                updateSlider('rng-master', this.audio.vol.master);
-                updateSlider('rng-sfx',    this.audio.vol.sfx);
-                updateSlider('rng-music',  this.audio.vol.music);
-                const updateText = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = Math.round(val * 100) + '%'; };
-                updateText('val-master', this.audio.vol.master);
-                updateText('val-sfx',    this.audio.vol.sfx);
-                updateText('val-music',  this.audio.vol.music);
-                const perfCheck = document.getElementById('chk-performance');
-                if(perfCheck) perfCheck.checked = this.settings.performance;
-                const scanlinesCheck = document.getElementById('chk-scanlines');
-                if(scanlinesCheck) scanlinesCheck.checked = this.settings.scanlines || false;
-                const shakeCheck = document.getElementById('chk-shake');
-                if(shakeCheck) shakeCheck.checked = this.settings.shake !== false;
-                const reduceCheck = document.getElementById('chk-reduce-motion');
-                if(reduceCheck) reduceCheck.checked = this.settings.reduceMotion || false;
-                // Theme quick picker
-                const themeQuick = document.getElementById('settings-theme-quick');
-                if(themeQuick) {
-                    const quickThemes = CONFIG.SHOP.filter(i => i.type === 'THEME').slice(0,8);
-                    themeQuick.innerHTML = quickThemes.map(t => {
-                        const owned   = this.shop.inventory.includes(t.id);
-                        const active  = this.shop.equipped.theme === t.id;
-                        return '<div title="' + t.name + '" onclick="' + (owned ? 'window.app.shop.equipped.theme=\'' + t.id + '\';window.app.applyTheme(\'' + t.id + '\');window.app.save();this.parentElement.querySelectorAll(\"div\").forEach(d=>d.style.boxShadow=\"\");this.style.boxShadow=\"0 0 0 2px white\";' : '') + '" ' +
-                            'style="width:26px;height:26px;border-radius:6px;background:var(--primary);cursor:' + (owned?'pointer':'not-allowed') + ';opacity:' + (owned?'1':'0.3') + ';box-shadow:' + (active?'0 0 0 2px white':'none') + ';border:1px solid rgba(255,255,255,0.1);transition:all 0.15s;' +
-                            '"></div>';
-                    }).join('');
-                }
-                // Notif toggle
-                const notifCheck = document.getElementById('chk-notifs');
-                if(notifCheck) notifCheck.checked = this.settings.showNotifs !== false;
-                // Info del sistema
-                const sysGames = document.getElementById('sys-games'); if(sysGames) sysGames.innerText = this.stats.gamesPlayed || 0;
-                const sysLevel = document.getElementById('sys-level');  if(sysLevel) sysLevel.innerText = this.stats.level || 1;
-            }
-        });
-
-        safeBind('btn-close-settings', () => {
-            this.audio.playClick();
-            const modal = document.getElementById('modal-settings');
-            if(modal) modal.classList.add('hidden');
-            const notifCheck = document.getElementById('chk-notifs');
-            if(notifCheck) this.settings.showNotifs = notifCheck.checked;
-            this.save();
-        });
-
-        safeBind('btn-reset-data', () => {
-            const modal = document.createElement('div');
-            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;';
-            modal.innerHTML = '<div style="background:#0a0e1a;border:1px solid rgba(239,68,68,0.4);border-radius:14px;padding:28px 32px;text-align:center;max-width:300px;">' +
-                '<div style="font-size:1.5rem;margin-bottom:10px;">⚠️</div>' +
-                '<div style="font-family:var(--font-display);font-size:0.85rem;color:white;letter-spacing:2px;margin-bottom:8px;">BORRAR DATOS</div>' +
-                '<div style="font-size:0.65rem;color:#64748b;margin-bottom:20px;">Se perderán todos los créditos, récords, logros y progreso. Esta acción no se puede deshacer.</div>' +
-                '<div style="display:flex;gap:8px;">' +
-                '<button id="reset-cancel" style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#64748b;border-radius:8px;padding:9px;font-family:var(--font-display);font-size:0.65rem;cursor:pointer;">CANCELAR</button>' +
-                '<button id="reset-confirm" style="flex:1;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#ef4444;border-radius:8px;padding:9px;font-family:var(--font-display);font-size:0.65rem;cursor:pointer;">BORRAR TODO</button>' +
-                '</div></div>';
-            document.body.appendChild(modal);
-            modal.querySelector('#reset-cancel').onclick  = () => modal.remove();
-            modal.querySelector('#reset-confirm').onclick = () => { localStorage.removeItem('arcade_save'); location.reload(); };
-        });
-
-        // Sliders de Audio
-        const bindSlider = (id, type, labelId) => {
-            const el = document.getElementById(id);
-            if(el) {
-                el.oninput = (e) => {
-                    const val = e.target.value;
-                    const label = document.getElementById(labelId);
-                    if(label) label.innerText = val + '%';
-                    this.audio.setVolume(type, val);
-                };
-                el.onchange = () => this.audio.playHover();
-            }
-        };
-        bindSlider('rng-master', 'master', 'val-master');
-        bindSlider('rng-sfx',   'sfx',    'val-sfx');
-        bindSlider('rng-music', 'music',  'val-music');
-
-        // Checkbox Performance
-        const perfCheck = document.getElementById('chk-performance');
-        if(perfCheck) perfCheck.onchange = (e) => { this.settings.performance = e.target.checked; this.audio.playClick(); };
-
-        // Nuevos toggles
-        const scanlinesCheck = document.getElementById('chk-scanlines');
-        if(scanlinesCheck) scanlinesCheck.onchange = (e) => {
-            this.settings.scanlines = e.target.checked;
-            document.querySelector('.scanlines')?.style.setProperty('display', e.target.checked ? 'block' : 'none');
-            this.audio.playClick();
-        };
-        const shakeCheck = document.getElementById('chk-shake');
-        if(shakeCheck) shakeCheck.onchange = (e) => { this.settings.shake = e.target.checked; this.audio.playClick(); };
-        const reduceCheck = document.getElementById('chk-reduce-motion');
-        if(reduceCheck) reduceCheck.onchange = (e) => {
-            this.settings.reduceMotion = e.target.checked;
-            document.body.classList.toggle('reduce-motion', e.target.checked);
-            this.audio.playClick();
-        };
+        // SETTINGS — cableado delegado a systems/settings.js
+        initSettingsUI(this);
 
         // LOOT BOX
         safeBind('btn-buy-lootbox', () => this.buyLootBox());
@@ -369,7 +222,7 @@ const app = {
         // Consola de Depuración
         document.addEventListener('keydown', (e) => { if (e.key === 'F1' || e.code === 'F1') { e.preventDefault(); this.toggleConsole(); } });
 
-        // Escape y P para pausar/reanudar durante el juego
+        // Escape y P para pausar/reanudar durante el juego · Q para abandonar desde pausa
         document.addEventListener('keydown', (e) => {
             const isGame = document.getElementById('screen-game')?.classList.contains('active');
             if(!isGame) return;
@@ -377,6 +230,14 @@ const app = {
                 e.preventDefault();
                 if(this._pauseOverlayEl) this._autoResume();
                 else this._manualPause();
+            } else if((e.code === 'KeyQ') && this._pauseOverlayEl) {
+                // Abandono rápido desde el overlay de pausa
+                e.preventDefault();
+                this._pauseOverlayEl.remove();
+                this._pauseOverlayEl = null;
+                try { this.canvas.resumeBackground(); } catch(_) {}
+                this.audio.playClick();
+                this.endGame();
             }
         });
         const consoleInput = document.getElementById('console-input');
@@ -394,6 +255,58 @@ const app = {
         document.addEventListener('visibilitychange', handleVisibility);
         window.addEventListener('blur',  handleBlur);
         window.addEventListener('focus', handleFocus);
+
+        // === NAVEGACION CON TECLADO EN EL MENU DE JUEGOS ===
+        // Flechas para moverse entre cards, Enter/Space para lanzar juego
+        document.addEventListener('keydown', (e) => {
+            const grid = document.getElementById('main-menu-grid');
+            if(!grid) return;
+            const menuActive = document.getElementById('screen-menu')?.classList.contains('active');
+            if(!menuActive) return;
+
+            const focused = document.activeElement;
+            const isCard = focused && focused.classList.contains('game-card-v2');
+
+            // Si no hay card enfocada, Tab/flechas comienzan en la primera visible
+            if(!isCard) {
+                if(['ArrowRight','ArrowLeft','ArrowDown','ArrowUp'].includes(e.key)) {
+                    const first = grid.querySelector('.game-card-v2:not(.locked)');
+                    if(first) { first.focus(); e.preventDefault(); }
+                }
+                return;
+            }
+
+            // Enter/Space lanza el juego
+            if(e.key === 'Enter' || e.key === ' ') {
+                const id = focused.dataset.gameId;
+                if(id) { e.preventDefault(); this.launch(id); }
+                return;
+            }
+
+            // Flechas navegan entre cards (calcula columnas por fila)
+            const cards = Array.from(grid.querySelectorAll('.game-card-v2'));
+            const idx = cards.indexOf(focused);
+            if(idx === -1) return;
+
+            // Detectar columnas por bounding box (primer row)
+            const firstTop = cards[0].getBoundingClientRect().top;
+            let cols = 1;
+            for(let i = 1; i < cards.length; i++) {
+                if(Math.abs(cards[i].getBoundingClientRect().top - firstTop) < 2) cols++;
+                else break;
+            }
+
+            let newIdx = idx;
+            if(e.key === 'ArrowRight')      newIdx = Math.min(cards.length - 1, idx + 1);
+            else if(e.key === 'ArrowLeft')  newIdx = Math.max(0, idx - 1);
+            else if(e.key === 'ArrowDown')  newIdx = Math.min(cards.length - 1, idx + cols);
+            else if(e.key === 'ArrowUp')    newIdx = Math.max(0, idx - cols);
+            else return;
+
+            e.preventDefault();
+            cards[newIdx]?.focus();
+            cards[newIdx]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
     },
 
     // ---- Sistema de auto-pausa ----
@@ -432,15 +345,21 @@ const app = {
                         <i class="fa-solid fa-xmark"></i> ABANDONAR
                     </button>
                 </div>
-                <div class="pause-hint">ESC · P para continuar</div>
+                <div class="pause-hint">ESC · P para continuar   ·   Q para abandonar</div>
             </div>`;
         document.body.appendChild(overlay);
         this._pauseOverlayEl = overlay;
 
         document.getElementById('pause-resume-btn').onclick = () => this._autoResume();
         document.getElementById('pause-quit-btn').onclick = () => {
-            this._autoResume();
-            setTimeout(() => { const btn = document.getElementById('btn-quit'); if(btn) btn.click(); }, 100);
+            // Abandono directo: quitar overlay sin reanudar el juego y terminar
+            if(this._pauseOverlayEl) {
+                this._pauseOverlayEl.remove();
+                this._pauseOverlayEl = null;
+            }
+            try { this.canvas.resumeBackground(); } catch(e) {}
+            this.audio.playClick();
+            this.endGame();
         };
     },
 
@@ -455,21 +374,29 @@ const app = {
     },
 
     changeState(newState) {
-        document.querySelectorAll('.screen').forEach(s => { 
+        // Defensivo: limpiar overlay de pausa si sobrevive a un cambio de pantalla
+        if(this._pauseOverlayEl) {
+            this._pauseOverlayEl.remove();
+            this._pauseOverlayEl = null;
+            try { this.canvas.resumeBackground(); } catch(e) {}
+        }
+
+        let nextScreenId = '';
+        if(newState === CONFIG.STATES.WELCOME) nextScreenId = 'screen-welcome';
+        if(newState === CONFIG.STATES.MENU)    nextScreenId = 'screen-menu';
+        if(newState === CONFIG.STATES.GAME)    nextScreenId = 'screen-game';
+        if(newState === CONFIG.STATES.SHOP)    nextScreenId = 'screen-shop';
+        if(newState === CONFIG.STATES.DAILY)   nextScreenId = 'screen-daily';
+        if(newState === CONFIG.STATES.WEEKLY)  nextScreenId = 'screen-weekly';
+        if(newState === 'pass')                nextScreenId = 'screen-pass';
+
+        document.querySelectorAll('.screen').forEach(s => {
+            if(s.id === nextScreenId) return; // no tocar el destino
             s.classList.remove('active'); 
             setTimeout(() => { 
                 if(!s.classList.contains('active')) s.classList.add('hidden'); 
             }, 400); 
         });
-
-        let nextScreenId = '';
-        if(newState === CONFIG.STATES.WELCOME) nextScreenId = 'screen-welcome';
-        if(newState === CONFIG.STATES.MENU) nextScreenId = 'screen-menu';
-        if(newState === CONFIG.STATES.GAME) nextScreenId = 'screen-game';
-        if(newState === CONFIG.STATES.SHOP) nextScreenId = 'screen-shop';
-        if(newState === CONFIG.STATES.DAILY)  nextScreenId = 'screen-daily';
-        if(newState === CONFIG.STATES.WEEKLY) nextScreenId = 'screen-weekly';
-        if(newState === 'pass') nextScreenId = 'screen-pass';
 
         const nextScreen = document.getElementById(nextScreenId);
         if(nextScreen) {
@@ -527,674 +454,175 @@ const app = {
         }
     },
 
-    // --- LÓGICA DEL PASE DE BATALLA ---
-    renderPassScreen() {
-        if (!this.stats.passClaimed) this.stats.passClaimed = [];
+    // --- PASE DE BATALLA (delegado a systems/pass.js) ---
+    // Se mantienen los nombres originales porque los templates inline
+    // de las cards hacen `window.app.showPassTooltip(...)` y compania.
+    renderPassScreen()             { return Pass.render(this); },
+    showPassTooltip(event, card)   { return Pass.showTooltip(event, card); },
+    hidePassTooltip()              { return Pass.hideTooltip(); },
+    claimPassReward(lvl)           { return Pass.claim(this, lvl); },
 
-        const lvl = this.stats.level || 1;
-        const xp  = this.stats.xp    || 0;
-        const req = this.getReqXP(lvl);
-        const pct = Math.min(100, (xp / req) * 100);
+    // --- FUNCION DE INFORMACION (delegado a systems/game-info.js) ---
+    // Bug fix real: el `window.event` deprecated desaparece; el unico
+    // caller ya llama event.stopPropagation() explicitamente antes.
+    showGameInfo(gameId) { return GameInfo.show(this, gameId); },
 
-        // Actualizar cabecera XP
-        const lvlEl  = document.getElementById('np-level');
-        const fillEl = document.getElementById('np-xp-fill');
-        const glowEl = document.getElementById('np-xp-glow');
-        const textEl = document.getElementById('np-xp-text');
-        if(lvlEl)  lvlEl.innerText    = lvl;
-        if(fillEl) fillEl.style.width = `${pct}%`;
-        if(glowEl) glowEl.style.width = `${pct}%`;
-        if(textEl) textEl.innerText   = `${Math.floor(xp)} / ${req} XP`;
-
-        const claimable = CONFIG.BATTLE_PASS.filter(n => lvl >= n.lvl && !this.stats.passClaimed.includes(n.lvl)).length;
-        const badge   = document.getElementById('np-claimable-badge');
-        const countEl = document.getElementById('np-claimable-count');
-        if(badge)   badge.classList.toggle('visible', claimable > 0);
-        if(countEl) countEl.innerText = claimable;
-
-        const container = document.getElementById('np-track');
-        if (!container) return;
-
-        const typeLabels = { CREDITS:'Créditos', PARTICLE:'Efecto FX', THEME:'Tema', AVATAR:'Avatar', HARDWARE:'Mejora', GAME_UNLOCK:'Juego' };
-
-        // Colores y efectos por rareza
-        const rarityFx = {
-            common:    { glow:'rgba(100,116,139,0.25)', ring:'#64748b',  anim:'none',              stars:0 },
-            rare:      { glow:'rgba(59,130,246,0.35)',  ring:'#3b82f6',  anim:'none',              stars:1 },
-            epic:      { glow:'rgba(168,85,247,0.45)',  ring:'#a855f7',  anim:'epicPulse 2s ease-in-out infinite', stars:2 },
-            legendary: { glow:'rgba(245,158,11,0.6)',   ring:'#f59e0b',  anim:'legendaryFlame 1.5s ease-in-out infinite', stars:3 },
-        };
-
-        let html = '';
-        CONFIG.BATTLE_PASS.forEach((node, idx) => {
-            const isUnlocked = lvl >= node.lvl;
-            const isClaimed  = this.stats.passClaimed.includes(node.lvl);
-            const rarity     = node.rarity || 'common';
-            const fx         = rarityFx[rarity] || rarityFx.common;
-
-            if (idx > 0) {
-                const prevUnlocked = lvl >= CONFIG.BATTLE_PASS[idx-1].lvl;
-                html += `<div class="np-connector ${prevUnlocked?'active':''}"></div>`;
-            }
-
-            // Estrellas de rareza
-            const starsHTML = fx.stars > 0
-                ? `<div class="np-stars">${'<i class="fa-solid fa-star np-star"></i>'.repeat(fx.stars)}</div>`
-                : '';
-
-            // Partículas orbitales para legendary
-            const orbitsHTML = rarity === 'legendary' && isUnlocked && !isClaimed
-                ? `<div class="np-orbit-ring"></div><div class="np-orbit-dot"></div>`
-                : '';
-
-            let action = '';
-            if (isUnlocked && !isClaimed) {
-                action = `<button class="np-btn-claim rarity-${rarity}" onclick="event.stopPropagation(); window.app.claimPassReward(${node.lvl})">
-                    <i class="fa-solid fa-gift"></i> RECLAMAR
-                </button>`;
-            } else if (!isUnlocked) {
-                action = `<div class="np-lock-badge"><i class="fa-solid fa-lock"></i> ${node.lvl}</div>`;
-            } else {
-                action = `<div class="np-claimed-check"><i class="fa-solid fa-check"></i></div>`;
-            }
-
-            const iconClass = node.icon.includes(' ') ? node.icon : 'fa-solid ' + node.icon;
-            const cardStyle = isUnlocked && !isClaimed
-                ? `--rarity-glow:${fx.glow}; --rarity-ring:${fx.ring}; animation:${fx.anim};`
-                : `--rarity-glow:${fx.glow}; --rarity-ring:${fx.ring};`;
-
-            html += `
-            <div class="np-node">
-                <div class="np-card rarity-${rarity} ${isUnlocked?'unlocked':''} ${isClaimed?'claimed':''}"
-                     style="${cardStyle} animation-delay:${idx*40}ms;"
-                     data-lvl="${node.lvl}" data-rarity="${rarity}"
-                     data-name="${node.name}" data-type="${typeLabels[node.type]||node.type}"
-                     data-desc="${node.desc||''}"
-                     onmouseenter="window.app.showPassTooltip(event,this)"
-                     onmouseleave="window.app.hidePassTooltip()">
-                    <div class="np-level-badge">LVL ${node.lvl}</div>
-                    ${orbitsHTML}
-                    ${starsHTML}
-                    <div class="np-reward-icon ${rarity==='legendary'&&isUnlocked&&!isClaimed?'np-icon-glow':''}">
-                        <i class="${iconClass}"></i>
-                    </div>
-                    <div class="np-reward-name">${node.name}</div>
-                    <div class="np-type-badge">${typeLabels[node.type]||node.type}</div>
-                    ${action}
-                </div>
-            </div>`;
-        });
-
-        container.innerHTML = html;
-
-        setTimeout(() => {
-            const firstClaim = container.querySelector('.unlocked:not(.claimed) .np-btn-claim');
-            const target = firstClaim ? firstClaim.closest('.np-node') : container.querySelector('.np-card:not(.unlocked)');
-            if(target) target.scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' });
-        }, 250);
-    },
-
-    // Tooltip del pass
-    showPassTooltip(event, card) {
-        const tt = document.getElementById('np-tooltip');
-        if (!tt) return;
-        const rarity  = card.dataset.rarity;
-        const rarityColors = { common: '#64748b', rare: '#3b82f6', epic: '#a855f7', legendary: '#f59e0b' };
-        const rarityLabels = { common: 'COMÚN', rare: 'RARO', epic: 'ÉPICO', legendary: 'LEGENDARIO' };
-        tt.querySelector('#np-tt-rarity').style.color = rarityColors[rarity] || '#fff';
-        tt.querySelector('#np-tt-rarity').innerText   = rarityLabels[rarity] || rarity.toUpperCase();
-        tt.querySelector('#np-tt-name').innerText     = card.dataset.name;
-        tt.querySelector('#np-tt-type').innerText     = card.dataset.type;
-        tt.querySelector('#np-tt-desc').innerText     = card.dataset.desc;
-        tt.style.borderColor = (rarityColors[rarity] || '#fff') + '40';
-        // Posicionar encima del card
-        const rect = card.getBoundingClientRect();
-        tt.style.left = `${rect.left + rect.width / 2 - 90}px`;
-        tt.style.top  = `${rect.top - 110}px`;
-        tt.classList.add('visible');
-    },
-    hidePassTooltip() {
-        const tt = document.getElementById('np-tooltip');
-        if(tt) tt.classList.remove('visible');
-    },
-
-    claimPassReward(lvl) {
-        const reward = CONFIG.BATTLE_PASS.find(n => n.lvl === lvl);
-        if (!reward) return;
-        if (!this.stats.passClaimed) this.stats.passClaimed = [];
-        if (this.stats.passClaimed.includes(lvl)) return;
-
-        this.stats.passClaimed.push(lvl);
-
-        if (reward.type === 'CREDITS') {
-            this.addScore(0, reward.val);
-        } else if (['THEME','PARTICLE','AVATAR','HARDWARE'].includes(reward.type)) {
-            if (!this.shop.inventory.includes(reward.val)) this.shop.inventory.push(reward.val);
-        } else if (reward.type === 'GAME_UNLOCK') {
-            if(!this.stats.unlockedGames) this.stats.unlockedGames = [];
-            if(!this.stats.unlockedGames.includes(reward.val)) {
-                this.stats.unlockedGames.push(reward.val);
-                this.showToast("¡JUEGO DESBLOQUEADO!", "Cyber Pong disponible", "gold");
-            }
-        }
-
-        // Efectos por rareza
-        const rarityColors = {
-            common: '#64748b', rare: '#3b82f6', epic: '#a855f7', legendary: '#f59e0b'
-        };
-        const color = rarityColors[reward.rarity] || '#d946ef';
-
-        if (reward.rarity === 'legendary') {
-            this.audio.playWin(10);
-            // Triple explosión para legendary
-            setTimeout(() => this.canvas.explode(window.innerWidth*0.3, window.innerHeight*0.5, color), 0);
-            setTimeout(() => this.canvas.explode(window.innerWidth*0.5, window.innerHeight*0.3, '#ffffff'), 150);
-            setTimeout(() => this.canvas.explode(window.innerWidth*0.7, window.innerHeight*0.5, color), 300);
-        } else if (reward.rarity === 'epic') {
-            this.audio.playWin(7);
-            this.canvas.explode(window.innerWidth/2, window.innerHeight/2, color);
-        } else {
-            this.audio.playWin(3);
-            this.canvas.explode(window.innerWidth/2, window.innerHeight/2, color);
-        }
-
-        const rarityLabel = { common:'COMÚN', rare:'RARO', epic:'ÉPICO', legendary:'LEGENDARIO' };
-        this.showToast(`[${rarityLabel[reward.rarity]||''}] ${reward.name}`, reward.desc || '', 'purple');
-
-        this.save();
-        this.renderPassScreen();
-    },
-
-    // --- FUNCIÓN DE INFORMACIÓN (MODAL TÁCTICO) ---
-    showGameInfo(gameId) {
-        if(window.event) window.event.stopPropagation();
-        this.audio.playClick();
-
-        const info = CONFIG.GAME_INFO[gameId];
-        const meta = CONFIG.GAMES_LIST.find(g => g.id === gameId);
-        if(!info || !meta) return;
-
-        const color     = CONFIG.COLORS[meta.color] || '#3b82f6';
-        const score     = this.getBest(gameId);
-        const rank      = this.calculateRank(gameId, score);
-        const rankColors = { S:'#fbbf24', A:'#10b981', B:'#3b82f6', F:'#475569' };
-        const rankColor  = rankColors[rank] || '#475569';
-        const diffIcons  = { Timing:'fa-stopwatch', Reflejos:'fa-bolt', Memoria:'fa-brain', Precisión:'fa-crosshairs', Mental:'fa-brain', Cognitivo:'fa-puzzle-piece', Conocimiento:'fa-graduation-cap', Estándar:'fa-gamepad' };
-        const diffIcon   = `fa-solid ${diffIcons[info.diff] || 'fa-gamepad'}`;
-
-        const modal   = document.getElementById('modal-info');
-        const content = document.getElementById('info-content');
-
-        content.innerHTML = `
-        <div class="gi-root">
-            <!-- Fondo con color del juego -->
-            <div class="gi-bg" style="--gc:${color};"></div>
-
-            <!-- Header del juego -->
-            <div class="gi-header">
-                <div class="gi-icon-ring" style="--gc:${color};">
-                    <i class="${meta.icon}"></i>
-                </div>
-                <div class="gi-title-block">
-                    <div class="gi-game-name">${meta.name.toUpperCase()}</div>
-                    <div class="gi-game-sub" style="color:${color};">${meta.desc}</div>
-                </div>
-                <div class="gi-rank-display" style="--rc:${rankColor};">
-                    <div class="gi-rank-letter">${rank}</div>
-                    <div class="gi-rank-label">RÉCORD</div>
-                    <div class="gi-rank-score">${score > 0 ? score : '—'}</div>
-                </div>
-            </div>
-
-            <!-- Divisor -->
-            <div class="gi-divider" style="background:linear-gradient(90deg,${color}40,${color}10,transparent);"></div>
-
-            <!-- Info cards -->
-            <div class="gi-cards">
-                <div class="gi-card">
-                    <div class="gi-card-lbl"><i class="fa-solid fa-crosshairs"></i> OBJETIVO</div>
-                    <div class="gi-card-val">${info.desc}</div>
-                </div>
-                <div class="gi-card">
-                    <div class="gi-card-lbl"><i class="fa-solid fa-microchip"></i> MECÁNICA</div>
-                    <div class="gi-card-val">${info.mech}</div>
-                </div>
-                <div class="gi-card gi-card-highlight" style="border-color:${color}30; background:${color}08;">
-                    <div class="gi-card-lbl" style="color:${color};"><i class="fa-solid fa-trophy"></i> CONDICIÓN DE VICTORIA</div>
-                    <div class="gi-card-val" style="color:white; font-weight:600;">${info.obj}</div>
-                </div>
-            </div>
-
-            <!-- Stat pills -->
-            <div class="gi-pills">
-                <div class="gi-pill">
-                    <i class="${diffIcon}" style="color:${color};"></i>
-                    <span>${info.diff || 'Estándar'}</span>
-                </div>
-                <div class="gi-pill">
-                    <i class="fa-solid fa-bolt" style="color:#fbbf24;"></i>
-                    <span>XP ALTO</span>
-                </div>
-                <div class="gi-pill">
-                    <i class="fa-solid fa-gamepad" style="color:#a855f7;"></i>
-                    <span>${Object.keys(this.highScores).includes(gameId) ? 'JUGADO' : 'SIN JUGAR'}</span>
-                </div>
-            </div>
-
-            <!-- Botones -->
-            <div style="display:flex;gap:8px;">
-                <button class="gi-play-btn" style="--gc:${color};flex:1;"
-                        onclick="document.getElementById('modal-info').classList.add('hidden'); window.app.launch('${gameId}');">
-                    <i class="fa-solid fa-play"></i>
-                    JUGAR
-                </button>
-                <button style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);color:#f87171;
-                        border-radius:12px;padding:12px 18px;font-family:var(--font-display);font-size:0.72rem;
-                        letter-spacing:2px;cursor:pointer;transition:all 0.15s;flex-shrink:0;"
-                        onmouseenter="this.style.background='rgba(239,68,68,0.22)'"
-                        onmouseleave="this.style.background='rgba(239,68,68,0.1)'"
-                        onclick="document.getElementById('modal-info').classList.add('hidden'); window.app.startVsMode('${gameId}');">
-                    <i class="fa-solid fa-users"></i> VS
-                </button>
-            </div>
-        </div>`;
-
-        modal.classList.remove('hidden');
-    },
-
-    // --- RENDER MENU ---
+    // --- UI / LOBBY (delegado a systems/ui.js) ---
     activeFilter: 'ALL',
-
-    toggleFavorite(gameId, e) {
-        if(e) e.stopPropagation();
-        if(!this.favorites) this.favorites = [];
-        const idx = this.favorites.indexOf(gameId);
-        if(idx >= 0) { this.favorites.splice(idx,1); }
-        else         { this.favorites.push(gameId); }
-        try { this.audio.playClick(); } catch(err) {}
-        this.save();
-        // Actualizar solo el botón sin re-renderizar todo
-        const btn = document.querySelector('.gcv2-fav[data-id="'+gameId+'"]');
-        if(btn) {
-            const isFav = this.favorites.includes(gameId);
-            btn.style.color  = isFav ? '#fbbf24' : 'rgba(255,255,255,0.2)';
-            btn.style.opacity = isFav ? '1' : '';
-            btn.title = isFav ? 'Quitar de favoritos' : 'Añadir a favoritos';
-        }
-    },
-
-    setLobbyFilter(cat, btn) {
-        this.activeFilter = cat;
-        document.querySelectorAll('.lf-btn').forEach(b => b.classList.remove('active'));
-        if(btn) btn.classList.add('active');
-        this.audio.playClick();
-        this.renderMenu();
-    },
+    toggleFavorite(gameId, e) { return UI.toggleFavorite(this, gameId, e); },
+    setLobbyFilter(cat, btn)  { return UI.setLobbyFilter(this, cat, btn); },
 
 
 
-    // ─── EASTER EGGS ────────────────────────────────────────
-    initEasterEggs() {
-        const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
-        let seq = [];
-        window.addEventListener('keydown', (e) => {
-            seq.push(e.key);
-            if(seq.length > KONAMI.length) seq.shift();
-            if(seq.join(',') === KONAMI.join(',')) {
-                seq = [];
-                this.activateKonami();
-            }
-        });
-    },
+    // --- EASTER EGGS (delegado a systems/easter-eggs.js) ---
+    initEasterEggs() { return EasterEggs.init(this); },
+    activateKonami() { return EasterEggs.activateKonami(this); },
 
-    activateKonami() {
-        // +30 vida al agente — créditos gratis
-        const bonus = 3000;
-        this.credits += bonus;
-        this.save(); this.updateUI();
-        this.showToast('↑↑↓↓←→←→BA', '+' + bonus + ' CR — Código activado', 'gold');
-        try { this.audio.playWin(15); } catch(e) {}
-        // Efecto visual — lluvia de colores
-        try {
-            for(let i = 0; i < 5; i++) {
-                const colors = ['#ef4444','#f97316','#fbbf24','#10b981','#3b82f6','#a855f7','#ec4899'];
-                setTimeout(() => this.canvas.explode(
-                    Math.random() * window.innerWidth,
-                    Math.random() * window.innerHeight,
-                    colors[Math.floor(Math.random()*colors.length)]
-                ), i * 150);
-            }
-        } catch(e) {}
-        // Logro especial
-        if(!this.stats.konamiUsed) {
-            this.stats.konamiUsed = true;
-            this.showToast('CÓDIGO KONAMI', '¡El clásico de los clásicos!', 'purple');
-        }
-    },
+    // --- TUTORIAL INTERACTIVO (delegado a systems/tutorial.js) ---
+    startTutorial()  { return Tutorial.start(this); },
 
-    // ─── TUTORIAL INTERACTIVO ───────────────────────────────
-    startTutorial() {
-        if(this.stats.tutorialDone) return;
-        this.tutStep = 0;
-        const steps = [
-            { target: '.main-nav-brand',    title: 'PROTOCOLOS',        desc: 'Bienvenido al sistema. Aquí verás el nombre y el botón de partida aleatoria.',               pos: 'bottom' },
-            { target: '.main-nav-tabs',     title: 'NAVEGACIÓN',        desc: 'Accede al Protocolo Diario, Misiones Semanales, Neon Pass, Tienda y tu Perfil.',            pos: 'bottom' },
-            { target: '.lobby-filters',     title: 'FILTROS',           desc: 'Filtra los juegos por categoría: Reflejos, Memoria, Mental, Acción o Conocimiento.',        pos: 'bottom' },
-            { target: '.game-card-v2',      title: 'JUEGOS',            desc: 'Haz click para jugar. El ícono (i) muestra info del juego. Acumulas récords y XP.',         pos: 'right'  },
-            { target: '.status-bar',        title: 'ESTADO DEL AGENTE', desc: 'Tu rango, barra de XP, créditos y racha diaria. Todo progresa con cada partida.',           pos: 'top'    },
-        ];
-        this._tutSteps = steps;
-        this._showTutStep(0);
-    },
-
-    _showTutStep(idx) {
-        this._removeTutorial();
-        const steps = this._tutSteps;
-        if(idx >= steps.length) { this._finishTutorial(); return; }
-
-        const step = steps[idx];
-        const el   = document.querySelector(step.target);
-        if(!el) { this._showTutStep(idx + 1); return; }
-
-        const rect = el.getBoundingClientRect();
-        const pad  = 8;
-
-        // Crear overlay
-        const overlay = document.createElement('div');
-        overlay.id = 'tutorial-overlay';
-        overlay.className = 'tutorial-overlay';
-
-        // Spotlight
-        const spot = document.createElement('div');
-        spot.className = 'tutorial-spotlight';
-        spot.style.cssText = [
-            'left:'   + (rect.left   - pad) + 'px',
-            'top:'    + (rect.top    - pad) + 'px',
-            'width:'  + (rect.width  + pad*2) + 'px',
-            'height:' + (rect.height + pad*2) + 'px',
-        ].join(';');
-        overlay.appendChild(spot);
-
-        // Tooltip
-        const tt   = document.createElement('div');
-        tt.className = 'tutorial-tooltip';
-
-        // Dots
-        const dotsHTML = steps.map((_,i) =>
-            '<div class="tut-dot' + (i===idx?' active':'') + '"></div>'
-        ).join('');
-
-        tt.innerHTML = [
-            '<div class="tut-step">PASO ' + (idx+1) + ' / ' + steps.length + '</div>',
-            '<div class="tut-title">' + step.title + '</div>',
-            '<div class="tut-desc">'  + step.desc  + '</div>',
-            '<div class="tut-actions">',
-            '  <div class="tut-dots">' + dotsHTML + '</div>',
-            '  <div style="display:flex;gap:6px;">',
-            '    <button class="tut-btn-skip" id="tut-skip">SALTAR</button>',
-            '    <button class="tut-btn-next" id="tut-next">' + (idx===steps.length-1?'LISTO':'SIGUIENTE') + '</button>',
-            '  </div>',
-            '</div>',
-        ].join('');
-
-        // Posición del tooltip
-        const ttW = 280, ttH = 150;
-        let ttLeft, ttTop;
-        if(step.pos === 'bottom') {
-            ttLeft = Math.min(rect.left, window.innerWidth  - ttW - 16);
-            ttTop  = rect.bottom + pad + 10;
-        } else if(step.pos === 'top') {
-            ttLeft = Math.min(rect.left, window.innerWidth  - ttW - 16);
-            ttTop  = rect.top - ttH - pad - 10;
-        } else {
-            ttLeft = rect.right + pad + 10;
-            ttTop  = rect.top;
-        }
-        ttLeft = Math.max(8, ttLeft);
-        ttTop  = Math.max(8, ttTop);
-        tt.style.left = ttLeft + 'px';
-        tt.style.top  = ttTop  + 'px';
-        overlay.appendChild(tt);
-        document.body.appendChild(overlay);
-
-        // Eventos
-        tt.querySelector('#tut-next').onclick = () => { try{this.audio.playClick();}catch(e){} this._showTutStep(idx + 1); };
-        tt.querySelector('#tut-skip').onclick = () => { try{this.audio.playClick();}catch(e){} this._finishTutorial(); };
-        this.tutStep = idx;
-    },
-
-    _removeTutorial() {
-        const el = document.getElementById('tutorial-overlay');
-        if(el) el.remove();
-    },
-
-    _finishTutorial() {
-        this._removeTutorial();
-        this.stats.tutorialDone = true;
-        this.save();
-        this.showToast('SISTEMA DOMINADO', 'Tutorial completado. ¡A jugar!', 'success');
-    },
-
-    renderRecommendation() {
-        const el = document.getElementById('lobby-recommend');
-        if(!el) return;
-
-        const scored = CONFIG.GAMES_LIST.filter(g => {
-            const locked = g.unlockReq && !(this.stats.unlockedGames||[]).includes(g.id);
-            return !locked;
-        }).map(g => ({
-            g,
-            best:  this.getBest(g.id),
-            rank:  this.calculateRank(g.id, this.getBest(g.id)),
-            color: CONFIG.COLORS[g.color] || '#3b82f6'
-        }));
-
-        // Prioridad: juegos sin récord (rank F con score 0), luego juegos con rank bajo
-        const noRecord = scored.filter(x => x.best === 0);
-        const lowRank  = scored.filter(x => x.rank === 'F' && x.best > 0);
-        const pick     = noRecord.length > 0
-            ? noRecord[Math.floor(Math.random() * Math.min(noRecord.length, 5))]
-            : lowRank.length > 0
-                ? lowRank[Math.floor(Math.random() * Math.min(lowRank.length, 5))]
-                : scored.sort((a,b) => a.best - b.best)[0];
-
-        if(!pick) { el.style.display = 'none'; return; }
-
-        const msg = pick.best === 0 ? 'Sin récord aún' : `Récord actual: ${pick.best.toLocaleString()} pts`;
-        const dailyTask = this.daily.tasks?.find(t => t.gameId === pick.g.id && !t.done);
-
-        el.style.display = 'block';
-        el.innerHTML = `
-        <div style="margin:0 0 8px;padding:10px 16px;background:rgba(10,16,30,0.7);border:1px solid ${pick.color}20;border-left:3px solid ${pick.color};border-radius:12px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all 0.15s;"
-             onmouseenter="this.style.background='rgba(10,16,30,0.95)';this.style.borderColor='${pick.color}40';"
-             onmouseleave="this.style.background='rgba(10,16,30,0.7)';this.style.borderColor='${pick.color}20';"
-             onclick="window.app.launch('${pick.g.id}')">
-            <div style="width:36px;height:36px;border-radius:10px;background:${pick.color}12;border:1px solid ${pick.color}20;display:flex;align-items:center;justify-content:center;color:${pick.color};font-size:1rem;flex-shrink:0;">
-                <i class="${pick.g.icon}"></i>
-            </div>
-            <div style="flex:1;min-width:0;">
-                <div style="font-size:0.58rem;color:#334155;font-family:monospace;letter-spacing:2px;margin-bottom:1px;">PROTOCOLO RECOMENDADO</div>
-                <div style="font-family:var(--font-display);font-size:0.8rem;color:white;letter-spacing:1px;">${pick.g.name}</div>
-                <div style="font-size:0.6rem;color:#475569;margin-top:1px;">${msg}${dailyTask ? ' · <span style="color:#f97316;">Misión diaria pendiente</span>' : ''}</div>
-            </div>
-            <div style="font-size:0.65rem;color:${pick.color};font-family:monospace;display:flex;align-items:center;gap:5px;flex-shrink:0;">
-                JUGAR <i class="fa-solid fa-play" style="font-size:0.55rem;"></i>
-            </div>
-        </div>`;
-    },
-
-    renderMenu() {
-        const container = document.getElementById('main-menu-grid');
-        if(!container) return;
-        if(!this.stats.unlockedGames) this.stats.unlockedGames = [];
-
-        // Tutorial primera vez
-        if(!this.stats.tutorialDone && this.stats.gamesPlayed === 0) {
-            setTimeout(() => this.startTutorial(), 800);
-        }
-        // Banner de recomendación
-        this.renderRecommendation();
-
-        container.innerHTML = CONFIG.GAMES_LIST.filter(g => {
-            if(!g.id || g.unlockLevel) return true; // siempre incluir bloqueados visualmente
-            if(this.activeFilter === 'FAVS') return (this.favorites||[]).includes(g.id);
-            return this.activeFilter === 'ALL' || g.cat === this.activeFilter;
-        }).map(g => {
-            const color    = CONFIG.COLORS[g.color] || '#fff';
-            const score    = this.getBest(g.id);
-            const rank     = this.calculateRank(g.id, score);
-            const rankColors = { S:'#fbbf24', A:'#10b981', B:'#3b82f6', F:'#ef4444' };
-            const rankColor  = rankColors[rank] || '#475569';
-            const isLocked   = g.unlockReq && !this.stats.unlockedGames.includes(g.id);
-
-            if(isLocked) {
-                return `
-                    <div class="game-card-v2 locked"
-                         onclick="window.app.showToast('ACCESO DENEGADO','Neon Pass Nivel 5 requerido','danger')">
-                        <div class="gcv2-body">
-                            <div class="gcv2-icon" style="color:#334155;font-size:1.8rem;">
-                                <i class="fa-solid fa-lock"></i>
-                            </div>
-                            <div class="gcv2-name" style="color:#334155;">CLASIFICADO</div>
-                            <div class="gcv2-desc">${g.name}</div>
-                        </div>
-                    </div>`;
-            }
-
-            return `
-                <div class="game-card-v2" data-game-id="${g.id}"
-                     style="border-color:${color}25; --gc:${color};"
-                     onmouseenter="this.style.borderColor='${color}60'; this.style.boxShadow='0 8px 24px ${color}20';"
-                     onmouseleave="this.style.borderColor='${color}25'; this.style.boxShadow='';">
-                    <button class="gcv2-fav" data-id="${g.id}"
-                        onclick="event.stopPropagation(); window.app.toggleFavorite('${g.id}',event)"
-                        style="position:absolute;top:4px;left:4px;background:transparent;border:none;font-size:0.78rem;cursor:pointer;color:${(this.favorites||[]).includes(g.id)?'#fbbf24':'rgba(255,255,255,0.15)'};padding:4px;z-index:10;transition:color 0.15s;"
-                        title="${(this.favorites||[]).includes(g.id)?'Quitar de favoritos':'Añadir a favoritos'}">
-                        <i class="fa-solid fa-star"></i>
-                    </button>
-                    <button class="gcv2-info" onclick="event.stopPropagation(); window.app.showGameInfo('${g.id}')">\
-                        <i class="fa-solid fa-info"></i>
-                    </button>
-                    <div class="gcv2-body" onclick="window.app.launch('${g.id}')">
-                        <div class="gcv2-icon" style="color:${color};">
-                            <i class="${g.icon}"></i>
-                        </div>
-                        <div class="gcv2-name">${g.name}</div>
-                        <div class="gcv2-desc">${g.desc}</div>
-                    </div>
-                    <div class="gcv2-footer">
-                        <div class="gcv2-score">REC <span>${score > 0 ? score.toLocaleString() : '—'}</span></div>
-                        <div class="gcv2-rank" style="background:${rankColor}20; color:${rankColor};">${rank}</div>
-                    </div>
-                </div>`;
-        }).join('');
-    },
+    renderRecommendation() { return UI.renderRecommendation(this); },
+    renderMenu()           { return UI.renderMenu(this); },
 
     // --- RESTO DE FUNCIONES ---
 
     // Sentinel para distinguir "salí del lobby sin jugar" vs "jugué y saqué 0"
     _EXIT_CLEAN: Symbol('exit_clean'),
 
-    launch(gameId, GameClass = null) {
-    this.audio.playClick();
-    const ClassRef = GameClass || this.gameClasses[gameId];
-    if(!ClassRef) return;
-    
-    this.stats.gamesPlayed++;
-    this.activeGameId = gameId; 
-    this.save();
-    this.changeState(CONFIG.STATES.GAME);
-    
-    const ui = document.getElementById('game-ui-overlay');
-    ui.innerHTML = '';
-    ui.removeAttribute('style');
+    async launch(gameId, GameClass = null) {
+        this.audio.playClick();
+        const entry = GameClass || this.gameClasses[gameId];
+        if(!entry) return;
 
-    const EXIT = this._EXIT_CLEAN;
+        this.stats.gamesPlayed++;
+        this.activeGameId = gameId;
+        this.save();
+        this.changeState(CONFIG.STATES.GAME);
 
-    const onGameOverSmart = (finalScore = EXIT) => {
-        // EXIT o null/undefined → salida del lobby sin haber jugado
-        const isCleanExit = (finalScore === EXIT || finalScore === null || finalScore === undefined);
-        
-        if (!isCleanExit) {
-            this.saveHighScore(gameId, finalScore);
+        const ui = document.getElementById('game-ui-overlay');
+        ui.innerHTML = '';
+        ui.removeAttribute('style');
+
+        // Resolver la clase: si es factory async (lazy import) la ejecutamos.
+        // Una clase comun es una funcion pero NO es la factory (no tiene prototype.then).
+        let ClassRef;
+        let _launchLoader = null;
+        try {
+            if (typeof entry === 'function' && !entry.prototype) {
+                // Factory lazy: muestra loader mientras descarga el modulo
+                const { showGameLoader, hideGameLoader } = await import('./game-loader.js');
+                _launchLoader = showGameLoader('CARGANDO MODULO');
+                ClassRef = await entry();
+                hideGameLoader(_launchLoader);
+                _launchLoader = null;
+            } else {
+                ClassRef = entry;
+            }
+        } catch(err) {
+            console.error('Error cargando juego', gameId, err);
+            if(_launchLoader) {
+                const { hideGameLoader } = await import('./game-loader.js').catch(() => ({}));
+                if(hideGameLoader) hideGameLoader(_launchLoader);
+            }
+            this.showToast('ERROR AL CARGAR', 'No se pudo iniciar el juego', 'danger');
+            this.endGame();
+            return;
         }
+        if(!ClassRef) { this.endGame(); return; }
 
-        this.showGameOverScreen(
-            isCleanExit ? null : finalScore,
-            gameId,
-            () => { if (this.game && this.game.init) this.game.init(); },
-            () => { if (this.game && this.game.cleanup) this.game.cleanup(); this.endGame(); }
-        );
-    };
+        const EXIT = this._EXIT_CLEAN;
 
-    // Parchear todos los juegos que llaman onQuit(0) desde el menú de selección
-    // para que usen el sentinel de salida limpia
-    const patchedCallback = (score) => {
-        if (score === 0 && this.game && !this.game._hasStarted) {
-            onGameOverSmart(EXIT);
-        } else {
-            onGameOverSmart(score);
-        }
-    };
+        const onGameOverSmart = (finalScore = EXIT) => {
+            const isCleanExit = (finalScore === EXIT || finalScore === null || finalScore === undefined);
+            if (!isCleanExit) this.saveHighScore(gameId, finalScore);
+            this.showGameOverScreen(
+                isCleanExit ? null : finalScore,
+                gameId,
+                () => { if (this.game && this.game.init) this.game.init(); },
+                () => { if (this.game && this.game.cleanup) this.game.cleanup(); this.endGame(); }
+            );
+        };
 
-    this.game = new ClassRef(this.canvas, this.audio, patchedCallback);
-    this.game.gameId = gameId;
-    this.game._hasStarted = false; // Flag que los juegos activan al iniciar la partida real
+        // patchedCallback: garantiza que onQuit solo dispare UNA VEZ
+        let _callbackFired = false;
+        const patchedCallback = (score) => {
+            if (_callbackFired) return;
+            _callbackFired = true;
+            if (score === 0 && this.game && !this.game._hasStarted) {
+                onGameOverSmart(EXIT);
+            } else {
+                onGameOverSmart(score);
+            }
+        };
 
-    // Parchear métodos que indican que la partida real comenzó
-    const markStarted = () => { if(this.game) this.game._hasStarted = true; };
-    ['startGame','start','startRound','startGameLoop','prepareRound','go','nextRound','nextQuestion'].forEach(method => {
-        if(typeof this.game[method] === 'function') {
-            const orig = this.game[method].bind(this.game);
-            this.game[method] = (...args) => { markStarted(); return orig(...args); };
-        }
-    });
-    
-    setTimeout(() => this.game.init(), 100);
-},
+        this.game = new ClassRef(this.canvas, this.audio, patchedCallback);
+        this.game.gameId = gameId;
+        this.game._hasStarted = false;
+
+        const markStarted = () => { if(this.game) this.game._hasStarted = true; };
+        ['startGame','start','startRound','startGameLoop','prepareRound','go','nextRound','nextQuestion'].forEach(method => {
+            if(typeof this.game[method] === 'function') {
+                const orig = this.game[method].bind(this.game);
+                this.game[method] = (...args) => { markStarted(); return orig(...args); };
+            }
+        });
+
+        setTimeout(() => this.game.init(), 100);
+    },
 
     endGame() {
-        if (this.game) {
-            let xpGain = 10;
-            if (typeof this.game.score === 'number' && this.game.score > 0) xpGain += Math.min(100, Math.floor(this.game.score));
-            
-            if (this.shop.inventory.includes('up_xp')) {
-                xpGain = Math.ceil(xpGain * 1.15); 
-            }
-            
-            this.gainXP(xpGain);
-        this.submitTournamentScore(gameId, score);
-        this.updateSeasonStats(gameId, score);
-            if (typeof this.game.score === 'number' && this.activeGameId) {
-                // Marcar misión diaria
-                const task = this.daily.tasks.find(t => t.gameId === this.activeGameId);
-                if (task && !task.done && this.game.score >= task.target) {
-                    task.done = true;
-                    this.showToast('¡MISIÓN CUMPLIDA!', 'Objetivo alcanzado', 'daily');
-                    try { for(let i=0;i<3;i++) setTimeout(()=>this.canvas.explode(Math.random()*window.innerWidth, window.innerHeight*0.3, '#f97316'), i*200); } catch(e) {}
-                    this.audio.playWin(5);
-                    this.save();
+        const gId    = this.activeGameId;
+        const gScore = (this.game && typeof this.game.score === 'number') ? this.game.score : 0;
+
+        try {
+            if (this.game) {
+                // Cleanup primero — cancela RAF, intervals y listeners
+                if (typeof this.game.cleanup === 'function') this.game.cleanup();
+
+                let xpGain = 10;
+                if (gScore > 0) xpGain += Math.min(100, Math.floor(gScore));
+                if (this.shop.inventory.includes('up_xp')) xpGain = Math.ceil(xpGain * 1.15);
+                this.gainXP(xpGain);
+
+                try { this.submitTournamentScore(gId, gScore); } catch(e) {}
+                try { this.updateSeasonStats(gId, gScore); }     catch(e) {}
+
+                if (gScore > 0 && gId) {
+                    // Misión diaria
+                    try {
+                        const task = this.daily.tasks.find(t => t.gameId === gId);
+                        if (task && !task.done && gScore >= task.target) {
+                            task.done = true;
+                            this.showToast('¡MISIÓN CUMPLIDA!', 'Objetivo alcanzado', 'daily');
+                            try { for(let i=0;i<3;i++) setTimeout(()=>this.canvas.explode(Math.random()*window.innerWidth, window.innerHeight*0.3, '#f97316'), i*200); } catch(e) {}
+                            this.audio.playWin(5);
+                            this.save();
+                        }
+                    } catch(e) {}
+                    // Misión semanal
+                    try {
+                        const wtask = this.weekly.tasks?.find(t => t.gameId === gId);
+                        if (wtask && !wtask.done && gScore >= wtask.target) {
+                            wtask.done = true;
+                            this.showToast('¡MISIÓN SEMANAL!', wtask.label, 'gold');
+                            const wDone = this.weekly.tasks.filter(t=>t.done).length;
+                            if(wDone === this.weekly.tasks.length) {
+                                setTimeout(()=>this.showToast('¡TODAS LAS MISIONES!','Reclama tu recompensa semanal','purple'),1000);
+                            }
+                            this.save();
+                        }
+                    } catch(e) {}
                 }
-                // Marcar misión semanal
-                const wtask = this.weekly.tasks?.find(t => t.gameId === this.activeGameId);
-                if (wtask && !wtask.done && this.game.score >= wtask.target) {
-                    wtask.done = true;
-                    this.showToast('¡MISIÓN SEMANAL!', wtask.label, 'gold');
-                    const wDone = this.weekly.tasks.filter(t=>t.done).length;
-                    if(wDone === this.weekly.tasks.length) {
-                        setTimeout(()=>this.showToast('¡TODAS LAS MISIONES!','Reclama tu recompensa semanal','purple'),1000);
-                    }
-                    this.save();
-                }
+                try { this.checkAchievements(); } catch(e) {}
             }
-            this.checkAchievements(); clearInterval(this.game.timerInterval);
-            if(this.game.animationId) cancelAnimationFrame(this.game.animationId);
-            if(this.game.cleanup) this.game.cleanup();
+        } catch(e) {
+            console.error('endGame error', e);
         }
+
         this.game = null;
         this.activeGameId = null;
         try { this.audio.setTension(false); } catch(e) {}
-        this.canvas.setMood(0);
+        try { this.canvas.setMood(0); } catch(e) {}
         this.changeState(CONFIG.STATES.MENU);
     },
 
@@ -1444,18 +872,19 @@ const app = {
 
                 <!-- Acciones -->
                 <div class="cod-actions">
-                    <button class="cod-btn cod-btn-secondary" id="univ-quit">
+                    <button class="cod-btn cod-btn-secondary" id="univ-quit" title="Salir al menú (ESC · Q)">
                         <i class="fa-solid fa-arrow-left"></i> SALIR
                     </button>
                     <button class="cod-btn cod-btn-secondary" id="univ-share" title="Copiar resultado"
                             style="padding:10px 14px;">
                         <i class="fa-solid fa-share-nodes"></i>
                     </button>
-                    <button class="cod-btn cod-btn-primary" id="univ-retry"
+                    <button class="cod-btn cod-btn-primary" id="univ-retry" title="Reintentar (Enter · R)"
                             style="border-color:${rd.color}; color:${rd.color}; background:${rd.color}12;">
                         <i class="fa-solid fa-rotate-right"></i> REINTENTAR
                     </button>
                 </div>
+                <div class="cod-shortcut-hint">ESC · Q para salir   ·   Enter · R para reintentar</div>
 
                 <div class="cod-footer">ARCADE_OS v3.5 // SESIÓN ${Math.floor(Math.random()*99999).toString().padStart(5,'0')}</div>
             </div>
@@ -1526,107 +955,46 @@ const app = {
             if(numsEl) numsEl.textContent = `${Math.floor(prevXP)} → ${Math.floor(prevXP + xpGain)} / ${req} XP`;
         }, 1200);
 
-        document.getElementById('univ-retry').onclick = () => { ui.innerHTML = ''; onRetry(); };
-        document.getElementById('univ-quit').onclick  = () => { ui.innerHTML = ''; onQuit();  };
+        // Atajos de teclado: R/Enter = reintentar · ESC/Q = salir al menú
+        const cleanupKb = () => window.removeEventListener('keydown', kbHandler, true);
+        const doRetry = () => { cleanupKb(); ui.innerHTML = ''; onRetry(); };
+        const doQuit  = () => { cleanupKb(); ui.innerHTML = ''; onQuit();  };
+        const kbHandler = (e) => {
+            if(e.key === 'Enter' || e.key === 'r' || e.key === 'R') { e.preventDefault(); doRetry(); }
+            else if(e.key === 'Escape' || e.key === 'q' || e.key === 'Q') { e.preventDefault(); doQuit(); }
+        };
+        window.addEventListener('keydown', kbHandler, true);
+        document.getElementById('univ-retry').onclick = doRetry;
+        document.getElementById('univ-quit').onclick  = doQuit;
+
+        // Botón share — copia resumen del resultado al portapapeles
+        const shareBtn = document.getElementById('univ-share');
+        if(shareBtn) {
+            shareBtn.onclick = async () => {
+                const name = gameMeta ? gameMeta.name : gameId;
+                const text = `ARCADED LUXURY · ${name}\nRango: ${rank} · ${rd.label}\nScore: ${score}${prize>0?` · +${prize}$`:''}\nAgente Nv.${this.stats.level}`;
+                try {
+                    if(navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(text);
+                    } else {
+                        const ta = document.createElement('textarea');
+                        ta.value = text; ta.style.position='fixed'; ta.style.left='-9999px';
+                        document.body.appendChild(ta); ta.select();
+                        document.execCommand('copy'); ta.remove();
+                    }
+                    this.showToast('RESULTADO COPIADO', 'Pegalo donde quieras', 'success');
+                    shareBtn.innerHTML = '<i class="fa-solid fa-check"></i>';
+                    setTimeout(() => { if(shareBtn.isConnected) shareBtn.innerHTML = '<i class="fa-solid fa-share-nodes"></i>'; }, 1400);
+                } catch(err) {
+                    this.showToast('NO SE PUDO COPIAR', 'Intenta de nuevo', 'danger');
+                }
+            };
+        }
         this.updateUI();
     },
 
-    updateUI() {
-        const get = id => document.getElementById(id);
-        const credits   = get('menu-credits');
-        const valCr     = get('val-credits');
-        const lvlEl     = get('player-level');
-        const rankEl    = get('player-rank');
-        const xpBar     = get('xp-bar');
-        const xpText    = get('xp-text');
-        // Nav icon + status avatar
-        const navIcon    = get('profile-nav-icon');
-        const statusIcon = get('status-avatar-icon');
-
-        if(credits)  credits.innerText  = this.credits.toLocaleString();
-        if(valCr)    valCr.innerText    = this.credits.toLocaleString();
-
-        const lvl = this.stats.level || 1;
-        const xp  = this.stats.xp    || 0;
-        const req = this.getReqXP(lvl);
-        const pct = Math.min(100, (xp / req) * 100);
-
-        if(lvlEl)    lvlEl.innerText    = lvl;
-        if(rankEl)   rankEl.innerText   = this.getRankName(lvl).toUpperCase();
-        if(xpBar)    xpBar.style.width  = `${pct}%`;
-        if(xpText)   xpText.innerText   = `${Math.floor(xp)} / ${req} XP`;
-
-        // Título equipado en status bar
-        const titleEl = get('status-title');
-        if(titleEl) {
-            const t = CONFIG.TITLES?.find(t => t.id === this.stats.equippedTitle);
-            titleEl.textContent = t ? t.name : '';
-            titleEl.style.display = t ? 'block' : 'none';
-        }
-
-        const avatarClass = `fa-solid ${this.stats.avatar || 'fa-user-astronaut'}`;
-        if(navIcon)    navIcon.className    = avatarClass;
-        if(statusIcon) statusIcon.className = avatarClass;
-
-        // Streak display
-        const streakBar  = get('streak-bar');
-        const streakDays = get('streak-days');
-        if(streakBar && this.streak?.days > 1) {
-            streakBar.style.display = 'flex';
-            if(streakDays) streakDays.textContent = `${this.streak.days}d`;
-        }
-
-        // Badge semanal en nav
-        const wDone = (this.weekly?.tasks||[]).filter(t=>t.done).length;
-        const wTotal = (this.weekly?.tasks||[]).length;
-        const wBtn = get('btn-weekly');
-        if(wBtn) {
-            const existing = wBtn.querySelector('.nav-claimable-dot');
-            if(wDone===wTotal && wTotal>0 && !this.weekly?.claimed) {
-                if(!existing) { const dot=document.createElement('span'); dot.className='nav-claimable-dot'; dot.style.cssText='position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:#a855f7;'; wBtn.style.position='relative'; wBtn.appendChild(dot); }
-            } else if(existing) existing.remove();
-        }
-    },
-    showToast(title, msg, type = 'default') {
-        const container = document.getElementById('toast-container');
-        if(!container) return;
-
-        const el = document.createElement('div');
-
-        // Configuración por tipo — icono, color de acento, duración
-        const cfg = {
-            gold:    { icon:'fa-trophy',       accent:'#fbbf24', dur:4000 },
-            purple:  { icon:'fa-arrow-up',      accent:'#a855f7', dur:3500 },
-            success: { icon:'fa-check',         accent:'#10b981', dur:2800 },
-            danger:  { icon:'fa-skull',         accent:'#ef4444', dur:3000 },
-            daily:   { icon:'fa-calendar-check',accent:'#f97316', dur:3500 },
-            default: { icon:'fa-bell',          accent:'var(--primary)', dur:2500 },
-        };
-        const c = cfg[type] || cfg.default;
-        const accentHex = c.accent.startsWith('#') ? c.accent : '#3b82f6';
-
-        el.className = `toast-v2 toast-${type}`;
-        el.style.setProperty('--ta', c.accent);
-        el.innerHTML = `
-            <div class="tv2-icon"><i class="fa-solid ${c.icon}"></i></div>
-            <div class="tv2-body">
-                <div class="tv2-title">${title}</div>
-                ${msg ? `<div class="tv2-msg">${msg}</div>` : ''}
-            </div>
-            <div class="tv2-progress"><div class="tv2-bar" style="animation-duration:${c.dur}ms;"></div></div>`;
-
-        container.appendChild(el);
-
-        // Forzar reflow para animar
-        void el.offsetWidth;
-        el.classList.add('tv2-show');
-
-        setTimeout(() => {
-            el.classList.remove('tv2-show');
-            el.classList.add('tv2-hide');
-            setTimeout(() => el.remove(), 400);
-        }, c.dur);
-    },
+    updateUI()                        { return UI.updateUI(this); },
+    showToast(title, msg, type)       { return UI.showToast(title, msg, type); },
     getRankName(level) { const ranks = [...CONFIG.RANKS].reverse(); const r = ranks.find(r => level >= r.lv); return r ? r.name : "VAGABUNDO"; },
     getReqXP(level) { return Math.floor(100 * level * 1.5); },
     gainXP(amount) { 
@@ -1692,796 +1060,26 @@ const app = {
         return 'F';
     },
     saveStat(key, val) { if(!this.stats[key] || val < this.stats[key]) this.stats[key] = val; this.save(); },
-    showProfile() {
-        const modal = document.getElementById('modal-profile');
-        modal.classList.remove('hidden');
+    // --- PERFIL / AVATAR / TITULO (delegado a systems/profile.js) ---
+    // El bloque showProfile original tenia un bug: referenciaba `globalStatsHTML`
+    // sin declararla, lanzando ReferenceError al abrir el modal. La version
+    // extraida ya no incluye esa seccion muerta.
+    showProfile()           { return Profile.show(this); },
+    updateStreak(streakVal) { return Profile.updateStreak(streakVal); },
 
-        const reflexRaw  = this.highScores['hyper-reflex'];
-        const reflexBest = reflexRaw ? (typeof reflexRaw === 'number' ? reflexRaw : reflexRaw.best) : 0;
-        const ctx = Object.assign({ credits: this.credits, bestReflex: reflexBest }, this.stats);
+    // --- CALLCARD EFFECTS (delegado a systems/callcard.js) ---
+    // Bug fix real: el objeto effects original tenia 4 claves duplicadas
+    // (minecraft, celeste, halflife, portal). En JS la segunda definicion
+    // pisa la primera, convirtiendo ~80 lineas en codigo muerto. El modulo
+    // extraido solo mantiene la version viva.
+    _startCallcardEffect(style) { return Callcard.startEffect(style); },
 
-        // --- Definición de FA icons por logro (sin emojis) ---
-        const achIcons = {
-            rich:        'fa-gem',
-            pro:         'fa-medal',
-            sniper:      'fa-bolt',
-            firstblood:  'fa-droplet',
-            millionaire: 'fa-building-columns',
-            dedicated:   'fa-screwdriver-wrench',
-            collector:   'fa-box-open',
-            speedgod:    'fa-fire',
-            legend:      'fa-crown'
-        };
-
-        // Avatares
-        const avatarsHTML = CONFIG.AVATARS.map(icon =>
-            `<div class="pv2-avatar-opt ${this.stats.avatar === icon ? 'selected' : ''}"
-                  onclick="window.app.setAvatar('${icon}')">
-                <i class="fa-solid ${icon}"></i>
-            </div>`
-        ).join('');
-
-        // Títulos
-        if(!this.stats.unlockedAchs) this.stats.unlockedAchs = [];
-        const equippedTitle = this.stats.equippedTitle || null;
-        const titlesHTML = CONFIG.TITLES.map(t => {
-            const unlocked = this.stats.unlockedAchs.includes(t.unlock);
-            const equipped  = equippedTitle === t.id;
-            return `<div class="pv2-title-opt ${unlocked?'unlocked':''} ${equipped?'equipped':''}"
-                        onclick="${unlocked ? `window.app.setTitle('${t.id}')` : ''}"
-                        title="${unlocked ? t.desc : 'Bloquado: logro ' + t.unlock}">
-                <div class="pvt-name">${t.name}</div>
-                <div class="pvt-badge">${equipped ? 'EQUIPADO' : unlocked ? 'DISPONIBLE' : '🔒'}</div>
-            </div>`;
-        }).join('');
-
-        // Logros
-        const unlockedCount = CONFIG.ACHIEVEMENTS.filter(a => a.check(ctx)).length;
-        const achHTML = CONFIG.ACHIEVEMENTS.map(ach => {
-            const unlocked = ach.check(ctx);
-            const iconName = achIcons[ach.id] || 'fa-star';
-            return `
-                <div class="pv2-ach ${unlocked ? 'unlocked' : ''}" title="${ach.desc}">
-                    <div class="pv2-ach-icon"><i class="fa-solid ${iconName}"></i></div>
-                    <small>${ach.name}</small>
-                </div>`;
-        }).join('');
-
-        // Récords con sparklines SVG
-        const recordsHTML = CONFIG.GAMES_LIST
-            .filter(g => this.highScores[g.id])
-            .map(g => {
-                const entry  = this.highScores[g.id];
-                const best   = typeof entry === 'number' ? entry : (entry.best || 0);
-                const hist   = typeof entry === 'object' ? (entry.history || []) : [];
-                const gColor = CONFIG.COLORS[g.color] || '#64748b';
-                const rank      = this.calculateRank(g.id, best);
-                const rankColors = { S:'#fbbf24', A:'#10b981', B:'#3b82f6', F:'#475569' };
-                const rankColor  = rankColors[rank] || '#475569';
-                let sparkSVG = '';
-                if(hist.length > 1) {
-                    const pts = hist.slice(0,8).reverse();
-                    const mx  = Math.max(...pts.map(x=>x.score), 1);
-                    const W=52, H=18;
-                    const coords = pts.map((p,i) => {
-                        const x = (i/(pts.length-1))*W;
-                        const y = H - (p.score/mx)*(H-3) - 1;
-                        return x.toFixed(1)+','+y.toFixed(1);
-                    }).join(' ');
-                    const lastPt = pts[pts.length-1];
-                    const lastX  = W;
-                    const lastY  = (H - (lastPt.score/mx)*(H-3) - 1).toFixed(1);
-                    sparkSVG = '<svg width="'+W+'" height="'+H+'" style="overflow:visible;flex-shrink:0;">' +
-                        '<polyline points="'+coords+'" fill="none" stroke="'+gColor+'" stroke-width="1.5" stroke-linejoin="round" opacity="0.7"/>' +
-                        '<circle cx="'+lastX+'" cy="'+lastY+'" r="2.5" fill="'+gColor+'"/>' +
-                        '</svg>';
-                }
-                return `
-                    <div class="pv2-record-row" onclick="(function(el){const h=el.nextElementSibling;if(h)h.classList.toggle('open');})(this)">
-                        <div class="pv2-rec-icon" style="background:${gColor}15;color:${gColor};">
-                            <i class="${g.icon}"></i>
-                        </div>
-                        <div class="pv2-rec-name">${g.name}</div>
-                        <div class="pv2-rec-spark">${sparkSVG}</div>
-                        <div style="display:flex;align-items:center;gap:5px;">
-                            <span style="font-family:var(--font-display);font-size:0.6rem;color:${rankColor};">${rank}</span>
-                            <div class="pv2-rec-score" style="color:${gColor};">${best.toLocaleString()}</div>
-                            ${hist.length > 0 ? '<i class="fa-solid fa-chevron-down" style="font-size:0.5rem;color:#334155;margin-left:2px;"></i>' : ''}
-                        </div>
-                    </div>
-                    <div class="pv2-record-history">
-                        ${hist.slice(0,10).map(h => '<div class="pv2-hist-item"><span>' + (h.date||'?') + '</span><span style="color:' + gColor + ';">' + (h.score||0).toLocaleString() + '</span></div>').join('')}
-                        ${hist.length === 0 ? '<div style="font-size:0.55rem;color:#1e293b;font-family:monospace;padding:4px 0;">Sin historial aún</div>' : ''}
-                    </div>`;
-            }).join('') || '<div style="color:#334155;font-size:0.78rem;padding:8px 0;">Sin récords todavía</div>';
-
-        // Leaderboard — usar XP total acumulado
-        const playerTotalXP = ((this.stats.level-1) * 100) + (this.stats.xp||0);
-        const me = { name: 'TÚ', xp: playerTotalXP, isPlayer: true, color: 'var(--primary)' };
-        const board = [...(CONFIG.RIVALS || []), me].sort((a,b) => b.xp - a.xp);
-        const playerPos = board.findIndex(r => r.isPlayer) + 1;
-        const lbHTML = board.map((r, i) => {
-            const isBeaten = !r.isPlayer && playerTotalXP >= r.xp;
-            return `<div class="pv2-lb-row ${r.isPlayer ? 'is-player' : ''}" style="${isBeaten ? 'opacity:0.5;' : ''}">
-                <div class="pv2-lb-pos" style="${r.isPlayer ? 'color:var(--primary);font-weight:bold;' : ''}">#${i+1}</div>
-                <div class="pv2-lb-name" style="color:${r.color||'#94a3b8'};">
-                    ${r.isPlayer ? '<i class="fa-solid fa-user" style="font-size:0.7rem;margin-right:4px;"></i>' : ''}${r.name}
-                    ${isBeaten ? ' <span style="font-size:0.5rem;color:#10b981;margin-left:4px;">SUPERADO</span>' : ''}
-                </div>
-                <div class="pv2-lb-xp">${r.xp.toLocaleString()} XP</div>
-            </div>`;
-        }).join('');
-
-        modal.innerHTML = `
-            <div class="profile-v2">
-                <div class="pv2-header">
-                    <div class="pv2-avatar-ring">
-                        <i class="fa-solid ${this.stats.avatar || 'fa-user-astronaut'}"></i>
-                    </div>
-                    <div class="pv2-name" id="pv2-agent-name" onclick="window.app.editAgentName()" style="cursor:pointer;" title="Click para editar">${this.agentName||'AGENTE'} <i class='fa-solid fa-pen-to-square' style='font-size:0.5rem;opacity:0.4;margin-left:4px;'></i></div>
-                    <div class="pv2-rank">${this.getRankName(this.stats.level)}</div>
-                </div>
-
-                <div class="pv2-stats">
-                    <div class="pv2-stat">
-                        <span class="s-label">PARTIDAS</span>
-                        <span class="s-val">${this.stats.gamesPlayed}</span>
-                    </div>
-                    <div class="pv2-stat">
-                        <span class="s-label">CRÉDITOS</span>
-                        <span class="s-val gold">${this.credits.toLocaleString()}</span>
-                    </div>
-                    <div class="pv2-stat">
-                        <span class="s-label">NIVEL</span>
-                        <span class="s-val">${this.stats.level}</span>
-                    </div>
-                    <div class="pv2-stat">
-                        <span class="s-label">LOGROS</span>
-                        <span class="s-val">${unlockedCount}/${CONFIG.ACHIEVEMENTS.length}</span>
-                    </div>
-                </div>
-
-                <div class="pv2-section">
-                    <div class="pv2-section-title">ESTADÍSTICAS GLOBALES</div>
-                    <div class="pv2-global-stats">${globalStatsHTML}</div>
-                </div>
-
-                <div class="pv2-section">
-                    <div class="pv2-section-title">AVATAR</div>
-                    <div class="pv2-avatar-grid">${avatarsHTML}</div>
-                </div>
-
-                <div class="pv2-section">
-                    <div class="pv2-section-title">TÍTULO DE AGENTE</div>
-                    <div class="pv2-titles-grid">${titlesHTML}</div>
-                </div>
-
-                <div class="pv2-section">
-                    <div class="pv2-section-title">LOGROS</div>
-                    <div class="pv2-achievements">${achHTML}</div>
-                </div>
-
-                <div class="pv2-section">
-                    <div class="pv2-section-title">RÉCORDS POR JUEGO</div>
-                    <div class="pv2-records">${recordsHTML}</div>
-                </div>
-
-                <div class="pv2-section">
-                    <div class="pv2-section-title">RANKING GLOBAL</div>
-                    <div class="pv2-leaderboard">${lbHTML}</div>
-                </div>
-
-                <button class="btn pv2-close-btn" onclick="window.app.closeProfile()">
-                    <i class="fa-solid fa-xmark"></i> CERRAR
-                </button>
-            </div>`;
-    },
-    // Actualiza el badge de racha en el HUD superior
-    updateStreak(streakVal) {
-        const badge = document.getElementById('ui-streak');
-        if(!badge) return;
-        if(streakVal > 1) {
-            badge.classList.add('visible');
-            const valEl = badge.querySelector('.hud-streak-val');
-            if(valEl) valEl.textContent = `x${streakVal}`;
-        } else {
-            badge.classList.remove('visible');
-        }
-    },
-
-    // ---- EFECTOS VISUALES DE CALLCARD ----
-    _startCallcardEffect(style, rankColor) {
-        const canvas = document.getElementById('cc-canvas');
-        if(!canvas) return;
-        const ctx = canvas.getContext('2d');
-        canvas.width  = canvas.parentElement?.offsetWidth  || window.innerWidth;
-        canvas.height = canvas.parentElement?.offsetHeight || window.innerHeight;
-        let raf;
-        const W = canvas.width, H = canvas.height;
-        const t0 = Date.now();
-        const T = () => (Date.now() - t0) / 1000;
-
-        // Estado compartido por efectos
-        const cols = {
-            default:   ['#3b82f6','#6366f1'],
-            bsod:      ['#0078d7','#003399','#1e90ff'],
-            matrix:    ['#00ff41','#00cc33','#00ff88'],
-            fallout:   ['#95b800','#6b8500','#c8d400'],  // Pip-Boy green
-            vcity:     ['#ff6ec7','#ff2d78','#ffd700','#00cfff'],
-            doom:      ['#ef4444','#dc2626','#7f1d1d','#f97316'],
-            minecraft: ['#4aab2a','#7ec850','#c97c4f','#5b8dd9'],
-            tron:      ['#00f5ff','#0099cc','#00ccff'],
-            discord:   ['#5865f2','#7289da','#99aab5'],
-            hacker:    ['#00ff41','#00cc33'],
-            retro:     ['#ff0000','#ffff00','#00ff00','#00ffff','#ff00ff'],
-            gold:      ['#ffd700','#ffa500','#ffec8b','#ff8c00'],
-        };
-        const pick = (style) => { const c = cols[style]||cols.default; return c[Math.floor(Math.random()*c.length)]; };
-
-        // Partículas genéricas
-        const P = Array.from({length:100},()=>({
-            x:Math.random()*W,y:Math.random()*H,
-            vx:(Math.random()-0.5)*1.5,vy:(Math.random()-0.5)*1.5,
-            size:Math.random()*3+0.5,alpha:Math.random()*0.7+0.1,
-            color:pick(style)
-        }));
-
-        const effects = {
-            // DEFAULT — partículas suaves
-            default() {
-                ctx.fillStyle='rgba(5,8,18,0.88)'; ctx.fillRect(0,0,W,H);
-                P.forEach(p=>{ p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>W)p.vx*=-1;if(p.y<0||p.y>H)p.vy*=-1;
-                    ctx.globalAlpha=p.alpha;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill(); });
-                ctx.globalAlpha=1;
-            },
-
-            // WINDOWS BSOD — pantalla azul con texto de error
-            bsod() {
-                ctx.fillStyle='#0078d7'; ctx.fillRect(0,0,W,H);
-                // QR falso en la esquina
-                ctx.fillStyle='rgba(0,0,0,0.15)'; ctx.fillRect(W*0.1,H*0.1,60,60);
-                ctx.fillStyle='#fff'; ctx.font='bold 18px monospace';
-                const t=T(); const blink=Math.floor(t*2)%2===0;
-                if(blink){ctx.fillStyle='rgba(255,255,255,0.08)';ctx.fillRect(0,0,W,H);}
-                // Scan line lento
-                const sy=(T()*30)%H;
-                ctx.fillStyle='rgba(255,255,255,0.04)';ctx.fillRect(0,sy,W,3);
-                ctx.globalAlpha=1;
-            },
-
-            // MATRIX — katakana + binario, columnas independientes
-            matrix() {
-                ctx.fillStyle='rgba(0,5,0,0.13)'; ctx.fillRect(0,0,W,H);
-                const cw=16;
-                const chars='01ﾊﾋﾖｶｸｼﾐﾓﾔｺﾍﾎｱｲｳｴｵｶｷ';
-                ctx.font=`${cw-2}px monospace`;
-                P.forEach(p=>{
-                    p.y+=2.5+p.size;
-                    if(p.y>H){p.y=0;p.x=Math.round(Math.random()*W/cw)*cw;}
-                    const c=chars[Math.floor(Math.random()*chars.length)];
-                    // Primera letra más brillante
-                    ctx.globalAlpha=p.alpha;
-                    ctx.fillStyle=p.alpha>0.5?'#88ff88':p.color;
-                    ctx.fillText(c,p.x,p.y);
-                });
-                ctx.globalAlpha=1;
-            },
-
-            // FALLOUT — glow verde Pip-Boy + CRT estático + interferencia
-            fallout() {
-                ctx.fillStyle='rgba(5,12,0,0.15)'; ctx.fillRect(0,0,W,H);
-                // Scanlines CRT
-                for(let y=0;y<H;y+=3){ctx.fillStyle='rgba(0,0,0,0.18)';ctx.fillRect(0,y,W,1);}
-                // Static noise verde
-                P.forEach(p=>{
-                    p.x+=p.vx*0.4;p.y+=p.vy*0.4;
-                    if(p.x<0||p.x>W)p.vx*=-1;if(p.y<0||p.y>H)p.vy*=-1;
-                    ctx.globalAlpha=p.alpha*0.5;
-                    ctx.fillStyle=p.color;
-                    ctx.fillRect(p.x,p.y,p.size,1);
-                });
-                // Horizontal glitch ocasional
-                if(Math.random()<0.06){
-                    const gy=Math.random()*H;
-                    ctx.drawImage(canvas,Math.random()*10-5,gy,W,4,0,gy,W,4);
-                }
-                // Vignette verde
-                const vg=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*0.7);
-                vg.addColorStop(0,'transparent');
-                vg.addColorStop(1,'rgba(0,30,0,0.6)');
-                ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
-                ctx.globalAlpha=1;
-            },
-
-            // VICE CITY — lluvia de neón rosa/amarillo, skyline nocturno
-            vcity() {
-                ctx.fillStyle='rgba(10,0,20,0.14)'; ctx.fillRect(0,0,W,H);
-                // Reflejo en el suelo — gradiente degradado
-                const gg=ctx.createLinearGradient(0,H*0.7,0,H);
-                gg.addColorStop(0,'rgba(255,45,120,0.05)');
-                gg.addColorStop(1,'rgba(0,207,255,0.05)');
-                ctx.fillStyle=gg;ctx.fillRect(0,H*0.7,W,H*0.3);
-                // Partículas brillantes con glow
-                P.forEach(p=>{
-                    p.y+=1.2;p.x+=Math.sin(T()+p.vx)*0.4;
-                    if(p.y>H){p.y=-5;p.x=Math.random()*W;p.color=pick('vcity');}
-                    ctx.globalAlpha=p.alpha;
-                    ctx.shadowBlur=8;ctx.shadowColor=p.color;
-                    ctx.fillStyle=p.color;
-                    ctx.beginPath();ctx.arc(p.x,p.y,p.size*0.8,0,Math.PI*2);ctx.fill();
-                    ctx.shadowBlur=0;
-                });
-                ctx.globalAlpha=1;
-            },
-
-            // DOOM — partículas de fuego + lava que sube + rojo infernal
-            doom() {
-                ctx.fillStyle='rgba(20,0,0,0.18)'; ctx.fillRect(0,0,W,H);
-                // Glow de lava en el fondo inferior
-                const lg=ctx.createLinearGradient(0,H*0.7,0,H);
-                lg.addColorStop(0,'rgba(239,68,68,0)');
-                lg.addColorStop(0.5,'rgba(249,115,22,0.12)');
-                lg.addColorStop(1,'rgba(239,68,68,0.25)');
-                ctx.fillStyle=lg;ctx.fillRect(0,0,W,H);
-                // Chispas que suben
-                P.forEach(p=>{
-                    p.y-=1.5+p.size*0.6;
-                    p.x+=Math.sin(T()*2+p.vx*5)*0.8;
-                    p.alpha-=0.003;
-                    if(p.y<0||p.alpha<0.05){p.y=H+5;p.x=Math.random()*W;p.alpha=Math.random()*0.7+0.2;p.color=pick('doom');}
-                    ctx.globalAlpha=p.alpha;
-                    ctx.shadowBlur=6;ctx.shadowColor=p.color;
-                    ctx.fillStyle=p.color;
-                    ctx.beginPath();ctx.arc(p.x,p.y,p.size*0.6,0,Math.PI*2);ctx.fill();
-                    ctx.shadowBlur=0;
-                });
-                ctx.globalAlpha=1;
-            },
-
-            // MINECRAFT — bloques de píxeles que caen
-            minecraft() {
-                ctx.fillStyle='rgba(10,15,5,0.16)'; ctx.fillRect(0,0,W,H);
-                const bs=12; // Block size
-                P.forEach(p=>{
-                    p.y+=1.8+p.size*0.3;
-                    p.x+=Math.sin(p.vx+p.y*0.01)*0.3;
-                    if(p.y>H){p.y=-bs;p.x=Math.round(Math.random()*W/bs)*bs;p.color=pick('minecraft');}
-                    ctx.globalAlpha=p.alpha*0.8;
-                    ctx.fillStyle=p.color;
-                    // Bloque pixelado con borde
-                    ctx.fillRect(p.x,p.y,bs-1,bs-1);
-                    ctx.fillStyle='rgba(255,255,255,0.15)';
-                    ctx.fillRect(p.x,p.y,bs-1,2); // Highlight top
-                    ctx.fillStyle='rgba(0,0,0,0.2)';
-                    ctx.fillRect(p.x,p.y+bs-2,bs-1,2); // Shadow bottom
-                });
-                ctx.globalAlpha=1;
-            },
-
-            // TRON — líneas de velocidad + grid + ciclos de luz
-            tron() {
-                ctx.fillStyle='rgba(0,10,20,0.2)'; ctx.fillRect(0,0,W,H);
-                // Grid fino
-                ctx.strokeStyle='rgba(0,245,255,0.05)';ctx.lineWidth=0.5;
-                for(let x=0;x<W;x+=50){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
-                for(let y=0;y<H;y+=50){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
-                // Trazas de ciclos de luz
-                P.slice(0,40).forEach(p=>{
-                    if(!p.dir) p.dir=Math.random()>0.5?'H':'V';
-                    if(p.dir==='H'){p.x+=3+p.size;if(p.x>W){p.x=0;p.y=Math.round(Math.random()*H/50)*50;}}
-                    else{p.y+=3+p.size;if(p.y>H){p.y=0;p.x=Math.round(Math.random()*W/50)*50;}}
-                    ctx.globalAlpha=p.alpha;
-                    ctx.shadowBlur=10;ctx.shadowColor='#00f5ff';
-                    ctx.strokeStyle='#00f5ff';ctx.lineWidth=1.5;
-                    ctx.beginPath();
-                    if(p.dir==='H'){ctx.moveTo(p.x-30,p.y);ctx.lineTo(p.x,p.y);}
-                    else{ctx.moveTo(p.x,p.y-30);ctx.lineTo(p.x,p.y);}
-                    ctx.stroke();ctx.shadowBlur=0;
-                });
-                ctx.globalAlpha=1;
-            },
-
-            // DISCORD — burbujas de notificación flotando
-            discord() {
-                ctx.fillStyle='rgba(30,33,58,0.18)'; ctx.fillRect(0,0,W,H);
-                P.forEach(p=>{
-                    p.y-=0.6+p.size*0.2;
-                    p.x+=Math.sin(T()*0.8+p.vx*3)*0.5;
-                    if(p.y<-20){p.y=H+20;p.x=Math.random()*W;p.size=Math.random()*18+4;}
-                    ctx.globalAlpha=p.alpha*0.5;
-                    ctx.shadowBlur=p.size>10?12:4;ctx.shadowColor=p.color;
-                    ctx.strokeStyle=p.color;ctx.lineWidth=1.5;
-                    ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.stroke();
-                    // Punto de notificación para burbujas grandes
-                    if(p.size>12){
-                        ctx.fillStyle='#ed4245';ctx.beginPath();
-                        ctx.arc(p.x+p.size*0.7,p.y-p.size*0.7,4,0,Math.PI*2);ctx.fill();
-                    }
-                    ctx.shadowBlur=0;
-                });
-                ctx.globalAlpha=1;
-            },
-
-            // HACKER / MR.ROBOT — código verde terminal, estilo hacking real
-            hacker() {
-                ctx.fillStyle='rgba(0,8,0,0.2)'; ctx.fillRect(0,0,W,H);
-                const code=['if(sys.bypass()){','  root.access=true;','} else { die(); }','> whoami','> rm -rf /','EXPLOIT LOADED','CVE-2024-XXXX','[+] root shell',
-                            '#!/bin/bash','nc -lvp 4444','wget payload.sh','chmod +x run.sh','./run.sh &'];
-                ctx.font='12px monospace';
-                P.slice(0,30).forEach((p,i)=>{
-                    if(!p.code){p.code=code[i%code.length];p.alpha=Math.random()*0.6+0.1;}
-                    p.y+=0.8;if(p.y>H){p.y=-15;p.x=Math.random()*(W-200);p.code=code[Math.floor(Math.random()*code.length)];}
-                    ctx.globalAlpha=p.alpha;
-                    ctx.fillStyle=p.alpha>0.5?'#00ff88':'#00aa44';
-                    ctx.fillText(p.code,p.x,p.y);
-                });
-                // Cursor parpadeante
-                if(Math.floor(T()*2)%2===0){ctx.globalAlpha=0.8;ctx.fillStyle='#00ff41';ctx.fillRect(W*0.1,H*0.85,8,14);}
-                ctx.globalAlpha=1;
-            },
-
-            // ARCADE 1984 — píxeles de colores, estilo Space Invaders
-            retro() {
-                ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.fillRect(0,0,W,H);
-                const invader=[[0,1,0,0,1,0],[0,0,1,1,0,0],[0,1,1,1,1,0],[1,0,1,1,0,1],[1,0,0,0,0,1]];
-                const ps=5,gap=3;
-                // Mover invaders
-                P.slice(0,20).forEach((p,i)=>{
-                    if(!p.init){p.col=pick('retro');p.init=true;}
-                    p.x+=(Math.sin(T()*0.5+i*0.3)*0.5);
-                    p.y+=0.5+p.size*0.1;
-                    if(p.y>H){p.y=-40;p.x=Math.random()*W;}
-                    // Dibujar invader
-                    ctx.globalAlpha=p.alpha*0.7;
-                    ctx.fillStyle=p.col;
-                    invader.forEach((row,ry)=>row.forEach((bit,rx)=>{
-                        if(bit)ctx.fillRect(p.x+(rx-3)*(ps+1),p.y+(ry-2)*(ps+1),ps,ps);
-                    }));
-                });
-                // Estrellas de fondo
-                P.slice(20).forEach(p=>{
-                    p.y+=0.3;if(p.y>H)p.y=0;
-                    ctx.globalAlpha=p.alpha*0.4;ctx.fillStyle='#fff';
-                    ctx.fillRect(p.x,p.y,1,1);
-                });
-                ctx.globalAlpha=1;
-            },
-
-            // PAY2WIN / BATTLE ROYALE — lluvias de coronas y monedas doradas
-            gold() {
-                ctx.fillStyle='rgba(15,10,0,0.12)'; ctx.fillRect(0,0,W,H);
-                // Brillo dorado de fondo
-                const gg=ctx.createRadialGradient(W/2,H,0,W/2,H,Math.max(W,H)*0.6);
-                gg.addColorStop(0,'rgba(255,165,0,0.08)');
-                gg.addColorStop(1,'transparent');
-                ctx.fillStyle=gg;ctx.fillRect(0,0,W,H);
-                // Monedas y coronas cayendo
-                const syms=['$','¢','♛','💰','★'];
-                ctx.font='bold 20px Arial';
-                P.forEach(p=>{
-                    if(!p.sym){p.sym=syms[Math.floor(Math.random()*syms.length)];}
-                    p.y+=2.5+p.size;p.x+=Math.sin(p.y*0.04+p.vx)*0.8;
-                    if(p.y>H){p.y=-10;p.x=Math.random()*W;p.color=pick('gold');}
-                    ctx.globalAlpha=p.alpha;
-                    ctx.shadowBlur=6;ctx.shadowColor='#ffd700';
-                    ctx.fillStyle=p.color;
-                    ctx.fillText(p.sym,p.x,p.y);
-                    ctx.shadowBlur=0;
-                });
-                ctx.globalAlpha=1;
-            },
-
-            // PORTAL — portales azul/naranja con partículas orbitales
-            portal() {
-                ctx.fillStyle='rgba(5,8,18,0.15)'; ctx.fillRect(0,0,W,H);
-                const t = Date.now()*0.001;
-                // Portal azul
-                ctx.beginPath(); ctx.ellipse(W*0.3,H*0.5,60,90,0,0,Math.PI*2);
-                ctx.strokeStyle=`rgba(50,150,255,${0.5+Math.sin(t)*0.3})`; ctx.lineWidth=4; ctx.stroke();
-                ctx.fillStyle=`rgba(0,80,200,0.08)`; ctx.fill();
-                // Portal naranja
-                ctx.beginPath(); ctx.ellipse(W*0.7,H*0.5,60,90,0,0,Math.PI*2);
-                ctx.strokeStyle=`rgba(255,140,0,${0.5+Math.cos(t)*0.3})`; ctx.lineWidth=4; ctx.stroke();
-                ctx.fillStyle=`rgba(200,80,0,0.08)`; ctx.fill();
-                // Partículas flotando entre portales
-                P.forEach(p => {
-                    p.x+=Math.sin(t+p.vx)*1.5; p.y+=Math.cos(t*0.7+p.vy)*0.8;
-                    if(p.x<0)p.x=W; if(p.x>W)p.x=0; if(p.y<0)p.y=H; if(p.y>H)p.y=0;
-                    const side = p.x < W/2;
-                    ctx.globalAlpha=p.alpha*0.7;
-                    ctx.fillStyle=side?'#3296ff':'#ff8c00';
-                    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*0.5,0,Math.PI*2); ctx.fill();
-                });
-                ctx.globalAlpha=1;
-            },
-
-            // CELESTE — montañas pixeladas y partículas estrella rosa/morado
-            celeste() {
-                ctx.fillStyle='rgba(4,6,20,0.18)'; ctx.fillRect(0,0,W,H);
-                // Estrellas de fondo estáticas
-                P.slice(0,20).forEach(p=>{
-                    ctx.globalAlpha=p.alpha*0.6;
-                    ctx.fillStyle='#fff';
-                    ctx.fillRect(p.x,p.y,1.5,1.5);
-                });
-                // Partículas tipo dash de Madeline
-                P.slice(20).forEach(p=>{
-                    p.x+=p.vx*2; p.y+=p.vy*2;
-                    if(p.x<0||p.x>W||p.y<0||p.y>H){p.x=Math.random()*W;p.y=Math.random()*H;p.vx=(Math.random()-0.5)*3;p.vy=(Math.random()-0.5)*3;}
-                    ctx.globalAlpha=p.alpha;
-                    ctx.fillStyle=p.y<H/2?'#e040fb':'#7c4dff';
-                    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*0.6,0,Math.PI*2); ctx.fill();
-                    // Trail
-                    ctx.globalAlpha=p.alpha*0.3;
-                    ctx.fillRect(p.x-p.vx*3,p.y-p.vy*3,p.size,p.size*0.5);
-                });
-                ctx.globalAlpha=1;
-            },
-
-            // HALF-LIFE — efecto resonance cascade, verde y partículas peligrosas
-            halflife() {
-                ctx.fillStyle='rgba(2,10,4,0.15)'; ctx.fillRect(0,0,W,H);
-                const t = Date.now()*0.001;
-                // Ondas de resonancia
-                for(let i=0;i<3;i++){
-                    const r=(t*80+i*120)%(Math.max(W,H)*0.8);
-                    ctx.beginPath(); ctx.arc(W/2,H/2,r,0,Math.PI*2);
-                    ctx.strokeStyle=`rgba(0,255,50,${Math.max(0,0.4-(r/400))})`;
-                    ctx.lineWidth=2; ctx.stroke();
-                }
-                // Partículas de energía
-                P.forEach(p=>{
-                    const angle=Math.atan2(p.y-H/2,p.x-W/2)+0.02;
-                    const dist=Math.hypot(p.x-W/2,p.y-H/2);
-                    p.x=W/2+Math.cos(angle)*dist; p.y=H/2+Math.sin(angle)*dist;
-                    if(dist>Math.max(W,H)/2){p.x=W/2+(Math.random()-0.5)*20;p.y=H/2+(Math.random()-0.5)*20;}
-                    ctx.globalAlpha=p.alpha*0.8;
-                    ctx.fillStyle=`hsl(${120+Math.sin(t+p.vx)*30},100%,50%)`;
-                    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*0.5,0,Math.PI*2); ctx.fill();
-                });
-                ctx.globalAlpha=1;
-            },
-
-            // CYBERPUNK / NIGHT CITY — lluvia de datos cian + neón urbano
-            cyberpunk() {
-                ctx.fillStyle='rgba(2,0,10,0.18)'; ctx.fillRect(0,0,W,H);
-                const chars='01ﾊﾐﾋｱｳｦｲｸｺｷｵｴｹｸｦ';
-                ctx.font=`${12}px monospace`;
-                P.forEach(p=>{
-                    if(!p.char||Math.random()<0.02) p.char=chars[Math.floor(Math.random()*chars.length)];
-                    p.y+=p.size+1.5; if(p.y>H){p.y=-20;p.x=Math.random()*W;p.color=Math.random()<0.5?'#00ffff':'#ff00aa';}
-                    ctx.globalAlpha=p.alpha;
-                    ctx.fillStyle=p.color||'#00ffff';
-                    ctx.shadowBlur=6; ctx.shadowColor=p.color||'#00ffff';
-                    ctx.fillText(p.char,p.x,p.y);
-                    ctx.shadowBlur=0;
-                });
-                ctx.globalAlpha=1;
-            },
-
-            amongus() {
-                ctx.fillStyle='rgba(3,6,20,0.15)'; ctx.fillRect(0,0,W,H);
-                const t=Date.now()*0.001;
-                const colors=['#c8181b','#1d3de8','#1c9e33','#f07c1b','#9b2dca','#71491e','#38ffdd'];
-                P.forEach(p=>{
-                    if(!p.col){p.col=colors[Math.floor(Math.random()*colors.length)];p.dead=Math.random()<0.15;}
-                    p.y+=0.4+p.size*0.1; p.x+=Math.sin(t+p.vx)*0.3;
-                    if(p.y>H){p.y=-20;p.x=Math.random()*W;}
-                    ctx.save(); ctx.translate(p.x,p.y);
-                    if(p.dead) ctx.rotate(Math.PI/2);
-                    ctx.fillStyle=p.col; ctx.globalAlpha=p.alpha;
-                    ctx.beginPath(); ctx.ellipse(0,3,7,9,0,0,Math.PI*2); ctx.fill();
-                    ctx.fillStyle='rgba(150,220,255,0.85)';
-                    ctx.beginPath(); ctx.ellipse(-1,-2,4,3,0,0,Math.PI*2); ctx.fill();
-                    ctx.fillStyle=p.col; ctx.fillRect(5,0,4,7);
-                    ctx.restore();
-                });
-                ctx.globalAlpha=1;
-            },
-
-            undertale() {
-                ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.fillRect(0,0,W,H);
-                const t=Date.now()*0.001;
-                const pulse=1+Math.sin(t*2)*0.06;
-                const hx=W/2, hy=H*0.45;
-                ctx.save(); ctx.translate(hx,hy); ctx.scale(pulse,pulse);
-                ctx.fillStyle='#ff0038'; ctx.shadowBlur=20; ctx.shadowColor='#ff0038';
-                ctx.beginPath();
-                ctx.moveTo(0,6); ctx.bezierCurveTo(-16,-8,-28,8,-14,20);
-                ctx.lineTo(0,34); ctx.lineTo(14,20);
-                ctx.bezierCurveTo(28,8,16,-8,0,6); ctx.fill();
-                ctx.restore(); ctx.shadowBlur=0;
-                P.forEach(p=>{
-                    const angle=Math.atan2(p.y-hy,p.x-hx);
-                    p.x+=Math.cos(angle+Math.PI)*1.5; p.y+=Math.sin(angle+Math.PI)*1.5;
-                    if(Math.hypot(p.x-hx,p.y-hy)>Math.min(W,H)*0.5){p.x=hx+(Math.random()-0.5)*40;p.y=hy+(Math.random()-0.5)*40;}
-                    ctx.globalAlpha=p.alpha*0.6;
-                    ctx.fillStyle=Math.random()<0.5?'#ff0038':'#fff';
-                    ctx.font=(8+p.size)+'px monospace'; ctx.fillText('*',p.x,p.y);
-                });
-                ctx.globalAlpha=1;
-            },
-
-            hollow() {
-                ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.fillRect(0,0,W,H);
-                const t=Date.now()*0.001;
-                P.forEach(p=>{
-                    p.y-=0.5+p.size*0.15; p.x+=Math.sin(t*0.5+p.vx)*0.5;
-                    if(p.y<-10){p.y=H+10;p.x=Math.random()*W;}
-                    const flicker=0.3+Math.sin(t*3+p.vx)*0.3;
-                    ctx.globalAlpha=p.alpha*flicker;
-                    ctx.fillStyle=Math.random()<0.1?'#b8a0d8':'#ffffff';
-                    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*0.4,0,Math.PI*2); ctx.fill();
-                });
-                ctx.globalAlpha=1;
-            },
-
-            stardew() {
-                ctx.fillStyle='rgba(4,8,4,0.15)'; ctx.fillRect(0,0,W,H);
-                const t=Date.now()*0.001;
-                const syms=['\u2605','\u273f','\u266a','\u25c6','\u2726'];
-                const cols=['#ffd700','#ff69b4','#90ee90','#87ceeb','#ffa500'];
-                P.forEach(p=>{
-                    if(!p.sym){p.sym=syms[Math.floor(Math.random()*syms.length)];p.col=cols[Math.floor(Math.random()*cols.length)];}
-                    p.y+=0.8+p.size*0.2; p.x+=Math.sin(t*0.8+p.vx)*0.6;
-                    if(p.y>H){p.y=-10;p.x=Math.random()*W;}
-                    ctx.globalAlpha=p.alpha*0.8; ctx.fillStyle=p.col;
-                    ctx.font=(10+p.size*2)+'px monospace'; ctx.textAlign='center';
-                    ctx.fillText(p.sym,p.x,p.y);
-                });
-                ctx.globalAlpha=1; ctx.textAlign='left';
-            },
-            // HALF-LIFE — Lambda verde con partículas de radiación
-            halflife() {
-                ctx.fillStyle='rgba(0,10,0,0.18)'; ctx.fillRect(0,0,W,H);
-                const t=Date.now()*0.001;
-                // Símbolo lambda en el centro
-                ctx.save(); ctx.translate(W/2,H*0.42);
-                ctx.globalAlpha=0.06+Math.sin(t*0.5)*0.03;
-                ctx.font='bold 120px monospace'; ctx.fillStyle='#00aa33';
-                ctx.textAlign='center'; ctx.fillText('λ',0,0);
-                ctx.restore(); ctx.textAlign='left';
-                // Partículas de radiación
-                P.forEach(p=>{
-                    p.y+=0.6+p.size*0.2; p.x+=Math.sin(t*0.8+p.vx)*0.8;
-                    if(p.y>H){p.y=-10;p.x=Math.random()*W;}
-                    ctx.globalAlpha=p.alpha*0.5;
-                    const col=Math.random()<0.7?'#00ff41':'#ffff00';
-                    ctx.fillStyle=col;
-                    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*0.5,0,Math.PI*2); ctx.fill();
-                });
-                ctx.globalAlpha=1;
-            },
-
-            // PORTAL — portales naranja y azul orbitando
-            portal() {
-                ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.fillRect(0,0,W,H);
-                const t=Date.now()*0.001;
-                const cx=W/2, cy=H*0.44;
-                // Portal naranja
-                const ox=cx+Math.cos(t*0.5)*80, oy=cy+Math.sin(t*0.5)*40;
-                const gO=ctx.createRadialGradient(ox,oy,2,ox,oy,28);
-                gO.addColorStop(0,'rgba(255,120,0,0.9)'); gO.addColorStop(1,'rgba(255,60,0,0)');
-                ctx.fillStyle=gO; ctx.beginPath(); ctx.ellipse(ox,oy,28,40,t*0.2,0,Math.PI*2); ctx.fill();
-                // Portal azul
-                const bx=cx-Math.cos(t*0.5)*80, by=cy-Math.sin(t*0.5)*40;
-                const gB=ctx.createRadialGradient(bx,by,2,bx,by,28);
-                gB.addColorStop(0,'rgba(0,120,255,0.9)'); gB.addColorStop(1,'rgba(0,60,255,0)');
-                ctx.fillStyle=gB; ctx.beginPath(); ctx.ellipse(bx,by,28,40,-t*0.2,0,Math.PI*2); ctx.fill();
-                // Partículas viajando
-                P.forEach(p=>{
-                    if(!p.phase) p.phase=Math.random()*Math.PI*2;
-                    p.phase+=0.02+p.size*0.01;
-                    const progress=(Math.sin(p.phase)+1)/2;
-                    p.x=ox+(bx-ox)*progress+(Math.sin(p.phase*3)*10);
-                    p.y=oy+(by-oy)*progress+(Math.cos(p.phase*3)*10);
-                    ctx.globalAlpha=p.alpha*Math.sin(p.phase);
-                    ctx.fillStyle=progress<0.5?'#ff7800':'#0078ff';
-                    ctx.beginPath(); ctx.arc(p.x,p.y,p.size*0.5,0,Math.PI*2); ctx.fill();
-                });
-                ctx.globalAlpha=1;
-            },
-
-            // MINECRAFT — bloques pixelados cayendo
-            minecraft() {
-                ctx.fillStyle='rgba(2,8,2,0.2)'; ctx.fillRect(0,0,W,H);
-                const t=Date.now()*0.001;
-                const COLORS=['#5da832','#8B6914','#7c7c7c','#6bb5ff','#ff6600'];
-                P.forEach(p=>{
-                    if(!p.col) p.col=COLORS[Math.floor(Math.random()*COLORS.length)];
-                    p.y+=1+p.size*0.3;
-                    if(p.y>H){p.y=-12;p.x=Math.floor(Math.random()*(W/12))*12;}
-                    // Snap a 12px grid
-                    const gx=Math.floor(p.x/12)*12, gy=Math.floor(p.y/12)*12;
-                    ctx.globalAlpha=p.alpha*0.6;
-                    ctx.fillStyle=p.col;
-                    ctx.fillRect(gx,gy,10,10);
-                    // Highlight pixel
-                    ctx.fillStyle='rgba(255,255,255,0.3)';
-                    ctx.fillRect(gx,gy,10,2); ctx.fillRect(gx,gy,2,10);
-                });
-                ctx.globalAlpha=1;
-            },
-
-            // CELESTE — cristales de hielo y estrellas
-            celeste() {
-                ctx.fillStyle='rgba(2,8,22,0.18)'; ctx.fillRect(0,0,W,H);
-                const t=Date.now()*0.001;
-                P.forEach(p=>{
-                    p.y-=0.4+p.size*0.1; p.x+=Math.sin(t*0.6+p.vx)*0.4;
-                    if(p.y<-10){p.y=H+10;p.x=Math.random()*W;}
-                    const flicker=0.4+Math.sin(t*2+p.vx*3)*0.3;
-                    ctx.globalAlpha=p.alpha*flicker;
-                    // Cristal — líneas cruzadas
-                    ctx.strokeStyle=Math.random()<0.5?'#4fc3f7':'#ffffff';
-                    ctx.lineWidth=1;
-                    const s=p.size*2;
-                    ctx.beginPath(); ctx.moveTo(p.x-s,p.y); ctx.lineTo(p.x+s,p.y); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(p.x,p.y-s); ctx.lineTo(p.x,p.y+s); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(p.x-s*.7,p.y-s*.7); ctx.lineTo(p.x+s*.7,p.y+s*.7); ctx.stroke();
-                });
-                ctx.globalAlpha=1;
-            }
-        };
-
-        const fn = effects[style] || effects.default;
-        const loop = () => { fn(); raf = requestAnimationFrame(loop); };
-        loop();
-
-        // Parar cuando la overlay sea eliminada
-        const observer = new MutationObserver(() => {
-            if(!document.getElementById('cc-canvas')) {
-                cancelAnimationFrame(raf);
-                observer.disconnect();
-            }
-        });
-        const ui = document.getElementById('game-ui-overlay');
-        if(ui) observer.observe(ui, { childList: true });
-    },
-
-    setAvatar(icon) { this.stats.avatar = icon; this.audio.playClick(); this.showProfile(); this.updateUI(); this.save(); },
-    setTitle(titleId) {
-        this.stats.equippedTitle = this.stats.equippedTitle === titleId ? null : titleId;
-        this.audio.playClick(); this.showProfile(); this.updateUI(); this.save();
-    },
-    setTitle(titleId) {
-        this.stats.equippedTitle = this.stats.equippedTitle === titleId ? null : titleId;
-        this.audio.playClick();
-        this.showProfile();
-        this.updateUI();
-        this.save();
-    },
-    closeProfile() { document.getElementById('modal-profile').classList.add('hidden'); },
-    save() { localStorage.setItem('arcade_save', JSON.stringify({ credits: this.credits, stats: this.stats, highScores: this.highScores, shop: { inventory: this.shop.inventory, equipped: this.shop.equipped }, daily: this.daily, weekly: this.weekly, streak: this.streak, invest: this.invest, favorites: this.favorites, tournament: this.tournament, notifLog: this.notifLog, agentName: this.agentName, season: this.season, settings: { audio: this.audio.vol, performance: this.settings.performance } })); },
-    checkDailyReset() { const today = new Date().toDateString(); if (this.daily.date !== today || this.daily.tasks.length === 0) { this.daily.date = today; this.daily.claimed = false; this.daily.tasks = []; const rng = new SeededRandom(parseInt(today.replace(/\D/g,'')) || Date.now()); const gameIds = Object.keys(this.gameClasses); while(this.daily.tasks.length < 3) { const gid = gameIds[Math.floor(rng.next() * gameIds.length)]; if (!this.daily.tasks.find(t => t.gameId === gid)) this.daily.tasks.push({ gameId: gid, target: CONFIG.DAILY_TARGETS[gid] || 10, done: false }); } this.save(); } },
-
-    checkWeeklyReset() {
-        const now    = new Date();
-        const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay()+6)%7)); monday.setHours(0,0,0,0);
-        const weekKey = monday.toDateString();
-        if(this.weekly.week !== weekKey || this.weekly.tasks.length === 0) {
-            this.weekly = { week: weekKey, tasks: [], claimed: false };
-            // 4 misiones semanales con targets más altos y variedad
-            const WEEKLY_MISSIONS = [
-                { gameId:'higher-lower', target:25,  label:'Alcanza 25 aciertos en High/Low',    reward:800  },
-                { gameId:'geo-net',      target:50,  label:'Consigue 50 puntos en Geo-Net',       reward:1000 },
-                { gameId:'spam-click',   target:100, label:'Llega a 100 clics en Spam Click',     reward:600  },
-                { gameId:'neon-sniper',  target:15,  label:'Noquea 15 objetivos en Neon Sniper',  reward:700  },
-                { gameId:'color-trap',   target:20,  label:'Supera racha 20 en Color Trap',       reward:900  },
-                { gameId:'cyber-typer',  target:300, label:'Escribe 300 pts en Cyber Typer',      reward:850  },
-                { gameId:'glitch-hunt',  target:10,  label:'Atrapa 10 glitches',                  reward:750  },
-                { gameId:'math-rush',    target:80,  label:'Consigue 80 pts en Math Rush',        reward:700  },
-                { gameId:'word-rush',    target:40,  label:'Consigue 40 pts en Word Rush',        reward:800  },
-                { gameId:'snake-plus',   target:50,  label:'Llega a 50 puntos en Snake ++',       reward:750  },
-                { gameId:'cipher-decode',target:60,  label:'Descifra mensajes por 60 pts',        reward:900  },
-                { gameId:'void-dodger',  target:20,  label:'Sobrevive 20 segundos en Void Dodger',reward:850  },
-            ];
-            const rng = new SeededRandom(parseInt(weekKey.replace(/\D/g,'')) || Date.now());
-            const shuffled = [...WEEKLY_MISSIONS].sort(()=>rng.next()-0.5);
-            this.weekly.tasks = shuffled.slice(0,4).map(m => ({...m, done:false}));
-            this.save();
-        }
-    },
+    setAvatar(icon)   { return Profile.setAvatar(this, icon); },
+    setTitle(titleId) { return Profile.setTitle(this, titleId); },
+    closeProfile()    { return Profile.close(); },
+    // --- MISIONES DIARIAS / SEMANALES (delegado a systems/daily-weekly.js) ---
+    checkDailyReset()      { return Missions.checkDailyReset(this); },
+    checkWeeklyReset()     { return Missions.checkWeeklyReset(this); },
 
     checkStreakUpdate() {
         const today    = new Date().toDateString();
@@ -2505,773 +1103,81 @@ const app = {
         if(this.streak.days > 1) {
             const bonusXP = Math.min(50, this.streak.days * 5);
             setTimeout(() => {
-                this.showToast(`🔥 RACHA: ${this.streak.days} DÍAS`, `+${bonusXP} XP bonus`, 'gold');
+                this.showToast(`RACHA: ${this.streak.days} DÍAS`, `+${bonusXP} XP bonus`, 'gold');
                 this.gainXP(bonusXP);
             }, 1500);
         }
         this.save();
     },
 
-    claimWeekly() {
-        if(this.weekly.claimed) return;
-        const done = this.weekly.tasks.filter(t=>t.done).length;
-        if(done < this.weekly.tasks.length) return;
-        this.weekly.claimed = true;
-        this.stats.weeklyCompleted = (this.stats.weeklyCompleted||0)+1;
-        const totalReward = this.weekly.tasks.reduce((s,t)=>s+t.reward, 0);
-        this.credits += totalReward;
-        this.audio.playWin(10);
-        try{ this.canvas.explode(window.innerWidth/2, window.innerHeight/2, '#fbbf24'); }catch(e){}
-        setTimeout(()=>{ try{ this.canvas.explode(window.innerWidth*0.3, window.innerHeight*0.5, '#a855f7'); }catch(e){} }, 300);
-        this.showToast('¡MISIÓN SEMANAL COMPLETADA!', `+${totalReward.toLocaleString()} CR obtenidos`, 'gold');
-        this.gainXP(200);
-        this.renderWeeklyScreen();
-        this.save();
-    },
+    claimWeekly()          { return Missions.claimWeekly(this); },
 
 
-    // ─── SISTEMA DE NOTIFICACIONES ──────────────────────────
-    addNotif(icon, title, body, type) {
-        if(!this.notifLog) this.notifLog = [];
-        this.notifLog.unshift({
-            icon, title, body, type: type||'info',
-            time: new Date().toLocaleTimeString('es', {hour:'2-digit',minute:'2-digit'}),
-            date: new Date().toLocaleDateString('es', {day:'2-digit',month:'2-digit'}),
-            read: false,
-        });
-        if(this.notifLog.length > 30) this.notifLog.pop();
-        // Badge en el botón de perfil
-        const unread = this.notifLog.filter(n => !n.read).length;
-        const badge = document.getElementById('notif-badge');
-        if(badge) { badge.textContent = unread; badge.style.display = unread > 0 ? 'flex' : 'none'; }
-        this.save();
-    },
+    // ─── SISTEMA DE NOTIFICACIONES (delegado a systems/notifications.js) ───
+    addNotif(icon, title, body, type) { return Notifications.add(this, icon, title, body, type); },
 
 
 
-    updateFavicon(themeId) {
-        const FAVICONS = {
-            't_diablo':    '#b91c1c', 't_xperror':   '#1560bd',
-            't_starcraft': '#3b82f6', 't_matrix':    '#00ff41',
-            't_hack':      '#00ff41', 't_synthwave':  '#f72585',
-            't_celeste':   '#4fc3f7', 't_portal':    '#ff6600',
-            't_terminal':  '#00ff41', 't_gameby':    '#5da832',
-        };
-        const col = FAVICONS[themeId] || '#3b82f6';
-        const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>
-            <rect width='32' height='32' rx='6' fill='#040810'/>
-            <text x='50%' y='58%' font-size='18' font-family='monospace' font-weight='bold'
-                  fill='${col}' text-anchor='middle' dominant-baseline='middle'>A</text>
-        </svg>`;
-        const blob  = new Blob([svg], {type:'image/svg+xml'});
-        const url   = URL.createObjectURL(blob);
-        let link    = document.querySelector("link[rel~='icon']");
-        if(!link)   { link = document.createElement('link'); link.rel='icon'; document.head.appendChild(link); }
-        link.href   = url;
-    },
+    updateFavicon(themeId) { return Theme.updateFavicon(themeId); },
 
     editAgentName() {
         const current = this.agentName || 'AGENTE';
         const name = prompt('Nombre de agente (máx. 16 caracteres):', current);
         if(name === null) return;
-        const clean = name.trim().toUpperCase().slice(0, 16) || 'AGENTE';
+        // Sanitizacion estricta: solo alfanumericos + espacio/guion/underscore.
+        // Antes era solo trim+upper+slice(16), que permitia inyeccion HTML
+        // tipo `<SCRIPT>ALERT(1)` (16 chars) en el perfil, callcard y VS mode.
+        const clean = (name.trim().toUpperCase().replace(/[^A-Z0-9 _-]/g, '').slice(0, 16)) || 'AGENTE';
         this.agentName = clean;
         this.save();
-        this.showProfile(); // re-renderizar
+        this.showProfile();
         this.showToast('IDENTIDAD ACTUALIZADA', clean, 'purple');
         try { this.audio.playWin(3); } catch(e) {}
     },
 
-    markNotifsRead() {
-        (this.notifLog||[]).forEach(n => n.read = true);
-        const badge = document.getElementById('notif-badge');
-        if(badge) badge.style.display = 'none';
-        this.save();
-    },
-
-    renderNotifPanel() {
-        const log = this.notifLog || [];
-        const typeColors = { gold:'#fbbf24', success:'#10b981', danger:'#ef4444', info:'#3b82f6', purple:'#a855f7' };
-
-        if(!log.length) return '<div style="text-align:center;padding:24px;color:#334155;font-family:monospace;font-size:0.65rem;">SIN NOTIFICACIONES</div>';
-
-        return log.map(n => {
-            const col = typeColors[n.type] || '#3b82f6';
-            return '<div style="display:flex;gap:10px;padding:9px 12px;border-bottom:1px solid rgba(255,255,255,0.04);' + (n.read?'opacity:0.5;':'') + '">' +
-                '<div style="font-size:1rem;flex-shrink:0;">' + n.icon + '</div>' +
-                '<div style="flex:1;min-width:0;">' +
-                '<div style="display:flex;justify-content:space-between;align-items:baseline;">' +
-                '<div style="font-family:var(--font-display);font-size:0.68rem;color:' + col + ';letter-spacing:1px;">' + n.title + '</div>' +
-                '<div style="font-size:0.5rem;color:#334155;font-family:monospace;flex-shrink:0;margin-left:6px;">' + n.date + ' ' + n.time + '</div>' +
-                '</div>' +
-                '<div style="font-size:0.6rem;color:#64748b;margin-top:1px;">' + n.body + '</div>' +
-                '</div></div>';
-        }).join('');
-    },
-
-    showNotifPanel() {
-        this.markNotifsRead();
-        const existing = document.getElementById('notif-panel');
-        if(existing) { existing.remove(); return; }
-
-        const panel = document.createElement('div');
-        panel.id = 'notif-panel';
-        panel.style.cssText = [
-            'position:fixed','top:48px','right:8px','width:300px','max-height:400px',
-            'background:rgba(8,14,26,0.98)','border:1px solid rgba(255,255,255,0.08)',
-            'border-radius:12px','z-index:9999','overflow-y:auto',
-            'box-shadow:0 20px 60px rgba(0,0,0,0.6)',
-            'animation:wFadeIn 0.2s ease',
-        ].join(';');
-
-        panel.innerHTML =
-            '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.06);">' +
-            '<div style="font-family:var(--font-display);font-size:0.65rem;color:white;letter-spacing:2px;">NOTIFICACIONES</div>' +
-            '<button onclick="document.getElementById(\\"notif-panel\\").remove()" style="background:none;border:none;color:#334155;cursor:pointer;font-size:0.7rem;padding:2px 6px;">✕</button>' +
-            '</div>' +
-            this.renderNotifPanel();
-
-        document.body.appendChild(panel);
-        // Cerrar al click fuera
-        setTimeout(() => {
-            document.addEventListener('click', function close(e) {
-                if(!panel.contains(e.target) && e.target.id !== 'notif-btn') {
-                    panel.remove(); document.removeEventListener('click', close);
-                }
-            });
-        }, 100);
-    },
+    markNotifsRead()   { return Notifications.markAllRead(this); },
+    renderNotifPanel() { return Notifications.renderPanel(this); },
+    showNotifPanel()   { return Notifications.showPanel(this); },
 
 
 
-    // ─── MODO 2 JUGADORES LOCAL ────────────────────────────
-    startVsMode(gameId) {
-        if(!this.gameClasses[gameId]) return;
-        this.vsMode = {
-            gameId,
-            player1: { name: this.agentName || 'AGENTE', score: 0, done: false },
-            player2: { name: 'JUGADOR 2',               score: 0, done: false },
-            turn: 1,
-        };
-        this.showVsIntro();
-    },
-
-    showVsIntro() {
-        const vs = this.vsMode;
-        const modal = document.createElement('div');
-        modal.id = 'vs-intro';
-        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99997;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);';
-        const game = CONFIG.GAMES_LIST.find(g => g.id === vs.gameId);
-        const color = CONFIG.COLORS[game?.color] || 'var(--primary)';
-        modal.innerHTML = '<div style="text-align:center;padding:40px;">' +
-            '<div style="font-size:0.6rem;color:#334155;font-family:monospace;letter-spacing:4px;margin-bottom:12px;">MODO VS</div>' +
-            '<div style="font-family:var(--font-display);font-size:1.6rem;color:white;letter-spacing:4px;margin-bottom:6px;">' + (game?.name||vs.gameId) + '</div>' +
-            '<div style="display:flex;align-items:center;justify-content:center;gap:24px;margin:24px 0;">' +
-            '<div style="text-align:center;"><div style="font-family:var(--font-display);font-size:1.1rem;color:' + color + ';">' + vs.player1.name + '</div><div style="font-size:0.55rem;color:#334155;font-family:monospace;">JUGADOR 1</div></div>' +
-            '<div style="font-family:var(--font-display);font-size:1.8rem;color:#334155;">VS</div>' +
-            '<div style="text-align:center;"><div style="font-family:var(--font-display);font-size:1.1rem;color:#ef4444;">' + vs.player2.name + '</div><div style="font-size:0.55rem;color:#334155;font-family:monospace;">JUGADOR 2</div></div>' +
-            '</div>' +
-            '<div style="font-size:0.7rem;color:#475569;margin-bottom:24px;">Turnos alternados · Mayor puntuación gana</div>' +
-            '<button onclick="(function(){document.getElementById(\"vs-intro\").remove();window.app.vsPlayTurn(1);})()" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);color:#60a5fa;border-radius:10px;padding:12px 32px;font-family:var(--font-display);font-size:0.8rem;letter-spacing:3px;cursor:pointer;">EMPEZAR — ' + vs.player1.name.toUpperCase() + ' PRIMERO</button>' +
-            '</div>';
-        document.body.appendChild(modal);
-    },
-
-    vsPlayTurn(playerNum) {
-        const vs = this.vsMode;
-        vs.turn = playerNum;
-
-        // Mostrar aviso de turno
-        const notice = document.createElement('div');
-        notice.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99997;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
-        const p = playerNum === 1 ? vs.player1 : vs.player2;
-        const col = playerNum === 1 ? 'var(--primary)' : '#ef4444';
-        notice.innerHTML = '<div style="text-align:center;">' +
-            '<div style="font-size:0.6rem;color:#334155;font-family:monospace;letter-spacing:4px;margin-bottom:8px;">TURNO ' + playerNum + '</div>' +
-            '<div style="font-family:var(--font-display);font-size:2rem;color:' + col + ';letter-spacing:4px;">' + p.name + '</div>' +
-            '<div style="font-size:0.65rem;color:#475569;margin:12px 0 24px;">¡Es tu turno! Prepárate...</div>' +
-            '<button id="vs-go" style="background:' + col.replace('var(--primary)','rgba(59,130,246,0.15)') + ';border:1px solid ' + col + ';color:' + col + ';border-radius:10px;padding:12px 32px;font-family:var(--font-display);font-size:0.8rem;letter-spacing:3px;cursor:pointer;">¡A JUGAR!</button>' +
-            '</div>';
-        document.body.appendChild(notice);
-
-        document.getElementById('vs-go').onclick = () => {
-            notice.remove();
-            this._vsOnGameOver = (score) => this.vsRecordScore(playerNum, score);
-            this.launch(vs.gameId);
-        };
-    },
-
-    vsRecordScore(playerNum, score) {
-        const vs = this.vsMode;
-        if(!vs) return;
-        if(playerNum === 1) {
-            vs.player1.score = score;
-            vs.player1.done  = true;
-            // Pasar turno a jugador 2
-            setTimeout(() => this.vsPlayTurn(2), 500);
-        } else {
-            vs.player2.score = score;
-            vs.player2.done  = true;
-            // Mostrar resultado final
-            setTimeout(() => this.vsShowResult(), 500);
-        }
-    },
-
-    vsShowResult() {
-        const vs = this.vsMode;
-        const winner = vs.player1.score >= vs.player2.score ? vs.player1 : vs.player2;
-        const isDraw = vs.player1.score === vs.player2.score;
-        const winCol = winner === vs.player1 ? 'var(--primary)' : '#ef4444';
-
-        const modal = document.createElement('div');
-        modal.id = 'vs-result';
-        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99997;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);';
-
-        const title   = isDraw ? '¡EMPATE!' : '¡' + winner.name + ' GANA!';
-        const titleCol= isDraw ? '#fbbf24' : winCol;
-
-        const div = document.createElement('div');
-        div.style.cssText = 'text-align:center;padding:40px;max-width:340px;';
-        div.innerHTML =
-            '<div style="font-size:0.6rem;color:#334155;font-family:monospace;letter-spacing:4px;margin-bottom:12px;">RESULTADO FINAL</div>' +
-            '<div style="font-family:var(--font-display);font-size:1.8rem;color:' + titleCol + ';letter-spacing:3px;margin-bottom:6px;">' + title + '</div>' +
-            '<div style="display:flex;justify-content:center;gap:32px;margin:20px 0;">' +
-                '<div><div style="font-family:var(--font-display);font-size:1.4rem;color:var(--primary);">' + vs.player1.score.toLocaleString() + '</div>' +
-                '<div style="font-size:0.55rem;color:#334155;font-family:monospace;">' + vs.player1.name + '</div></div>' +
-                '<div style="font-size:1.4rem;color:#1e293b;font-family:var(--font-display);">VS</div>' +
-                '<div><div style="font-family:var(--font-display);font-size:1.4rem;color:#ef4444;">' + vs.player2.score.toLocaleString() + '</div>' +
-                '<div style="font-size:0.55rem;color:#334155;font-family:monospace;">' + vs.player2.name + '</div></div>' +
-            '</div>';
-
-        const actDiv = document.createElement('div');
-        actDiv.style.cssText = 'display:flex;gap:10px;justify-content:center;margin-top:20px;';
-
-        const btnSalir = document.createElement('button');
-        btnSalir.textContent = 'SALIR';
-        btnSalir.style.cssText = 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#64748b;border-radius:8px;padding:10px 20px;font-family:var(--font-display);font-size:0.7rem;cursor:pointer;';
-        btnSalir.onclick = () => { this.vsMode=null; modal.remove(); this.changeState('menu'); };
-
-        const btnRevan = document.createElement('button');
-        btnRevan.textContent = 'REVANCHA';
-        btnRevan.style.cssText = 'background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.4);color:#60a5fa;border-radius:8px;padding:10px 20px;font-family:var(--font-display);font-size:0.7rem;cursor:pointer;';
-        btnRevan.onclick = () => { const gid = vs.gameId; modal.remove(); this.startVsMode(gid); };
-
-        actDiv.appendChild(btnSalir);
-        actDiv.appendChild(btnRevan);
-        div.appendChild(actDiv);
-        modal.appendChild(div);
-        document.body.appendChild(modal);
-        // Tracking VS stats
-        const vsWinner = vs.player1.score >= vs.player2.score ? 1 : 2;
-        this.stats.vsWins = (this.stats.vsWins||0) + (vsWinner === 1 ? 1 : 0);
-        this.stats.vsGames = (this.stats.vsGames||0) + 1;
-        if(vsWinner === 1) {
-            this.stats.vsStreak = (this.stats.vsStreak||0) + 1;
-        } else {
-            this.stats.vsStreak = 0;
-        }
-        this.vsMode = null;
-        try { this.audio.playWin(10); } catch(e) {}
-    },
+    // ─── MODO 2 JUGADORES LOCAL (delegado a systems/vs-mode.js) ───
+    // Bug fix real: el onclick inline de showVsIntro usaba comillas
+    // dobles dentro de un string single-quoted (`\"vs-intro\"`), lo que
+    // rompia el atributo onclick en el HTML final.
+    startVsMode(gameId)              { return Vs.start(this, gameId); },
+    showVsIntro()                    { return Vs.showIntro(this); },
+    vsPlayTurn(playerNum)            { return Vs.playTurn(this, playerNum); },
+    vsRecordScore(playerNum, score)  { return Vs.recordScore(this, playerNum, score); },
+    vsShowResult()                   { return Vs.showResult(this); },
 
 
-    // ─── TEMPORADAS MENSUALES ───────────────────────────────
-    initSeason() {
-        const now    = new Date();
-        const key    = now.getFullYear() + '-' + (now.getMonth() + 1);
-        if(!this.season) this.season = {};
+    // ─── TEMPORADAS MENSUALES (delegado a systems/season.js) ───
+    initSeason()                        { return Season.init(this); },
+    resolveSeason()                     { return Season.resolve(this); },
+    updateSeasonStats(gameId, score)    { return Season.updateStats(this, gameId, score); },
+    renderSeasonPanel()                 { return Season.renderPanel(this); },
 
-        if(this.season.key !== key) {
-            // Nueva temporada — resolver la anterior si existe
-            if(this.season.key) this.resolveSeason();
-            this.season = {
-                key,
-                name:      'TEMPORADA ' + now.toLocaleString('es', {month:'long'}).toUpperCase() + ' ' + now.getFullYear(),
-                startLevel: this.stats.level,
-                startXP:    ((this.stats.level-1)*100) + (this.stats.xp||0),
-                peakLevel:  this.stats.level,
-                gamesPlayed: 0,
-                wins:        0,
-                endDate:     new Date(now.getFullYear(), now.getMonth()+1, 0).toLocaleDateString('es',{day:'2-digit',month:'2-digit',year:'numeric'}),
-            };
-            this.save();
-            setTimeout(() => this.showToast('NUEVA TEMPORADA', this.season.name, 'gold'), 2000);
-        }
-    },
+    // ─── TORNEOS SEMANALES (delegado a systems/tournament.js) ─
+    initTournament()                        { return Tournament.init(this); },
+    submitTournamentScore(gameId, score)    { return Tournament.submitScore(this, gameId, score); },
+    renderTournamentPanel()                 { return Tournament.renderPanel(this); },
 
-    resolveSeason() {
-        if(!this.season || !this.season.key) return;
-        const xpGained = ((this.stats.level-1)*100+(this.stats.xp||0)) - this.season.startXP;
-        const reward   = Math.max(500, Math.round(xpGained * 2));
-        this.credits  += reward;
-        this.addNotif('🏅', 'TEMPORADA FINALIZADA', this.season.name + ' · +' + reward.toLocaleString() + ' CR', 'gold');
-        this.season.resolved = true;
-        if(!this.season.history) this.season.history = [];
-        this.season.history.unshift({ key: this.season.key, name: this.season.name, xpGained, reward, peakLevel: this.season.peakLevel });
-        if(this.season.history.length > 6) this.season.history.pop();
-    },
+    renderDailyScreen()    { return Missions.renderDailyScreen(this); },
+    renderWeeklyScreen()   { return Missions.renderWeeklyScreen(this); },
+    // --- LOGROS (delegado a systems/profile.js) ---
+    checkAchievements()        { return Profile.checkAchievements(this); },
+    showAchievementToast(ach)  { return Profile.showAchievementToast(ach); },
 
-    updateSeasonStats(gameId, score) {
-        if(!this.season) return;
-        this.season.gamesPlayed = (this.season.gamesPlayed||0) + 1;
-        if(score > 0) this.season.wins = (this.season.wins||0) + 1;
-        if(this.stats.level > (this.season.peakLevel||0)) this.season.peakLevel = this.stats.level;
-        this.save();
-    },
+    // ─── INVERSION / MERCADO NEGRO (delegado a systems/invest.js) ─
+    // Bug fix real: el checkInvestment original pusheaba al history con
+    // `inv.date` / `inv.amount` / `inv.risk` pero `inv` nunca estaba declarada.
+    // La version extraida lee `app.invest.*` correctamente antes de mutar.
+    checkInvestment()           { return Invest.check(this); },
+    makeInvestment(amount, risk){ return Invest.make(this, amount, risk); },
+    renderInvestPanel()         { return Invest.renderPanel(this); },
 
-    renderSeasonPanel() {
-        if(!this.season) return '';
-        const s   = this.season;
-        const xpNow   = (this.stats.level-1)*100 + (this.stats.xp||0);
-        const xpStart = s.startXP || 0;
-        const xpDiff  = xpNow - xpStart;
-        const hist    = s.history || [];
-
-        let html = '<div style="margin:0 0 6px;padding:12px 14px;background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.2);border-radius:10px;">';
-        html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
-        html += '<div style="font-size:0.55rem;color:#fbbf24;font-family:monospace;letter-spacing:2px;"><i class="fa-solid fa-calendar-days"></i> ' + (s.name||'TEMPORADA') + '</div>';
-        html += '<div style="font-size:0.52rem;color:#334155;font-family:monospace;">hasta ' + (s.endDate||'?') + '</div>';
-        html += '</div>';
-        html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">';
-        const stats = [
-            { label:'XP GANADO', val: xpDiff.toLocaleString() },
-            { label:'PARTIDAS',  val: (s.gamesPlayed||0).toLocaleString() },
-            { label:'PICO LVL',  val: s.peakLevel||this.stats.level },
-        ];
-        stats.forEach(st => {
-            html += '<div style="background:rgba(255,255,255,0.02);border-radius:7px;padding:6px 8px;text-align:center;">';
-            html += '<div style="font-family:var(--font-display);font-size:0.85rem;color:#fbbf24;">' + st.val + '</div>';
-            html += '<div style="font-size:0.5rem;color:#334155;font-family:monospace;">' + st.label + '</div>';
-            html += '</div>';
-        });
-        html += '</div>';
-        // Historial de temporadas
-        if(hist.length > 0) {
-            html += '<div style="font-size:0.5rem;color:#1e293b;font-family:monospace;letter-spacing:2px;margin-bottom:4px;">TEMPORADAS ANTERIORES</div>';
-            hist.slice(0,3).forEach(h => {
-                html += '<div style="display:flex;justify-content:space-between;font-size:0.56rem;font-family:monospace;color:#334155;padding:2px 0;border-top:1px solid rgba(255,255,255,0.03);">';
-                html += '<span>' + (h.name||h.key) + '</span>';
-                html += '<span style="color:#fbbf24;">+' + (h.reward||0).toLocaleString() + ' CR</span>';
-                html += '</div>';
-            });
-        }
-        html += '</div>';
-        return html;
-    },
-
-    // ─── TORNEOS SEMANALES ──────────────────────────────────
-    initTournament() {
-        const today = new Date();
-        const weekKey = today.getFullYear() + '-W' + Math.ceil(today.getDate()/7) + '-' + today.getMonth();
-
-        if(!this.tournament) this.tournament = {};
-        if(this.tournament.week === weekKey) return; // ya inicializado
-
-        // Juego del torneo — rotación semanal
-        const tourneyGames = [
-            'higher-lower','cyber-pong','snake-plus','void-dodger','color-trap',
-            'neon-sniper','word-rush','memory-flash','hyper-reflex','cipher-decode'
-        ];
-        const seed = parseInt(weekKey.replace(/\D/g,'')) || 1;
-        const gameId = tourneyGames[seed % tourneyGames.length];
-        const rng = new SeededRandom(seed);
-
-        this.tournament = {
-            week:    weekKey,
-            gameId:  gameId,
-            scores:  this.tournament.scores || [],
-            best:    0,
-            endDate: this.getWeekEnd(),
-        };
-        this.save();
-    },
-
-    getWeekEnd() {
-        const d = new Date();
-        const day = d.getDay();
-        const diff = (7 - day) % 7 || 7;
-        d.setDate(d.getDate() + diff);
-        return d.toLocaleDateString('es', {day:'2-digit', month:'2-digit'});
-    },
-
-    submitTournamentScore(gameId, score) {
-        if(!this.tournament || this.tournament.gameId !== gameId) return;
-        if(score > (this.tournament.best || 0)) {
-            this.tournament.best = score;
-            // Insertar en leaderboard simulado con rivales
-            const entry = { name:'TÚ', score, isPlayer: true };
-            if(!this.tournament.scores) this.tournament.scores = [];
-            this.tournament.scores = this.tournament.scores.filter(s => !s.isPlayer);
-            this.tournament.scores.push(entry);
-            this.tournament.scores.sort((a,b) => b.score - a.score);
-            this.save();
-            this.stats.tournamentsPlayed = (this.stats.tournamentsPlayed||0) + 1;
-            const pos = this.tournament.scores.findIndex(s => s.isPlayer) + 1;
-            if(pos <= 3) {
-                this.stats.tournamentTop3 = (this.stats.tournamentTop3||0) + 1;
-                this.showToast('TOP ' + pos + ' EN EL TORNEO', 'Puntuación: ' + score.toLocaleString(), 'gold');
-            }
-        }
-    },
-
-    renderTournamentPanel() {
-        if(!this.tournament) return '';
-        const t    = this.tournament;
-        const game = CONFIG.GAMES_LIST.find(g => g.id === t.gameId);
-        if(!game) return '';
-        const color = CONFIG.COLORS[game.color] || '#3b82f6';
-
-        // Leaderboard simulado con rivales + jugador
-        const rivals = (CONFIG.RIVALS || []).slice(0,6).map((r, i) => ({
-            name: r.name, score: Math.round(r.xp * 0.8 + Math.random()*500), isPlayer: false, color: r.color||'#64748b'
-        }));
-        const playerEntry = { name: 'TÚ', score: t.best || 0, isPlayer: true, color: color };
-        const board = [...rivals, playerEntry].sort((a,b) => b.score - a.score).slice(0,7);
-        const playerPos = board.findIndex(e => e.isPlayer) + 1;
-
-        const medals = ['🥇','🥈','🥉'];
-        const lbHTML = board.map((e, i) =>
-            '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);">' +
-            '<div style="width:20px;text-align:center;font-size:' + (i<3?'0.8':'0.58') + 'rem;">' + (medals[i]||('#'+(i+1))) + '</div>' +
-            '<div style="flex:1;font-size:0.65rem;color:' + (e.isPlayer?'white':e.color) + ';font-family:' + (e.isPlayer?'var(--font-display)':'monospace') + ';">' + e.name + '</div>' +
-            '<div style="font-size:0.65rem;color:' + (e.isPlayer?color:'#475569') + ';font-family:var(--font-display);">' + (e.score||0).toLocaleString() + '</div>' +
-            '</div>'
-        ).join('');
-
-        return '<div style="margin:0 0 6px;padding:12px 14px;background:' + color + '06;border:1px solid ' + color + '20;border-radius:10px;">' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">' +
-            '<div style="font-size:0.55rem;color:' + color + ';font-family:monospace;letter-spacing:2px;"><i class=\"fa-solid fa-trophy\"></i> TORNEO SEMANAL</div>' +
-            '<div style="font-size:0.52rem;color:#334155;font-family:monospace;">hasta ' + t.endDate + '</div>' +
-            '</div>' +
-            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">' +
-            '<div style="background:' + color + '15;border:1px solid ' + color + '30;border-radius:7px;padding:6px 10px;display:flex;align-items:center;gap:6px;cursor:pointer;" onclick="window.app.launch(\'' + t.gameId + '\')">' +
-            '<i class=\"' + game.icon + '\" style=\"color:' + color + ';\"></i>' +
-            '<div>' +
-            '<div style=\"font-family:var(--font-display);font-size:0.68rem;color:' + color + ';letter-spacing:1px;\">' + game.name + '</div>' +
-            '<div style=\"font-size:0.52rem;color:#334155;font-family:monospace;\">JUEGO ACTIVO</div>' +
-            '</div>' +
-            '</div>' +
-            '<div style="text-align:right;">' +
-            '<div style="font-family:var(--font-display);font-size:0.9rem;color:' + color + ';">' + (t.best||0).toLocaleString() + '</div>' +
-            '<div style="font-size:0.5rem;color:#334155;font-family:monospace;">TU MEJOR</div>' +
-            '</div>' +
-            '</div>' +
-            lbHTML +
-            (playerPos <= 3 ? '<div style="margin-top:6px;text-align:center;font-size:0.55rem;color:#fbbf24;font-family:monospace;">🏆 TOP ' + playerPos + ' — CALLCARD EXCLUSIVA AL FINAL</div>' : '') +
-            '</div>';
-    },
-
-    renderDailyScreen() {
-        this.canvas.setMood('DAILY');
-        const container = document.getElementById('screen-daily');
-        if(!container) return;
-
-        const done  = this.daily.tasks.filter(t => t.done).length;
-        const total = this.daily.tasks.length;
-        const pct   = Math.round((done / total) * 100);
-        const allDone = done === total;
-        const claimed = this.daily.claimed;
-
-        const tasksHTML = this.daily.tasks.map((task, idx) => {
-            const meta      = CONFIG.GAMES_LIST.find(g => g.id === task.gameId) || { name: task.gameId, icon: 'fa-solid fa-gamepad', color: 'DEFAULT' };
-            const gameColor = CONFIG.COLORS[meta.color] || '#94a3b8';
-            const isDone    = task.done;
-            return `
-            <div class="daily-task-v3 ${isDone?'done':''}" style="--tc:${gameColor};"
-                 onclick="${isDone ? '' : `window.app.launchDaily('${task.gameId}')`}">
-                <div class="dt-icon-wrap" style="background:${gameColor}12; border-color:${gameColor}20; color:${gameColor};">
-                    <i class="${meta.icon}"></i>
-                </div>
-                <div class="dt-info">
-                    <div class="dt-name">${meta.name}</div>
-                    <div class="dt-target">OBJETIVO: ${task.target} puntos${isDone ? ' · <span style="color:#10b981">COMPLETADA</span>' : ''}</div>
-                </div>
-                <div class="dt-status ${isDone?'done':'pending'}">
-                    <i class="fa-solid ${isDone ? 'fa-check' : 'fa-play'}"></i>
-                </div>
-            </div>`;
-        }).join('');
-
-        let claimState = 'inactive', claimLabel = '', claimFn = '';
-        if(claimed) {
-            claimState = 'done';
-            claimLabel = `<i class="fa-solid fa-check-double"></i> COMPLETADO`;
-        } else if(allDone) {
-            claimState = 'active';
-            claimLabel = `<i class="fa-solid fa-gift"></i> RECLAMAR RECOMPENSA`;
-            claimFn    = 'onclick="window.app.claimDaily()"';
-        } else {
-            claimLabel = `<i class="fa-solid fa-lock"></i> COMPLETA LAS 3 MISIONES`;
-        }
-
-        container.innerHTML = `
-        <div class="daily-panel-v3">
-            <div class="daily-header-v3">
-                <div>
-                    <div class="daily-title-v3"><i class="fa-solid fa-calendar-check" style="color:var(--primary);margin-right:8px;"></i>PROTOCOLO DIARIO</div>
-                    <div class="daily-subtitle-v3">SINCRONIZACIÓN NEURAL — ${done}/${total} COMPLETADAS</div>
-                </div>
-                <div class="daily-reward-v3">
-                    <div class="daily-reward-lbl">RECOMPENSA</div>
-                    <div class="daily-reward-val"><i class="fa-solid fa-coins"></i> 500 CR</div>
-                </div>
-            </div>
-            <div class="daily-progress-v3">
-                <div class="dp-track"><div class="dp-fill" style="width:${pct}%;"></div></div>
-                <div class="dp-label">${pct}% · ${claimed ? 'COMPLETADO HOY' : 'RENUEVA EN MEDIANOCHE'}</div>
-            </div>
-            <div class="daily-tasks-v3">${tasksHTML}</div>
-            ${this.renderSeasonPanel()}
-            ${this.renderTournamentPanel()}
-            ${this.renderInvestPanel()}
-                        <div class="daily-claim-v3">
-                <button class="btn btn-secondary" onclick="window.app.audio.playClick(); window.app.changeState('menu');" style="flex-shrink:0;">
-                    <i class="fa-solid fa-arrow-left"></i>
-                </button>
-                <button class="btn-claim-daily-v3 ${claimState}" ${claimFn}>
-                    ${claimLabel}
-                </button>
-            </div>
-        </div>`;
-    },
-    renderWeeklyScreen() {
-        this.canvas.setMood('WEEKLY');
-        const container = document.getElementById('screen-weekly');
-        if(!container) return;
-
-        const done    = this.weekly.tasks.filter(t => t.done).length;
-        const total   = this.weekly.tasks.length;
-        const pct     = total > 0 ? Math.round((done/total)*100) : 0;
-        const allDone = done === total;
-        const claimed = this.weekly.claimed;
-
-        // Calcular cuánto tiempo queda hasta el lunes
-        const now = new Date();
-        const nextMon = new Date(now); nextMon.setDate(now.getDate() + (7 - ((now.getDay()+6)%7)) % 7 || 7); nextMon.setHours(0,0,0,0);
-        const msLeft  = nextMon - now;
-        const dLeft   = Math.floor(msLeft / 86400000);
-        const hLeft   = Math.floor((msLeft % 86400000) / 3600000);
-        const timeStr = dLeft > 0 ? `${dLeft}d ${hLeft}h` : `${hLeft}h restantes`;
-
-        const totalReward = this.weekly.tasks.reduce((s,t) => s + t.reward, 0);
-
-        const tasksHTML = this.weekly.tasks.map((task, idx) => {
-            const meta      = CONFIG.GAMES_LIST.find(g => g.id === task.gameId) || { name: task.gameId, icon:'fa-solid fa-gamepad', color:'DEFAULT' };
-            const gameColor = CONFIG.COLORS[meta.color] || '#94a3b8';
-            return `
-            <div class="daily-task-v3 ${task.done?'done':''}" style="--tc:${gameColor};"
-                 onclick="${task.done ? '' : `window.app.launch('${task.gameId}')`}">
-                <div class="dt-icon-wrap" style="background:${gameColor}12;border-color:${gameColor}20;color:${gameColor};">
-                    <i class="${meta.icon}"></i>
-                </div>
-                <div class="dt-info">
-                    <div class="dt-name">${task.label}</div>
-                    <div class="dt-target">+${task.reward.toLocaleString()} CR · ${task.done ? '<span style="color:#10b981">COMPLETADA</span>' : `objetivo: ${task.target} pts`}</div>
-                </div>
-                <div class="dt-status ${task.done?'done':'pending'}">
-                    <i class="fa-solid ${task.done?'fa-check':'fa-play'}"></i>
-                </div>
-            </div>`;
-        }).join('');
-
-        let claimState = 'inactive', claimLabel = '';
-        if(claimed)       { claimState='done';   claimLabel=`<i class="fa-solid fa-check-double"></i> RECOMPENSA RECLAMADA`; }
-        else if(allDone)  { claimState='active';  claimLabel=`<i class="fa-solid fa-gift"></i> RECLAMAR ${totalReward.toLocaleString()} CR`; }
-        else              { claimLabel=`<i class="fa-solid fa-lock"></i> COMPLETA LAS ${total} MISIONES`; }
-
-        container.innerHTML = `
-        <div class="daily-panel-v3">
-            <div class="daily-header-v3">
-                <div>
-                    <div class="daily-title-v3">
-                        <i class="fa-solid fa-calendar-week" style="color:#a855f7;margin-right:8px;"></i>MISIONES SEMANALES
-                    </div>
-                    <div class="daily-subtitle-v3">RENUEVA EL LUNES · ${timeStr}</div>
-                </div>
-                <div class="daily-reward-v3" style="background:rgba(168,85,247,0.08);border-color:rgba(168,85,247,0.25);">
-                    <div class="daily-reward-lbl">RECOMPENSA TOTAL</div>
-                    <div class="daily-reward-val" style="color:#a855f7;">
-                        <i class="fa-solid fa-coins"></i> ${totalReward.toLocaleString()} CR
-                    </div>
-                </div>
-            </div>
-            <div class="daily-progress-v3">
-                <div class="dp-track">
-                    <div class="dp-fill" style="width:${pct}%;background:#a855f7;box-shadow:0 0 8px #a855f7;"></div>
-                </div>
-                <div class="dp-label">${pct}% · ${done}/${total} COMPLETADAS${claimed ? ' · RECOMPENSA OBTENIDA' : ''}</div>
-            </div>
-            <div class="daily-tasks-v3">${tasksHTML}</div>
-            <div class="daily-claim-v3">
-                <button class="btn btn-secondary" onclick="window.app.audio.playClick(); window.app.changeState('menu');" style="flex-shrink:0;">
-                    <i class="fa-solid fa-arrow-left"></i>
-                </button>
-                <button class="btn-claim-daily-v3 ${claimState}" ${allDone&&!claimed?'onclick="window.app.claimWeekly()"':''}>
-                    ${claimLabel}
-                </button>
-            </div>
-        </div>`;
-    },
-    checkAchievements() {
-        if(!this.stats.unlockedAchs) this.stats.unlockedAchs = [];
-        const reflexRaw  = this.highScores['hyper-reflex'];
-        const reflexBest = reflexRaw ? (typeof reflexRaw === 'number' ? reflexRaw : reflexRaw.best) : 0;
-        const ctx = Object.assign({ credits: this.credits, bestReflex: reflexBest, highScores: this.highScores }, this.stats);
-
-        const newlyUnlocked = [];
-        CONFIG.ACHIEVEMENTS.forEach(ach => {
-            if(!this.stats.unlockedAchs.includes(ach.id) && ach.check(ctx, this)) {
-                this.stats.unlockedAchs.push(ach.id);
-                newlyUnlocked.push(ach);
-            }
-        });
-        if(!newlyUnlocked.length) return;
-        this.save();
-        newlyUnlocked.forEach((ach, i) => {
-            this.addNotif(ach.icon, ach.name, ach.desc, 'gold');
-            setTimeout(() => { this.showAchievementToast(ach); try{this.audio.playWin(8);}catch(e){} }, i * 2000);
-        });
-    },
-
-    showAchievementToast(ach) {
-        const container = document.getElementById('toast-container');
-        if(!container) return;
-        const el = document.createElement('div');
-        el.style.cssText = 'background:linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.08));border:1px solid rgba(251,191,36,0.5);border-left:3px solid #fbbf24;border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,0.5),0 0 20px rgba(251,191,36,0.15);max-width:320px;opacity:0;transform:translateX(60px) scale(0.85);transition:all 0.4s cubic-bezier(0.2,0,0,1.3);';
-        el.innerHTML = `
-            <div style="font-size:1.6rem;filter:drop-shadow(0 0 8px rgba(251,191,36,0.6));">${ach.icon}</div>
-            <div style="flex:1;min-width:0;">
-                <div style="font-size:0.56rem;color:#fbbf24;font-family:monospace;letter-spacing:2px;margin-bottom:2px;">LOGRO DESBLOQUEADO</div>
-                <div style="font-family:var(--font-display);font-size:0.82rem;color:white;letter-spacing:1px;">${ach.name}</div>
-                <div style="font-size:0.62rem;color:#94a3b8;margin-top:1px;">${ach.desc}</div>
-            </div>
-            <i class="fa-solid fa-trophy" style="color:#fbbf24;opacity:0.6;font-size:1.1rem;"></i>
-        `;
-        container.appendChild(el);
-        requestAnimationFrame(() => { el.style.opacity='1'; el.style.transform='none'; });
-        setTimeout(() => { el.style.opacity='0'; el.style.transform='translateX(60px)'; setTimeout(()=>el.remove(), 400); }, 4500);
-    },
-
-    checkInvestment() {
-        if(!this.invest || !this.invest.date || !this.invest.amount) return;
-        const today = new Date().toDateString();
-        if(this.invest.date === today || this.invest.resolved) return;
-        const RISKS = { LOW:{min:-0.05,max:0.15}, MEDIUM:{min:-0.20,max:0.40}, HIGH:{min:-0.50,max:1.00} };
-        const r = RISKS[this.invest.risk] || RISKS.LOW;
-        const pct = r.min + Math.random() * (r.max - r.min);
-        const result = Math.round(this.invest.amount * pct);
-        this.invest.result = result; this.invest.resolved = true;
-        this.credits += result;
-        if(result > 0) this.stats.investProfit = (this.stats.investProfit||0) + result;
-        // Guardar en historial
-        if(!this.invest.history) this.invest.history = [];
-        this.invest.history.unshift({ date: inv.date, amount: inv.amount, risk: inv.risk, result });
-        if(this.invest.history.length > 10) this.invest.history.pop();
-        const sign = result >= 0 ? '+' : '';
-        setTimeout(() => this.showToast(
-            result >= 0 ? 'INVERSIÓN RENTABLE' : 'PÉRDIDA DE CAPITAL',
-            sign + result.toLocaleString() + ' CR sobre ' + this.invest.amount.toLocaleString() + ' CR',
-            result >= 0 ? 'gold' : 'danger'
-        ), 1200);
-        this.save();
-    },
-
-    makeInvestment(amount, risk) {
-        if(this.credits < amount) { this.showToast('FONDOS INSUFICIENTES', 'Necesitas ' + amount.toLocaleString() + ' CR', 'danger'); return; }
-        if(this.invest && this.invest.date === new Date().toDateString() && this.invest.amount > 0 && !this.invest.resolved) {
-            this.showToast('YA INVERTISTE HOY', 'Espera el resultado de mañana', 'danger'); return;
-        }
-        this.credits -= amount;
-        this.stats.investCount = (this.stats.investCount||0) + 1;
-        if(risk === 'HIGH') this.stats.investHighStake = (this.stats.investHighStake||0) + amount;
-        this.invest = { date: new Date().toDateString(), amount, risk, resolved: false, result: 0 };
-        this.save(); this.updateUI(); this.renderDailyScreen();
-        this.showToast('INVERSIÓN REGISTRADA', amount.toLocaleString() + ' CR · ' + risk, 'purple');
-    },
-
-    renderInvestPanel() {
-        var inv     = this.invest || {};
-        var today   = new Date().toDateString();
-        var hasActive = inv.date === today && inv.amount > 0 && !inv.resolved;
-        var hasResult = inv.resolved && inv.date && inv.date !== today;
-        var history   = inv.history || [];
-        var RISK_RANGES = {LOW:'-5%/+15%', MEDIUM:'-20%/+40%', HIGH:'-50%/+100%'};
-
-        // Historial compacto
-        var histHTML = '';
-        if(history.length > 0) {
-            histHTML = '<div style="margin-top:7px;border-top:1px solid rgba(255,255,255,0.05);padding-top:5px;">';
-            histHTML += '<div style="font-size:0.5rem;color:#1e293b;font-family:monospace;letter-spacing:2px;margin-bottom:3px;">HISTORIAL</div>';
-            history.slice(0,3).forEach(function(h) {
-                var col  = h.result >= 0 ? '#10b981' : '#ef4444';
-                var sign = h.result >= 0 ? '+' : '';
-                histHTML += '<div style="display:flex;justify-content:space-between;font-size:0.55rem;font-family:monospace;color:#334155;padding:1px 0;">' +
-                    '<span>' + (h.date||'').slice(0,6) + ' ' + h.risk + '</span>' +
-                    '<span style="color:' + col + ';">' + sign + (h.result||0).toLocaleString() + ' CR</span>' +
-                    '</div>';
-            });
-            histHTML += '</div>';
-        }
-
-        if(hasActive) {
-            return '<div style="margin:0 0 6px;padding:12px 14px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.25);border-radius:10px;">' +
-                '<div style="font-size:0.6rem;color:#a855f7;font-family:monospace;"><i class=\"fa-solid fa-clock\"></i> INVERSIÓN ACTIVA &middot; ' +
-                inv.amount.toLocaleString() + ' CR &middot; ' + inv.risk + ' &middot; ' + (RISK_RANGES[inv.risk]||'') + '</div>' +
-                '<div style="font-size:0.55rem;color:#475569;font-family:monospace;margin-top:3px;">Resultado mañana</div>' +
-                histHTML + '</div>';
-        }
-
-        if(hasResult) {
-            var col  = inv.result >= 0 ? '#10b981' : '#ef4444';
-            var sign = inv.result >= 0 ? '+' : '';
-            var pct  = inv.amount > 0 ? Math.round((inv.result/inv.amount)*100) : 0;
-            var reinvestBtns = '';
-            if(inv.amount <= this.credits) {
-                reinvestBtns = '<div style="display:flex;gap:6px;margin-top:8px;">' +
-                    '<div style="font-size:0.5rem;color:#334155;font-family:monospace;letter-spacing:1px;align-self:center;">REINVERTIR:</div>' +
-                    '<button onclick="window.app.makeInvestment(' + inv.amount + ',\'' + inv.risk + '\')" ' +
-                    'style="background:' + col + '15;border:1px solid ' + col + '30;border-radius:5px;padding:3px 8px;font-size:0.55rem;color:' + col + ';font-family:monospace;cursor:pointer;">' +
-                    inv.amount.toLocaleString() + ' CR · ' + inv.risk + '</button>' +
-                    '</div>';
-            }
-            return '<div style="margin:0 0 6px;padding:12px 14px;background:' + col + '0a;border:1px solid ' + col + '30;border-radius:10px;">' +
-                '<div style="display:flex;justify-content:space-between;margin-bottom:4px;">' +
-                '<div style="font-size:0.58rem;color:' + col + ';font-family:monospace;"><i class=\"fa-solid fa-chart-line\"></i> RESULTADO DE AYER</div>' +
-                '<div style="font-size:0.58rem;color:' + col + ';font-family:monospace;">' + sign + pct + '%</div></div>' +
-                '<div style="font-family:var(--font-display);font-size:0.95rem;color:' + col + ';">' + sign + inv.result.toLocaleString() + ' CR</div>' +
-                '<div style="font-size:0.52rem;color:#334155;font-family:monospace;">sobre ' + inv.amount.toLocaleString() + ' CR invertidos</div>' +
-                reinvestBtns + histHTML + '</div>';
-        }
-
-        // Panel de nueva inversión
-        var OPTS = [
-            {risk:'LOW',    label:'Bajo',  pct:'-5%/+15%',  color:'#10b981', amounts:[100,500,1000]},
-            {risk:'MEDIUM', label:'Medio', pct:'-20%/+40%', color:'#f59e0b', amounts:[500,2000,5000]},
-            {risk:'HIGH',   label:'Alto',  pct:'-50%/+100%',color:'#ef4444', amounts:[1000,5000,10000]},
-        ];
-        var html = '<div style="margin:0 0 6px;padding:10px 14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;">';
-        html += '<div style="font-size:0.55rem;color:#334155;font-family:monospace;letter-spacing:2px;margin-bottom:8px;"><i class=\"fa-solid fa-chart-bar\"></i> MERCADO NEGRO</div>';
-        html += '<div style="display:flex;gap:6px;">';
-        OPTS.forEach(function(o) {
-            html += '<div style="flex:1;background:rgba(255,255,255,0.02);border:1px solid ' + o.color + '20;border-radius:7px;padding:7px 8px;">';
-            html += '<div style="font-size:0.58rem;color:' + o.color + ';font-family:var(--font-display);letter-spacing:1px;">' + o.label + '</div>';
-            html += '<div style="font-size:0.52rem;color:#475569;font-family:monospace;margin-bottom:5px;">' + o.pct + '</div>';
-            html += '<div style="display:flex;gap:3px;flex-wrap:wrap;">';
-            o.amounts.forEach(function(a) {
-                var lbl = a >= 1000 ? (a/1000) + 'k' : String(a);
-                var risk = o.risk;
-                html += '<button onclick="window.app.makeInvestment(' + String(a) + ',\"' + risk + '\")" ' +
-                    'style="background:' + o.color + '15;border:1px solid ' + o.color + '25;border-radius:4px;' +
-                    'padding:2px 5px;font-size:0.52rem;color:' + o.color + ';font-family:monospace;cursor:pointer;">' +
-                    lbl + '</button>';
-            });
-            html += '</div></div>';
-        });
-        html += '</div>' + histHTML + '</div>';
-        return html;
-    },
-
-    claimDaily() { if(this.daily.claimed) return; this.daily.claimed = true; this.stats.dailyCompleted = (this.stats.dailyCompleted||0)+1; this.addScore(0, 500); this.audio.playWin(10); this.showToast("¡RECOMPENSA RECLAMADA!", "Has ganado 500 Créditos", "gold"); this.renderDailyScreen(); this.save(); },
+    claimDaily()           { return Missions.claimDaily(this); },
     addScore(pts, cash) { 
         this.credits += cash; 
         if(this.canvas && this.settings.performance) this.canvas.explode(null, null, CONFIG.COLORS.GOLD); 
@@ -3279,146 +1185,18 @@ const app = {
         this.save(); 
     },
 
-    // --- CAJA DE SUMINISTROS ---
-    buyLootBox() {
-        const cost = (this.shop.inventory.includes('up_vip')) ? 400 : CONFIG.LOOT_BOX.COST;
-        if(this.credits < cost){ this.showToast("FONDOS INSUFICIENTES",`Necesitas ${cost} CR`,"danger"); this.audio.playLose(); return; }
-        this.credits -= cost;
-        this.audio.playBuy();
+    // --- CAJAS DE SUMINISTROS (delegado a systems/lootbox.js) ---
+    buyLootBox()           { return Lootbox.buy(this); },
+    openPremiumBox(boxCfg) { return Lootbox.openPremium(this, boxCfg); },
 
-        // Calcular drop
-        const drops = CONFIG.LOOT_BOX.DROPS;
-        let roll = Math.random() * drops.reduce((s,d)=>s+d.prob,0);
-        let chosen = drops[drops.length-1];
-        for(const d of drops){ roll-=d.prob; if(roll<=0){chosen=d;break;} }
-        if(chosen.type==='CREDITS'||chosen.type==='JACKPOT') this.credits += chosen.val;
-
-        // ANIMACIÓN FULLSCREEN
-        const isJackpot = chosen.type==='JACKPOT';
-        const color = chosen.color || '#fbbf24';
-        const overlay = document.createElement('div');
-        overlay.id = 'lootbox-overlay';
-        overlay.innerHTML = `
-            <div class="lb-bg"></div>
-            <div class="lb-panel">
-                <div class="lb-title">CAJA DE SUMINISTROS</div>
-                <div class="lb-box-wrap" id="lb-box">
-                    <div class="lb-box-icon"><i class="fa-solid fa-box lb-icon-closed"></i></div>
-                </div>
-                <div class="lb-dots" id="lb-dots">
-                    <span></span><span></span><span></span>
-                </div>
-                <div class="lb-result" id="lb-result" style="display:none;">
-                    <div class="lb-rarity-badge" style="color:${color};border-color:${color}40;background:${color}15;">${isJackpot?'JACKPOT':chosen.name.toUpperCase()}</div>
-                    <div class="lb-reward-icon" style="color:${color};filter:drop-shadow(0 0 20px ${color});"><i class="fa-solid fa-coins"></i></div>
-                    <div class="lb-reward-val" style="color:${color};">+${chosen.val.toLocaleString()} CR</div>
-                    <button class="lb-close-btn" id="lb-close"><i class="fa-solid fa-check"></i> COBRAR</button>
-                </div>
-            </div>`;
-        document.body.appendChild(overlay);
-
-        // Secuencia de animación
-        setTimeout(()=>{
-            const box = document.getElementById('lb-box');
-            if(box){ box.innerHTML=`<div class="lb-box-icon lb-shake"><i class="fa-solid fa-box-open lb-icon-open" style="color:${color};filter:drop-shadow(0 0 20px ${color});"></i></div>`; }
-            if(this.canvas) this.canvas.explode(window.innerWidth/2,window.innerHeight/2,color);
-            if(isJackpot){ this.audio.playWin(10); setTimeout(()=>this.canvas?.explode(window.innerWidth*0.3,window.innerHeight*0.5,color),400); setTimeout(()=>this.canvas?.explode(window.innerWidth*0.7,window.innerHeight*0.5,color),600); }
-        },600);
-        setTimeout(()=>{
-            const dots=document.getElementById('lb-dots'); if(dots)dots.style.display='none';
-            const res=document.getElementById('lb-result'); if(res)res.style.display='flex';
-        },1100);
-
-        document.getElementById('lb-close').onclick = () => {
-            overlay.style.animation='fadeOut 0.3s ease forwards';
-            setTimeout(()=>{ overlay.remove(); this.updateUI(); const sc=document.getElementById('shop-credits'); if(sc)sc.innerText=this.credits.toLocaleString(); this.save(); },300);
-        };
-    },
-
-    openPremiumBox(boxCfg) {
-        const drops = boxCfg.drops;
-        let roll = Math.random() * drops.reduce((s,d)=>s+d.prob,0);
-        let chosen = drops[drops.length-1];
-        for(const d of drops){ roll-=d.prob; if(roll<=0){chosen=d;break;} }
-        if(chosen.type==='CREDITS'||chosen.type==='JACKPOT') this.credits += chosen.val;
-        const isJackpot = chosen.type==='JACKPOT';
-        const color = chosen.color || boxCfg.color || '#fbbf24';
-
-        const overlay = document.createElement('div');
-        overlay.id = 'lootbox-overlay';
-        overlay.innerHTML = `
-            <div class="lb-bg"></div>
-            <div class="lb-panel">
-                <div class="lb-title">${boxCfg.name.toUpperCase()}</div>
-                <div class="lb-box-wrap" id="lb-box">
-                    <div class="lb-box-icon"><i class="fa-solid fa-box lb-icon-closed" style="color:${boxCfg.color};filter:drop-shadow(0 0 16px ${boxCfg.color}40);"></i></div>
-                </div>
-                <div class="lb-dots" id="lb-dots"><span></span><span></span><span></span></div>
-                <div class="lb-result" id="lb-result" style="display:none;">
-                    <div class="lb-rarity-badge" style="color:${color};border-color:${color}40;background:${color}15;">${isJackpot?'¡JACKPOT!':chosen.name.toUpperCase()}</div>
-                    <div class="lb-reward-icon" style="color:${color};filter:drop-shadow(0 0 20px ${color});"><i class="fa-solid fa-coins"></i></div>
-                    <div class="lb-reward-val" style="color:${color};">+${chosen.val.toLocaleString()} CR</div>
-                    <button class="lb-close-btn" id="lb-close"><i class="fa-solid fa-check"></i> COBRAR</button>
-                </div>
-            </div>`;
-        document.body.appendChild(overlay);
-        setTimeout(()=>{
-            const box=document.getElementById('lb-box');
-            if(box) box.innerHTML=`<div class="lb-box-icon lb-shake"><i class="fa-solid fa-box-open lb-icon-open" style="color:${color};filter:drop-shadow(0 0 20px ${color});"></i></div>`;
-            try{ this.canvas.explode(window.innerWidth/2,window.innerHeight/2,color); }catch(e){}
-            if(isJackpot){ this.audio.playWin(10); setTimeout(()=>this.canvas?.explode(window.innerWidth*0.3,window.innerHeight*0.5,color),400); setTimeout(()=>this.canvas?.explode(window.innerWidth*0.7,window.innerHeight*0.5,color),600); }
-        },600);
-        setTimeout(()=>{
-            const d=document.getElementById('lb-dots');if(d)d.style.display='none';
-            const r=document.getElementById('lb-result');if(r)r.style.display='flex';
-        },1100);
-        document.getElementById('lb-close').onclick=()=>{
-            overlay.style.animation='fadeOut 0.3s ease forwards';
-            setTimeout(()=>{ overlay.remove(); this.updateUI(); const sc=document.getElementById('shop-credits');if(sc)sc.innerText=this.credits.toLocaleString(); this.save(); },300);
-        };
-    },
-    showFloatingText(text, color) {
-        const el = document.createElement('div');
-        el.className = 'popup-score';
-        el.innerText = text;
-        el.style.color = color || 'white';
-        el.style.left = '50%';
-        el.style.top = '35%';
-        el.style.transform = 'translate(-50%, -50%)';
-        document.body.appendChild(el);
-        setTimeout(() => el.remove(), 1200);
-    },
-    toggleConsole() { const c = document.getElementById('debug-console'); if(!c) return; if (c.classList.contains('hidden')) { c.classList.remove('hidden'); document.getElementById('console-input').focus(); } else { c.classList.add('hidden'); } },
-    logConsole(msg, type='') { const out = document.getElementById('console-output'); out.innerHTML += `<div class="console-msg ${type}">${msg}</div>`; out.scrollTop = out.scrollHeight; },
-    execCommand(cmd) {
-        this.logConsole(`> ${cmd}`);
-        document.getElementById('console-input').value = '';
-        const parts = cmd.toLowerCase().trim().split(' ');
-        if(parts[0] === 'rich')  { this.credits += 10000; this.updateUI(); this.save(); this.logConsole('+10,000 CR INJECTED', 'sys'); }
-        if(parts[0] === 'god')   { this.credits += 99999; this.stats.level = 50; this.stats.xp = 0; this.updateUI(); this.save(); this.logConsole('GOD MODE — 99,999 CR + LVL 50', 'sys'); }
-        if(parts[0] === 'lvl')   { const n = parseInt(parts[1])||10; this.stats.level = n; this.stats.xp = 0; this.updateUI(); this.save(); this.logConsole(`LEVEL SET TO ${n}`, 'sys'); }
-        if(parts[0] === 'card')  { const id = parts[1]; if(id && window.app.shop) { window.app.shop.inventory.push(id); this.save(); this.logConsole(`ITEM UNLOCKED: ${id}`, 'sys'); } }
-        if(parts[0] === 'reset') { localStorage.removeItem('arcade_save'); location.reload(); }
-        if(parts[0] === 'help')  { this.logConsole('COMMANDS: rich | god | lvl N | card [item_id] | reset | clear', 'sys'); }
-        if(parts[0] === 'clear') { document.getElementById('console-output').innerHTML = ''; }
-    },
-    setCritical(active) { const vign = document.querySelector('.vignette'); if(vign) { if(active) vign.classList.add('critical'); else vign.classList.remove('critical'); } },
-    applyTheme(themeId) {
-        document.body.className = document.body.className.replace(/t_[a-z0-9_]+/g, '').trim();
-        if(themeId && themeId !== 't_default') document.body.classList.add(themeId);
-        // Actualizar fondo adaptativo
-        try { if(this.canvas) this.canvas.setMood(themeId || null); } catch(e) {}
-        try { this.updateFavicon(themeId); } catch(e) {}
-        // SFX de UI según tema
-        const THEME_SFX = {
-            't_gameby':  { click:{ freq:440, type:'square', dur:0.04 }, hover:{ freq:330, type:'square', dur:0.03 } },
-            't_hack':    { click:{ freq:800, type:'square', dur:0.03 }, hover:{ freq:400, type:'square', dur:0.02 } },
-            't_matrix':  { click:{ freq:800, type:'square', dur:0.03 }, hover:{ freq:400, type:'square', dur:0.02 } },
-            't_terminal':{ click:{ freq:600, type:'square', dur:0.03 }, hover:{ freq:300, type:'square', dur:0.02 } },
-            't_diablo':  { click:{ freq:120, type:'sawtooth',dur:0.08},hover:{ freq:80,  type:'sine',   dur:0.04 } },
-        };
-        this._themeSFX = THEME_SFX[themeId] || null;
-    }
+    // --- MINI CONSOLA DE DEBUG (delegado a systems/dev-console.js) ---
+    toggleConsole()            { return DevConsole.toggle(); },
+    logConsole(msg, type = '') { return DevConsole.log(msg, type); },
+    execCommand(cmd)           { return DevConsole.exec(this, cmd); },
+    showFloatingText(text, color) { return DevConsole.showFloatingText(text, color); },
+    // --- TEMAS VISUALES (delegado a systems/theme.js) ---
+    setCritical(active)  { return Theme.setCritical(active); },
+    applyTheme(themeId)  { return Theme.apply(this, themeId); },
 };
 
 window.onload = () => app.init();

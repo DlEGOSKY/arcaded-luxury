@@ -451,4 +451,9 @@ export class GeoNetGame {
         this._paused = false;
         this.isRunning = true;
     }
+
+    cleanup() {
+        this.isRunning = false;
+        if(this.timer) { clearInterval(this.timer); this.timer = null; }
+    }
 }

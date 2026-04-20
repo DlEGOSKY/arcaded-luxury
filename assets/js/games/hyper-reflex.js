@@ -202,6 +202,13 @@ export class GameReflex {
         this._paused = false;
         if(this.state === 'WAITING') this.prepareRound();
     }
+
+    cleanup() {
+        if(this.timeoutId) { clearTimeout(this.timeoutId); this.timeoutId = null; }
+        try { window.app.audio.setTension(false); } catch(e) {}
+        document.body.classList.remove('shake-screen');
+    }
+
     triggerTension() { try{window.app.audio.setTension(true);}catch(e){} }
 
     finishGame(failed = false) {

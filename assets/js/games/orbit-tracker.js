@@ -1,8 +1,9 @@
 import { CONFIG } from '../config.js';
+import { showGameLoader, hideGameLoader } from '../game-loader.js';
 
 export class OrbitTrackerGame {
     constructor(canvas, audio, onQuit) {
-        this.bgCanvas = canvas;  // referencia al CanvasManager (para explosiones)
+        this.bgCanvas = canvas;
         this.audio = audio;
         this.onQuit = onQuit;
         this.score = 0;
@@ -10,13 +11,16 @@ export class OrbitTrackerGame {
         this.isRunning = false;
         this.animationId = null;
         this.mouseX = 0; this.mouseY = 0;
-        this.orbs = [];           // múltiples orbes
+        this.orbs = [];
         this.energy = 60;
         this.mode = 'STANDARD';
         this.level = 1;
-        this.lockedCount = 0;     // orbes en lock simultáneo
+        this.lockedCount = 0;
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.handleMove = this.handleMove.bind(this);
+        this.pixiApp = null;
+        this._pGfx = null;
+        this._usePixi = false;
         this.injectStyles();
     }
 
@@ -87,7 +91,7 @@ export class OrbitTrackerGame {
         this.start();
     }
 
-    start() {
+    async start() {
         this.isRunning = true; this.score = 0; this.energy = 60; this.level = 1; this.lockedCount = 0;
         this.startTime = Date.now();
 
@@ -126,6 +130,29 @@ export class OrbitTrackerGame {
 
         window.addEventListener('mousemove', this.handleMove);
         window.addEventListener('touchmove', this.handleMove, {passive:false});
+
+        let _loader = null;
+        if (typeof PIXI !== 'undefined') {
+            _loader = showGameLoader('INICIALIZANDO RENDER');
+            try {
+                this._usePixi = true;
+                this.pixiApp = new PIXI.Application();
+                await this.pixiApp.init({
+                    width: cvs.width, height: cvs.height,
+                    backgroundAlpha: 0, antialias: true,
+                    resolution: window.devicePixelRatio||1, autoDensity: true
+                });
+                const pc = this.pixiApp.canvas;
+                pc.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:5;pointer-events:none;';
+                this.uiContainer.appendChild(pc);
+                this._pGfx = new PIXI.Graphics();
+                this.pixiApp.stage.addChild(this._pGfx);
+                // Ocultar canvas 2D para evitar doble dibujo
+                cvs.style.display = 'none';
+            } catch(e) { this._usePixi = false; }
+            hideGameLoader(_loader);
+        }
+
         this.loop();
     }
 
@@ -165,33 +192,25 @@ export class OrbitTrackerGame {
 
     loop() {
         if(!this.isRunning) return;
-        const ctx = this.ctx;
-        const W = ctx.canvas.width, H = ctx.canvas.height;
+        const W = this.ctx.canvas.width, H = this.ctx.canvas.height;
         const pad = 80;
         const now = Date.now();
         const elapsed = (now - this.startTime) / 1000;
 
-        // Clear
-        ctx.clearRect(0,0,W,H);
-
         this.lockedCount = 0;
         let totalEnergy = 0;
 
-        this.orbs.forEach((orb, i) => {
-            // Mover orbe hacia destino
+        // Física y detección
+        this.orbs.forEach(orb => {
             const dx = orb.tx - orb.x, dy = orb.ty - orb.y;
             const dist = Math.sqrt(dx*dx + dy*dy) || 1;
             const spd = orb.speed * (1 + this.level * 0.05);
             orb.x += (dx/dist) * spd;
             orb.y += (dy/dist) * spd;
-
-            // Nuevo destino cuando llega
             if(dist < spd + 5){
                 orb.tx = pad + Math.random()*(W-pad*2);
                 orb.ty = pad + Math.random()*(H-pad*2);
             }
-
-            // Detectar lock
             const dMouse = Math.sqrt((this.mouseX-orb.x)**2 + (this.mouseY-orb.y)**2);
             orb.isLocked = dMouse < orb.radius;
             if(orb.isLocked){
@@ -199,7 +218,6 @@ export class OrbitTrackerGame {
                 orb.lockTime += 1/60;
                 orb.pulse = Math.sin(now/200) * 0.3 + 0.7;
                 totalEnergy += 1.2;
-                // Micro explosión ocasional
                 if(Math.random() > 0.97 && this.bgCanvas){
                     try{ this.bgCanvas.explode(orb.x, orb.y, orb.color); }catch(e){}
                 }
@@ -207,65 +225,21 @@ export class OrbitTrackerGame {
                 orb.pulse = 0;
                 totalEnergy -= 1.0 / this.orbs.length;
             }
-
-            // Dibujar estela
-            ctx.beginPath();
-            ctx.arc(orb.x, orb.y, orb.radius + 15, 0, Math.PI*2);
-            ctx.strokeStyle = orb.color + '20';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // Orbe principal
-            const glowSize = orb.isLocked ? 25 : 8;
-            ctx.beginPath();
-            ctx.arc(orb.x, orb.y, orb.radius, 0, Math.PI*2);
-            ctx.shadowBlur = glowSize;
-            ctx.shadowColor = orb.color;
-            ctx.fillStyle = orb.isLocked ? orb.color + '50' : orb.color + '15';
-            ctx.fill();
-            ctx.strokeStyle = orb.color;
-            ctx.lineWidth = orb.isLocked ? 3 : 1.5;
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-
-            // Cruz de mira dentro del orbe
-            if(orb.isLocked){
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 1;
-                ctx.globalAlpha = orb.pulse;
-                ctx.beginPath(); ctx.moveTo(orb.x-12,orb.y); ctx.lineTo(orb.x+12,orb.y); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(orb.x,orb.y-12); ctx.lineTo(orb.x,orb.y+12); ctx.stroke();
-                ctx.globalAlpha = 1;
-
-                // Línea cursor → orbe
-                ctx.beginPath();
-                ctx.moveTo(this.mouseX, this.mouseY);
-                ctx.lineTo(orb.x, orb.y);
-                ctx.strokeStyle = orb.color + '40';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-            }
         });
 
-        // Cursor
-        ctx.beginPath();
-        ctx.arc(this.mouseX, this.mouseY, 6, 0, Math.PI*2);
-        ctx.fillStyle = '#fff';
-        ctx.shadowBlur = 10; ctx.shadowColor = '#fff';
-        ctx.fill(); ctx.shadowBlur = 0;
+        // Render
+        if(this._usePixi && this._pGfx) this._drawPixi();
+        else this._drawCanvas();
 
-        // Actualizar energía
         this.energy = Math.max(0, Math.min(100, this.energy + totalEnergy));
         this.score = elapsed;
 
-        // Subir nivel
         if(elapsed > this.level * 10){
             this.level++;
             if(this.mode === 'MULTI' && this.orbs.length < 3) this.spawnOrb();
             try{ window.app.showToast(`NIVEL ${this.level}`, 'Velocidad aumentada', 'default'); }catch(e){}
         }
 
-        // Actualizar HUD
         const scoreEl = document.getElementById('ot-score');
         if(scoreEl) scoreEl.innerText = elapsed.toFixed(1)+'s';
         const energyEl = document.getElementById('ot-energy');
@@ -274,8 +248,60 @@ export class OrbitTrackerGame {
         if(locksEl) locksEl.innerText = this.lockedCount + '/' + this.orbs.length;
 
         if(this.energy <= 0){ this.gameOver(); return; }
-
         this.animationId = requestAnimationFrame(() => this.loop());
+    }
+
+    _drawCanvas() {
+        const ctx=this.ctx, W=ctx.canvas.width, H=ctx.canvas.height;
+        ctx.clearRect(0,0,W,H);
+        this.orbs.forEach(orb=>{
+            ctx.beginPath(); ctx.arc(orb.x,orb.y,orb.radius+15,0,Math.PI*2);
+            ctx.strokeStyle=orb.color+'20'; ctx.lineWidth=2; ctx.stroke();
+            ctx.beginPath(); ctx.arc(orb.x,orb.y,orb.radius,0,Math.PI*2);
+            ctx.shadowBlur=orb.isLocked?25:8; ctx.shadowColor=orb.color;
+            ctx.fillStyle=orb.isLocked?orb.color+'50':orb.color+'15'; ctx.fill();
+            ctx.strokeStyle=orb.color; ctx.lineWidth=orb.isLocked?3:1.5; ctx.stroke();
+            ctx.shadowBlur=0;
+            if(orb.isLocked){
+                ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.globalAlpha=orb.pulse;
+                ctx.beginPath(); ctx.moveTo(orb.x-12,orb.y); ctx.lineTo(orb.x+12,orb.y); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(orb.x,orb.y-12); ctx.lineTo(orb.x,orb.y+12); ctx.stroke();
+                ctx.globalAlpha=1;
+                ctx.beginPath(); ctx.moveTo(this.mouseX,this.mouseY); ctx.lineTo(orb.x,orb.y);
+                ctx.strokeStyle=orb.color+'40'; ctx.lineWidth=1; ctx.stroke();
+            }
+        });
+        ctx.beginPath(); ctx.arc(this.mouseX,this.mouseY,6,0,Math.PI*2);
+        ctx.fillStyle='#fff'; ctx.shadowBlur=10; ctx.shadowColor='#fff'; ctx.fill(); ctx.shadowBlur=0;
+    }
+
+    _drawPixi() {
+        const g = this._pGfx; g.clear();
+        this.orbs.forEach(orb => {
+            const col = parseInt(orb.color.replace('#',''), 16);
+            // Anillo exterior
+            g.circle(orb.x, orb.y, orb.radius + 15).stroke({color: col, alpha: 0.13, width: 2});
+            // Halo cuando locked
+            if(orb.isLocked) {
+                g.circle(orb.x, orb.y, orb.radius + 28).fill({color: col, alpha: 0.08});
+                g.circle(orb.x, orb.y, orb.radius + 18).fill({color: col, alpha: 0.12});
+            }
+            // Cuerpo
+            g.circle(orb.x, orb.y, orb.radius)
+             .fill({color: col, alpha: orb.isLocked ? 0.32 : 0.08})
+             .stroke({color: col, width: orb.isLocked ? 3 : 1.5, alpha: 0.95});
+            // Cruz de mira + línea al cursor
+            if(orb.isLocked) {
+                g.moveTo(orb.x-12, orb.y).lineTo(orb.x+12, orb.y)
+                 .moveTo(orb.x, orb.y-12).lineTo(orb.x, orb.y+12)
+                 .stroke({color: 0xffffff, width: 1, alpha: orb.pulse});
+                g.moveTo(this.mouseX, this.mouseY).lineTo(orb.x, orb.y)
+                 .stroke({color: col, width: 1, alpha: 0.25});
+            }
+        });
+        // Cursor
+        g.circle(this.mouseX, this.mouseY, 14).fill({color: 0xffffff, alpha: 0.12});
+        g.circle(this.mouseX, this.mouseY, 6).fill({color: 0xffffff});
     }
 
     pause() {
@@ -290,6 +316,20 @@ export class OrbitTrackerGame {
     }
 
 
+    cleanup() {
+        this.isRunning = false;
+        if(this.animationId) { cancelAnimationFrame(this.animationId); this.animationId = null; }
+        window.removeEventListener('mousemove', this.handleMove);
+        window.removeEventListener('touchmove', this.handleMove);
+        if(this.pixiApp) {
+            try {
+                const pc=this.pixiApp.canvas;
+                if(pc && pc.parentNode) pc.parentNode.removeChild(pc);
+                this.pixiApp.destroy(true);
+            } catch(e) {}
+            this.pixiApp = null;
+        }
+    }
     gameOver() {
         this.isRunning = false;
         if(this.animationId) cancelAnimationFrame(this.animationId);

@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js';
+import { showGameLoader, hideGameLoader } from '../game-loader.js';
 
 export class VoidDodgerGame {
     constructor(canvas, audio, onQuit) {
@@ -23,6 +24,10 @@ export class VoidDodgerGame {
         this.mousePos = { x: 0, y: 0 };
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.handleMove = this.handleMove.bind(this);
+        // Pixi
+        this.pixiApp = null;
+        this._pGfx = null;  // Graphics reutilizable
+        this._usePixi = false;
         this.injectStyles();
     }
 
@@ -98,7 +103,7 @@ export class VoidDodgerGame {
         this.start();
     }
 
-    start() {
+    async start() {
         this.isRunning = true;
         this.score = 0;
         this.wave = 1;
@@ -126,6 +131,25 @@ export class VoidDodgerGame {
             <div class="vd-msg" id="vd-msg"></div>`;
         window.addEventListener('mousemove', this.handleMove);
         window.addEventListener('touchmove', this.handleMove, { passive: false });
+
+        // Pixi overlay
+        let _loader = null;
+        if (typeof PIXI !== 'undefined') {
+            _loader = showGameLoader('INICIALIZANDO RENDER');
+            try {
+                this._usePixi = true;
+                this.pixiApp = new PIXI.Application();
+                await this.pixiApp.init({ width: w, height: h, backgroundAlpha: 0, antialias: true, resolution: window.devicePixelRatio||1, autoDensity: true });
+                const pc = this.pixiApp.canvas;
+                pc.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:5;pointer-events:none;';
+                const gs = document.getElementById('screen-game');
+                if(gs) gs.appendChild(pc);
+                this._pGfx = new PIXI.Graphics();
+                this.pixiApp.stage.addChild(this._pGfx);
+            } catch(e) { this._usePixi = false; }
+            hideGameLoader(_loader);
+        }
+
         this.loop();
     }
 
@@ -364,11 +388,109 @@ export class VoidDodgerGame {
         const waveMult = 1+(this.wave-1)*0.15;
         const spawnChance = Math.min(0.12, (0.02+this.score*0.003)*waveMult*hardMult);
         if(Math.random()<spawnChance) this.spawnEnemy();
-        if(Math.random()<0.004 && !this.mode==='HARDCORE') this.spawnPowerUp();
+        if(Math.random()<0.004 && this.mode!=='HARDCORE') this.spawnPowerUp();
 
-        this.ctx.fillStyle = 'rgba(0,0,0,0.12)'; this.ctx.fillRect(0,0,this.canvas.canvas.width,this.canvas.canvas.height);
-        this.updateAndDraw(this.ctx);
+        if(this._usePixi && this._pGfx) {
+            this._drawPixi();
+        } else {
+            this.ctx.fillStyle = 'rgba(0,0,0,0.12)';
+            this.ctx.fillRect(0,0,this.canvas.canvas.width,this.canvas.canvas.height);
+            this.updateAndDraw(this.ctx);
+        }
         this.gameLoopId = requestAnimationFrame(()=>this.loop());
+    }
+
+    _drawPixi() {
+        const g = this._pGfx;
+        g.clear();
+        const t = Date.now();
+
+        // Trail de fondo (semi-transparente)
+        g.rect(0,0,this.canvas.canvas.width,this.canvas.canvas.height).fill({color:0x000000, alpha:0.12});
+
+        // Partículas
+        for(let i=this.particles.length-1;i>=0;i--) {
+            const p=this.particles[i];
+            p.x+=p.vx; p.y+=p.vy; p.vx*=0.92; p.vy*=0.92; p.life--;
+            const a = Math.max(0, p.life/p.maxLife);
+            const col = parseInt(p.color.replace('#',''),16);
+            g.circle(p.x, p.y, p.r*a).fill({color: col, alpha: a});
+            if(p.life<=0) this.particles.splice(i,1);
+        }
+
+        // Power-ups
+        for(let i=this.powerups.length-1;i>=0;i--) {
+            const p=this.powerups[i]; p.life--;
+            const pCol = p.type==='SHIELD'?0x00ffff:p.type==='SLOW'?0x10b981:0xf97316;
+            const scale = 1+Math.sin(t/200)*0.15;
+            g.circle(p.x, p.y, p.r*scale).fill({color:pCol, alpha:0.85});
+            g.circle(p.x, p.y, p.r*scale+4).fill({color:pCol, alpha:0.12});
+            if(Math.hypot(p.x-this.player.x,p.y-this.player.y)<p.r+this.player.r) {
+                if(p.type==='SHIELD'){this.player.invulnerable=true;this.player.invTimer=200;this.showMsg('¡ESCUDO!','#00ffff');}
+                else if(p.type==='SLOW'){this.enemies.forEach(e=>{e.vx*=0.45;e.vy*=0.45;});this.showMsg('¡RALENTIZADO!','#10b981');}
+                else if(p.type==='CLEAR'){this.addParticles(this.canvas.canvas.width/2,this.canvas.canvas.height/2,'#f97316',16);this.enemies=this.enemies.slice(0,Math.floor(this.enemies.length/2));this.showMsg('¡CAMPO LIMPIADO!','#f97316');}
+                try{this.audio.playWin(1);}catch(e){}
+                this.powerups.splice(i,1); continue;
+            }
+            if(p.life<=0) this.powerups.splice(i,1);
+        }
+
+        // Jefe
+        if(this.bossActive && this.boss) {
+            const b=this.boss;
+            b.phaseTimer++;
+            const bt=b.phaseTimer*0.02;
+            b.x+=Math.sin(bt*1.3)*3; b.y+=0.5;
+            const w=this.canvas.canvas.width, h=this.canvas.canvas.height;
+            if(b.y>h*0.35)b.y=h*0.35;
+            if(b.x<b.r)b.x=b.r; if(b.x>w-b.r)b.x=w-b.r;
+            if(b.phaseTimer%120===0){
+                const ang=Math.atan2(this.player.y-b.y,this.player.x-b.x);
+                for(let i=-1;i<=1;i++){const a=ang+i*0.3;this.enemies.push({x:b.x,y:b.y,vx:Math.cos(a)*4,vy:Math.sin(a)*4,r:5,color:b.color,hp:1});}
+            }
+            const bc=parseInt(b.color.replace('#',''),16);
+            g.circle(b.x,b.y,b.r+8+Math.sin(bt*5)*4).stroke({color:bc,alpha:0.4,width:2});
+            g.circle(b.x,b.y,b.r).fill({color:bc});
+            g.circle(b.x,b.y,b.r*2.5).fill({color:bc,alpha:0.08});
+            const fill=document.getElementById('vd-boss-fill');
+            if(fill) fill.style.width=(b.hp/b.maxHp*100)+'%';
+            const dist=Math.hypot(b.x-this.player.x,b.y-this.player.y);
+            if(dist<b.r+this.player.r){
+                if(this.player.invulnerable){b.hp-=2;this.addParticles(b.x,b.y,b.color,6);if(b.hp<=0)this.killBoss();}
+                else{this.gameOver();return;}
+            }
+        }
+
+        // Enemigos
+        const w2=this.canvas.canvas.width, h2=this.canvas.canvas.height;
+        for(let i=this.enemies.length-1;i>=0;i--){
+            const e=this.enemies[i]; e.x+=e.vx; e.y+=e.vy;
+            const ec=parseInt(e.color.replace('#',''),16);
+            g.circle(e.x,e.y,e.r).fill({color:ec});
+            g.circle(e.x,e.y,e.r*2).fill({color:ec,alpha:0.12});
+            const dist=Math.hypot(e.x-this.player.x,e.y-this.player.y);
+            if(dist<e.r+this.player.r){
+                if(this.player.invulnerable){
+                    this.addParticles(e.x,e.y,e.color,5);
+                    this.enemies.splice(i,1);
+                    this.waveKills++; this.checkWaveProgress();
+                    try{this.audio.playTone(200,'square',0.05);}catch(err){}
+                } else {this.gameOver();return;}
+                continue;
+            }
+            if(e.x<-60||e.x>w2+60||e.y<-60||e.y>h2+60) this.enemies.splice(i,1);
+        }
+
+        // Jugador
+        const p=this.player;
+        p.x+=(this.mousePos.x-p.x)*0.2;
+        p.y+=(this.mousePos.y-p.y)*0.2;
+        if(p.invulnerable){
+            g.circle(p.x,p.y,p.r+5+Math.sin(t/100)*2).stroke({color:0x00ffff,width:2,alpha:0.8});
+            p.invTimer--; if(p.invTimer<=0) p.invulnerable=false;
+        }
+        g.circle(p.x,p.y,p.r*2.5).fill({color:0xffffff,alpha:0.08});
+        g.circle(p.x,p.y,p.r).fill({color:0xffffff});
     }
 
     pause() {
@@ -380,6 +502,21 @@ export class VoidDodgerGame {
         if(!this._wasPaused) return;
         this._wasPaused = false;
         if(this.isRunning) this.loop();
+    }
+
+    cleanup() {
+        this.isRunning = false;
+        if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId = null; }
+        window.removeEventListener('mousemove', this.handleMove);
+        window.removeEventListener('touchmove', this.handleMove);
+        if(this.pixiApp) {
+            try {
+                const pc = this.pixiApp.canvas;
+                if(pc && pc.parentNode) pc.parentNode.removeChild(pc);
+                this.pixiApp.destroy(true);
+            } catch(e) {}
+            this.pixiApp = null;
+        }
     }
 
     gameOver() {

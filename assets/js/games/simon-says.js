@@ -11,6 +11,8 @@ export class SimonSaysGame {
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.score       = 0;
         this.mode        = 'CLASSIC';
+        this._timers     = [];
+        this._alive      = true;
         this.TONES       = [523, 659, 784, 392]; // Do Mi Sol Sol bajo
         this.COLORS      = ['#ef4444','#3b82f6','#fbbf24','#10b981'];
         this.NAMES       = ['ROJO','AZUL','AMARILLO','VERDE'];
@@ -85,7 +87,17 @@ export class SimonSaysGame {
         this.active   = false;
         try { this.canvas.setMood('CYAN'); } catch(e) {}
         this.render();
-        setTimeout(() => this.nextRound(), 600);
+        this._schedule(() => this.nextRound(), 600);
+    }
+
+    _schedule(fn, ms) {
+        if(!this._alive) return null;
+        const id = setTimeout(() => {
+            if(!this._alive) return;
+            try { fn(); } catch(e) { console.error('simon schedule', e); }
+        }, ms);
+        this._timers.push(id);
+        return id;
     }
 
     render(phase='') {
@@ -124,16 +136,16 @@ export class SimonSaysGame {
         const phaseEl = document.getElementById('sm-phase');
         if(phaseEl) phaseEl.textContent = 'OBSERVA';
         this.dimAll();
-        setTimeout(() => this.playSequence(), 600);
+        this._schedule(() => this.playSequence(), 600);
     }
 
     playSequence() {
         let delay = 0;
         this.sequence.forEach((idx, i) => {
-            setTimeout(() => this.flashBtn(idx), delay);
+            this._schedule(() => this.flashBtn(idx), delay);
             delay += this.speed;
         });
-        setTimeout(() => {
+        this._schedule(() => {
             this.active = true;
             this.inputIdx = 0;
             const phaseEl = document.getElementById('sm-phase');
@@ -147,7 +159,7 @@ export class SimonSaysGame {
         if(!el) return;
         el.classList.add('lit');
         try { this.audio.playTone(this.TONES[idx], 'sine', (this.speed - 50) / 1000, 0.2); } catch(e) {}
-        setTimeout(() => el.classList.remove('lit'), this.speed - 100);
+        this._schedule(() => { if(el) el.classList.remove('lit'); }, this.speed - 100);
     }
 
     dimAll()   { this.COLORS.forEach((_, i) => { const e = document.getElementById('sm-'+i); if(e) e.classList.add('dim'); }); }
@@ -156,7 +168,7 @@ export class SimonSaysGame {
     tap(idx) {
         if(!this.active) return;
         const el = document.getElementById('sm-' + idx);
-        if(el) { el.classList.add('lit'); setTimeout(() => el.classList.remove('lit'), 200); }
+        if(el) { el.classList.add('lit'); this._schedule(() => { if(el) el.classList.remove('lit'); }, 200); }
         try { this.audio.playTone(this.TONES[idx], 'sine', 0.12, 0.15); } catch(e) {}
 
         if(idx !== this.sequence[this.inputIdx]) {
@@ -166,7 +178,7 @@ export class SimonSaysGame {
             if(msg) { msg.style.color = '#ef4444'; msg.textContent = 'ERROR · Secuencia: ' + this.sequence.map(i => this.NAMES[i]).join(' → '); }
             try { this.audio.playLose(); } catch(e) {}
             try { this.audio.setTension(false); } catch(e) {}
-            setTimeout(() => this.endGame(), 2000);
+            this._schedule(() => this.endGame(), 2000);
             return;
         }
 
@@ -183,12 +195,14 @@ export class SimonSaysGame {
             try { this.audio.playWin(3); } catch(e) {}
             // Tensión a partir de secuencia larga
             if(this.sequence.length >= 8) { try { this.audio.setTension(true); } catch(e) {} }
-            setTimeout(() => this.nextRound(), 1000);
+            this._schedule(() => this.nextRound(), 1000);
         }
     }
 
     endGame() {
-        clearTimeout(this._t);
+        this._alive = false;
+        this._timers.forEach(id => clearTimeout(id));
+        this._timers = [];
         try { this.audio.setTension(false); } catch(e) {}
         delete window.simonGame;
         if(this.onGameOver) this.onGameOver(this.score);
@@ -196,5 +210,11 @@ export class SimonSaysGame {
 
     pause()   { this.active = false; }
     resume()  { /* secuencia se reinicia en el contexto del juego */ }
-    cleanup() { delete window.simonGame; try { this.audio.setTension(false); } catch(e) {} }
+    cleanup() {
+        this._alive = false;
+        this._timers.forEach(id => clearTimeout(id));
+        this._timers = [];
+        delete window.simonGame;
+        try { this.audio.setTension(false); } catch(e) {}
+    }
 }

@@ -137,6 +137,7 @@ export class GuessCardGame {
         </div>`;
     }
 
+    cleanup() { this._paused = true; }
     pause() { this._paused = true; }
     resume() { this._paused = false; }
     buildRoundHistory() {

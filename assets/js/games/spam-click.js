@@ -242,9 +242,13 @@ export class SpamClickGame {
             try{window.app.showToast('FALLO DE PRESIÓN','Clics insuficientes','danger');}catch(e){}
         }
         document.getElementById('val-credits').innerText = window.app.credits;
-        setTimeout(()=>{ if(this.onQuit) this.onQuit(this.score); },1400);
+        this._quitTimer = setTimeout(()=>{ if(this.onQuit) this.onQuit(this.score); },1400);
     }
 
+    cleanup() {
+        if(this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval = null; }
+        if(this._quitTimer) { clearTimeout(this._quitTimer); this._quitTimer = null; }
+    }
     pause() {
         if(this.isPaused || !this.timerInterval) return;
         this.isPaused = true;

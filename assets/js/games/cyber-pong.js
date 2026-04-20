@@ -1,26 +1,33 @@
+import { CONFIG } from '../config.js';
+import { showGameLoader, hideGameLoader } from '../game-loader.js';
+
 export class CyberPongGame {
     constructor(canvasManager, audioController, onGameOver) {
-        this.ctx = canvasManager.ctx;
-        this.canvas = canvasManager.canvas;
+        this.canvasManager = canvasManager;
         this.audio = audioController;
         this.onGameOver = onGameOver;
         this.animationId = null;
-        
+        this.pixiApp = null;
+
         // Configuración
         this.paddleHeight = 80;
         this.paddleWidth = 12;
         this.ballSize = 8;
-        
+
         // Estado
         this.playerY = 0;
         this.aiY = 0;
         this.ball = { x: 0, y: 0, dx: 0, dy: 0, speed: 0 };
-        this.score = 0; 
-        this.lives = 3; 
+        this.score = 0;
+        this.lives = 3;
         this.isPlaying = false;
         this.difficulty = 1;
         this.mode = "NORMAL";
         this.uiContainer = document.getElementById("game-ui-overlay");
+
+        // Trail de la bola
+        this._trail = [];
+        this._trailMax = 12;
 
         // Control de Teclado
         this.keys = { up: false, down: false };
@@ -66,57 +73,210 @@ export class CyberPongGame {
         document.getElementById('pong-back').onclick   = () => { if(this.onGameOver) this.onGameOver(0); };
     }
 
-    startWithMode(mode) {
+    async startWithMode(mode) {
         this.mode = mode;
         if(this.uiContainer) this.uiContainer.innerHTML = '';
-        this.playerY = this.canvas.height / 2 - this.paddleHeight / 2;
-        this.aiY = this.canvas.height / 2 - this.paddleHeight / 2;
-        this.resetBall();
-        this.lives = mode === 'TURBO' ? 5 : 3;
-        this.score = 0;
-        this.difficulty = mode === 'TURBO' ? 2 : 1;
-        this.isPlaying = true;
 
-        // Pausar el fondo animado para que Pong controle el canvas
+        const W = this.canvasManager.canvas.width  || window.innerWidth;
+        const H = this.canvasManager.canvas.height || (window.innerHeight - 56);
+
+        this.playerY = H / 2 - this.paddleHeight / 2;
+        this.aiY     = H / 2 - this.paddleHeight / 2;
+        this.resetBallWH(W, H);
+        this.lives      = mode === 'TURBO' ? 5 : 3;
+        this.score      = 0;
+        this.difficulty = mode === 'TURBO' ? 2 : 1;
+        this.isPlaying  = true;
+
         if (window.app && window.app.canvas) window.app.canvas.pauseBackground();
 
-        // Eventos Mouse
-        this.moveHandler = (e) => {
-            const rect = this.canvas.getBoundingClientRect();
-            const root = document.documentElement;
-            const mouseY = e.clientY - rect.top - root.scrollTop;
-            this.playerY = mouseY - this.paddleHeight / 2;
-        };
+        // ── Pixi Application ──────────────────────────────────────────────
+        if (typeof PIXI === 'undefined') {
+            // Fallback a Canvas 2D si Pixi no cargó
+            this.ctx    = this.canvasManager.ctx;
+            this.canvas = this.canvasManager.canvas;
+            this._pixiFailed = true;
+        } else {
+            this._pixiFailed = false;
+            const _loader = showGameLoader('INICIALIZANDO RENDER');
+            try {
+                this.pixiApp = new PIXI.Application();
+                await this.pixiApp.init({
+                    width: W, height: H,
+                    backgroundAlpha: 0,
+                    antialias: true,
+                    resolution: window.devicePixelRatio || 1,
+                    autoDensity: true,
+                });
+                // Montar canvas Pixi encima del canvas principal
+                const pixiCanvas = this.pixiApp.canvas;
+                pixiCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:5;pointer-events:none;';
+                const gameScreen = document.getElementById('screen-game');
+                if(gameScreen) gameScreen.appendChild(pixiCanvas);
 
-        // Eventos Teclado
+                this._buildPixiScene(W, H);
+            } catch(e) {
+                // Degradar a canvas 2D si Pixi falla
+                this.ctx    = this.canvasManager.ctx;
+                this.canvas = this.canvasManager.canvas;
+                this._pixiFailed = true;
+            }
+            hideGameLoader(_loader);
+        }
+
+        // ── Eventos ───────────────────────────────────────────────────────
+        const target = this._pixiFailed ? this.canvasManager.canvas : document.getElementById('screen-game') || document.body;
+        this.moveHandler = (e) => {
+            const rect = target.getBoundingClientRect();
+            this.playerY = (e.clientY - rect.top) - this.paddleHeight / 2;
+        };
         this.keyDownHandler = (e) => {
-            if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') this.keys.up = true;
-            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') this.keys.down = true;
+            if (e.key==='ArrowUp'  ||e.key==='w'||e.key==='W') this.keys.up   = true;
+            if (e.key==='ArrowDown'||e.key==='s'||e.key==='S') this.keys.down = true;
         };
         this.keyUpHandler = (e) => {
-            if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') this.keys.up = false;
-            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') this.keys.down = false;
+            if (e.key==='ArrowUp'  ||e.key==='w'||e.key==='W') this.keys.up   = false;
+            if (e.key==='ArrowDown'||e.key==='s'||e.key==='S') this.keys.down = false;
         };
-
-        // Eventos Touch
         this.touchHandler = (e) => {
             e.preventDefault();
-            const rect = this.canvas.getBoundingClientRect();
-            const touchY = e.touches[0].clientY - rect.top;
-            this.playerY = touchY - this.paddleHeight / 2;
+            const rect = target.getBoundingClientRect();
+            this.playerY = e.touches[0].clientY - rect.top - this.paddleHeight / 2;
         };
-
-        this.canvas.addEventListener('mousemove', this.moveHandler);
-        this.canvas.addEventListener('touchmove', this.touchHandler, { passive: false });
+        target.addEventListener('mousemove',  this.moveHandler);
+        target.addEventListener('touchmove',  this.touchHandler, {passive:false});
         window.addEventListener('keydown', this.keyDownHandler);
-        window.addEventListener('keyup', this.keyUpHandler);
+        window.addEventListener('keyup',   this.keyUpHandler);
+        this._eventTarget = target;
 
         this.loop();
     }
 
-    resetBall() {
-        this.ball.x = this.canvas.width / 2;
-        this.ball.y = this.canvas.height / 2;
+    _buildPixiScene(W, H) {
+        const app = this.pixiApp;
+        const stage = app.stage;
+
+        // Línea central
+        const center = new PIXI.Graphics();
+        for(let y=0; y<H; y+=25) {
+            center.rect(W/2-1, y, 2, 12).fill({color:0xffffff, alpha:0.15});
+        }
+        stage.addChild(center);
+
+        // Paddle jugador (verde neón)
+        this._gfxPlayer = new PIXI.Graphics();
+        stage.addChild(this._gfxPlayer);
+
+        // Paddle IA (rojo)
+        this._gfxAI = new PIXI.Graphics();
+        stage.addChild(this._gfxAI);
+
+        // Trail container
+        this._trailContainer = new PIXI.Container();
+        stage.addChild(this._trailContainer);
+
+        // Bola
+        this._gfxBall = new PIXI.Graphics();
+        stage.addChild(this._gfxBall);
+
+        // Score text
+        this._txtScore = new PIXI.Text({ text: '0', style: {
+            fontFamily: 'Orbitron, monospace', fontSize: 42,
+            fill: 0xffffff, align: 'center', dropShadow: {
+                color: 0x3b82f6, blur: 20, distance: 0, alpha: 0.8
+            }
+        }});
+        this._txtScore.anchor.set(0.5, 0);
+        this._txtScore.position.set(W/2, 12);
+        stage.addChild(this._txtScore);
+
+        // Lives text
+        this._txtLives = new PIXI.Text({ text: '❤ ❤ ❤', style: {
+            fontFamily: 'Arial', fontSize: 18,
+            fill: 0xef4444
+        }});
+        this._txtLives.anchor.set(0.5, 0);
+        this._txtLives.position.set(W/2, 58);
+        stage.addChild(this._txtLives);
+
+        this._W = W; this._H = H;
+    }
+
+    _drawPixi() {
+        const W = this._W, H = this._H;
+        const pw = this.paddleWidth, ph = this.paddleHeight;
+
+        // Trail de la bola
+        this._trail.push({x: this.ball.x, y: this.ball.y});
+        if(this._trail.length > this._trailMax) this._trail.shift();
+        this._trailContainer.removeChildren();
+        this._trail.forEach((p, i) => {
+            const alpha = (i / this._trailMax) * 0.55;
+            const r     = this.ballSize * (i / this._trailMax) * 0.9;
+            const g = new PIXI.Graphics();
+            g.circle(p.x, p.y, Math.max(1, r)).fill({color: 0xffffff, alpha});
+            this._trailContainer.addChild(g);
+        });
+
+        // Paddle jugador
+        this._gfxPlayer.clear();
+        this._gfxPlayer
+            .roundRect(20, this.playerY, pw, ph, 4)
+            .fill({color: 0x00ff88})
+            .roundRect(18, this.playerY - 2, pw + 4, ph + 4, 6)
+            .fill({color: 0x00ff88, alpha: 0.15});
+
+        // Paddle IA
+        this._gfxAI.clear();
+        this._gfxAI
+            .roundRect(W - 20 - pw, this.aiY, pw, ph, 4)
+            .fill({color: 0xef4444})
+            .roundRect(W - 22 - pw, this.aiY - 2, pw + 4, ph + 4, 6)
+            .fill({color: 0xef4444, alpha: 0.15});
+
+        // Bola con halo
+        this._gfxBall.clear();
+        this._gfxBall
+            .circle(this.ball.x, this.ball.y, this.ballSize * 2.2)
+            .fill({color: 0xffffff, alpha: 0.12})
+            .circle(this.ball.x, this.ball.y, this.ballSize)
+            .fill({color: 0xffffff});
+
+        // Score
+        this._txtScore.text = String(this.score);
+        let hearts = '';
+        for(let i=0;i<this.lives;i++) hearts += '❤ ';
+        this._txtLives.text = hearts.trim();
+    }
+
+    _spawnParticles(x, y, color) {
+        if(!this.pixiApp) return;
+        const stage = this.pixiApp.stage;
+        for(let i=0; i<10; i++) {
+            const p = new PIXI.Graphics();
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 2 + Math.random() * 4;
+            let vx = Math.cos(angle)*speed, vy = Math.sin(angle)*speed;
+            let alpha = 0.9;
+            p.circle(0, 0, 3 + Math.random()*3).fill({color, alpha});
+            p.x = x; p.y = y;
+            stage.addChild(p);
+            const tick = () => {
+                p.x += vx; p.y += vy;
+                vx *= 0.9; vy *= 0.9;
+                alpha -= 0.05;
+                p.alpha = Math.max(0, alpha);
+                if(alpha <= 0) { stage.removeChild(p); return; }
+                requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+        }
+    }
+
+    resetBall() { this.resetBallWH(this._W || this.canvasManager.canvas.width, this._H || this.canvasManager.canvas.height); }
+    resetBallWH(W, H) {
+        this.ball.x = W / 2;
+        this.ball.y = H / 2;
         const baseSpeed = this.mode === 'TURBO' ? 10 : this.mode === 'CHAOS' ? 5 : 6;
         this.ball.speed = baseSpeed + (this.score * 0.5);
         this.ball.dx = (Math.random() > 0.5 ? 1 : -1) * this.ball.speed;
@@ -125,166 +285,132 @@ export class CyberPongGame {
 
     update() {
         if(!this.isPlaying) return;
+        const W = this._W || this.canvasManager.canvas.width;
+        const H = this._H || this.canvasManager.canvas.height;
 
-        // Lógica Teclado
-        if (this.keys.up) this.playerY -= 10;
+        if (this.keys.up)   this.playerY -= 10;
         if (this.keys.down) this.playerY += 10;
-
-        // Límites Jugador
         if(this.playerY < 0) this.playerY = 0;
-        if(this.playerY > this.canvas.height - this.paddleHeight) this.playerY = this.canvas.height - this.paddleHeight;
+        if(this.playerY > H - this.paddleHeight) this.playerY = H - this.paddleHeight;
 
-        // Mover bola
         this.ball.x += this.ball.dx;
         this.ball.y += this.ball.dy;
 
-        // Rebote paredes
-        if(this.ball.y < 0 || this.ball.y > this.canvas.height) {
+        if(this.ball.y < 0 || this.ball.y > H) {
             this.ball.dy *= -1;
-            this.audio.playTone(200, 'square', 0.05);
+            try{ this.audio.playTone(200,'square',0.05); }catch(e){}
         }
 
-        // IA predictiva — predice dónde llegará la bola
-        const aiSpeed  = 5 + this.difficulty;
+        // IA predictiva
+        const aiSpeed = 5 + this.difficulty;
         let targetY;
         if(this.ball.dx > 0) {
-            // Bola yendo hacia la IA — predecir rebotes
-            let bx = this.ball.x, by = this.ball.y, bdx = this.ball.dx, bdy = this.ball.dy;
-            const aiX = this.canvas.width - this.paddleWidth - 20;
-            let steps = 0;
+            let bx=this.ball.x, by=this.ball.y, bdx=this.ball.dx, bdy=this.ball.dy;
+            const aiX = W - this.paddleWidth - 20;
+            let steps=0;
             while(bx < aiX && steps < 200) {
-                bx += bdx; by += bdy; steps++;
-                if(by < 0)                        { by = -by; bdy = -bdy; }
-                if(by > this.canvas.height)        { by = 2*this.canvas.height - by; bdy = -bdy; }
+                bx+=bdx; by+=bdy; steps++;
+                if(by<0){by=-by;bdy=-bdy;}
+                if(by>H){by=2*H-by;bdy=-bdy;}
             }
-            // Añadir error humano proporcional a la dificultad
-            const errorRange = Math.max(0, 40 - this.difficulty * 8);
-            const error = (Math.random() - 0.5) * errorRange;
-            // En modo CHAOS la IA comete más errores
-            const chaosError = this.mode === 'CHAOS' ? (Math.random()-0.5)*60 : 0;
-            targetY = by + error + chaosError;
-        } else {
-            // Bola alejándose — volver al centro gradualmente
-            targetY = this.canvas.height / 2;
-        }
+            const err = (Math.random()-0.5)*Math.max(0,40-this.difficulty*8);
+            const chaos = this.mode==='CHAOS'?(Math.random()-0.5)*60:0;
+            targetY = by + err + chaos;
+        } else { targetY = H/2; }
+        const diff = targetY - (this.aiY + this.paddleHeight/2);
+        if(Math.abs(diff)>4) this.aiY += Math.sign(diff)*Math.min(aiSpeed,Math.abs(diff));
+        if(this.aiY<0) this.aiY=0;
+        if(this.aiY>H-this.paddleHeight) this.aiY=H-this.paddleHeight;
 
-        const centerPaddle = this.aiY + this.paddleHeight / 2;
-        const diff = targetY - centerPaddle;
-        if(Math.abs(diff) > 4) {
-            this.aiY += Math.sign(diff) * Math.min(aiSpeed, Math.abs(diff));
-        }
-
-        if(this.aiY < 0) this.aiY = 0;
-        if(this.aiY > this.canvas.height - this.paddleHeight) this.aiY = this.canvas.height - this.paddleHeight;
-
-        // Colisión Jugador
-        if(this.ball.x < 20 + this.paddleWidth) {
-            if(this.ball.y > this.playerY && this.ball.y < this.playerY + this.paddleHeight) {
-                this.ball.dx *= this.mode==="CHAOS" ? -1.22 : -1.1;
-                this.ball.x = 20 + this.paddleWidth; 
-                this.audio.playTone(400, 'square', 0.1);
-                if(window.app && window.app.canvas) window.app.canvas.explode(this.ball.x, this.ball.y, '#00ff00');
-            } else if (this.ball.x < 0) {
+        // Colisión jugador
+        if(this.ball.x < 20+this.paddleWidth) {
+            if(this.ball.y>this.playerY && this.ball.y<this.playerY+this.paddleHeight) {
+                this.ball.dx *= this.mode==="CHAOS"?-1.22:-1.1;
+                this.ball.x = 20+this.paddleWidth;
+                try{ this.audio.playTone(400,'square',0.1); }catch(e){}
+                this._spawnParticles(this.ball.x, this.ball.y, 0x00ff88);
+            } else if(this.ball.x<0) {
                 this.lives--;
-                this.audio.playLose();
-                // ELIMINADO EL FLASH QUE CAUSABA EL CRASH
-                if(this.lives <= 0) {
-                    this.end();
-                } else {
-                    this.resetBall();
-                }
+                try{ this.audio.playLose(); }catch(e){}
+                this._spawnParticles(0, this.ball.y, 0xef4444);
+                if(this.lives<=0) this.end(); else this.resetBall();
             }
         }
 
         // Colisión IA
-        if(this.ball.x > this.canvas.width - 20 - this.paddleWidth) {
-            if(this.ball.y > this.aiY && this.ball.y < this.aiY + this.paddleHeight) {
-                this.ball.dx *= this.mode==="CHAOS" ? -1.22 : -1.1;
-                this.ball.x = this.canvas.width - 20 - this.paddleWidth;
-                this.audio.playTone(300, 'square', 0.1);
-            } else if (this.ball.x > this.canvas.width) {
-                this.score++;
-                this.difficulty += 0.3;
-                this.audio.playWin(5);
-                if(window.app && window.app.canvas) window.app.canvas.explode(this.ball.x, this.ball.y, '#fbbf24');
+        if(this.ball.x > W-20-this.paddleWidth) {
+            if(this.ball.y>this.aiY && this.ball.y<this.aiY+this.paddleHeight) {
+                this.ball.dx *= this.mode==="CHAOS"?-1.22:-1.1;
+                this.ball.x = W-20-this.paddleWidth;
+                try{ this.audio.playTone(300,'square',0.1); }catch(e){}
+            } else if(this.ball.x>W) {
+                this.score++; this.difficulty+=0.3;
+                try{ this.audio.playWin(5); }catch(e){}
+                this._spawnParticles(W, this.ball.y, 0xfbbf24);
                 this.resetBall();
             }
         }
     }
 
     draw() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        this.ctx.beginPath();
-        this.ctx.setLineDash([10, 15]);
-        this.ctx.moveTo(this.canvas.width / 2, 0);
-        this.ctx.lineTo(this.canvas.width / 2, this.canvas.height);
-        this.ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-        this.ctx.stroke();
-        this.ctx.setLineDash([]);
-
-        this.ctx.fillStyle = '#00ff00'; 
-        this.ctx.shadowBlur = 15;
-        this.ctx.shadowColor = '#00ff00';
-        this.ctx.fillRect(20, this.playerY, this.paddleWidth, this.paddleHeight);
-
-        this.ctx.fillStyle = '#ef4444'; 
-        this.ctx.shadowColor = '#ef4444';
-        this.ctx.fillRect(this.canvas.width - 20 - this.paddleWidth, this.aiY, this.paddleWidth, this.paddleHeight);
-
-        this.ctx.beginPath();
-        this.ctx.fillStyle = '#fff';
-        this.ctx.shadowColor = '#fff';
-        this.ctx.arc(this.ball.x, this.ball.y, this.ballSize, 0, Math.PI * 2);
-        this.ctx.fill();
-
-        this.ctx.fillStyle = "rgba(255,255,255,0.8)";
-        this.ctx.font = "bold 40px 'Courier New'";
-        this.ctx.textAlign = "center";
-        this.ctx.shadowBlur = 0;
-        this.ctx.fillText(this.score, this.canvas.width / 2, 50);
-        
-        let hearts = "";
-        for(let i=0; i<this.lives; i++) hearts += "❤ ";
-        this.ctx.font = "20px Arial";
-        this.ctx.fillStyle = "#ef4444";
-        this.ctx.fillText(hearts, this.canvas.width / 2, 80);
+        if(!this._pixiFailed) { this._drawPixi(); return; }
+        // Fallback Canvas 2D
+        const ctx=this.ctx, W=this.canvas.width, H=this.canvas.height;
+        ctx.clearRect(0,0,W,H);
+        ctx.setLineDash([10,15]); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H);
+        ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle='#00ff88'; ctx.shadowBlur=15; ctx.shadowColor='#00ff88';
+        ctx.fillRect(20,this.playerY,this.paddleWidth,this.paddleHeight);
+        ctx.fillStyle='#ef4444'; ctx.shadowColor='#ef4444';
+        ctx.fillRect(W-20-this.paddleWidth,this.aiY,this.paddleWidth,this.paddleHeight);
+        ctx.fillStyle='#fff'; ctx.shadowColor='#fff';
+        ctx.beginPath(); ctx.arc(this.ball.x,this.ball.y,this.ballSize,0,Math.PI*2); ctx.fill();
+        ctx.shadowBlur=0; ctx.fillStyle='rgba(255,255,255,0.8)';
+        ctx.font="bold 40px 'Courier New'"; ctx.textAlign='center';
+        ctx.fillText(this.score,W/2,50);
     }
 
     loop() {
         if(!this.isPlaying) return;
         this.update();
         this.draw();
-        this.animationId = requestAnimationFrame(() => this.loop());
+        this.animationId = requestAnimationFrame(()=>this.loop());
     }
 
     pause() {
         if(!this.isPlaying) return;
         this._wasPaused = true;
-        cancelAnimationFrame(this.animationId);
-        this.animationId = null;
+        if(this.animationId){ cancelAnimationFrame(this.animationId); this.animationId=null; }
+        if(this.pixiApp) this.pixiApp.stop();
     }
     resume() {
         if(!this._wasPaused) return;
         this._wasPaused = false;
-        if(this.isPlaying) this.animationId = requestAnimationFrame(() => this.loop());
+        if(this.pixiApp) this.pixiApp.start();
+        if(this.isPlaying) this.animationId = requestAnimationFrame(()=>this.loop());
     }
-
 
     end() {
         this.isPlaying = false;
         this.cleanup();
-        // Ahora esto invocará la tarjeta automáticamente gracias al cambio en main.js
         if(this.onGameOver) this.onGameOver(this.score);
     }
 
     cleanup() {
-        this.canvas.removeEventListener('mousemove', this.moveHandler);
-        this.canvas.removeEventListener('touchmove', this.touchHandler);
-        window.removeEventListener('keydown', this.keyDownHandler);
-        window.removeEventListener('keyup', this.keyUpHandler);
-        cancelAnimationFrame(this.animationId);
-        // Reanudar el fondo animado del CanvasManager
-        if (window.app && window.app.canvas) window.app.canvas.resumeBackground();
+        this.isPlaying = false;
+        if(this.animationId){ cancelAnimationFrame(this.animationId); this.animationId=null; }
+        const t = this._eventTarget;
+        if(t){ t.removeEventListener('mousemove',this.moveHandler); t.removeEventListener('touchmove',this.touchHandler); }
+        window.removeEventListener('keydown',this.keyDownHandler);
+        window.removeEventListener('keyup',this.keyUpHandler);
+        if(this.pixiApp) {
+            try{
+                const pixiCanvas = this.pixiApp.canvas;
+                if(pixiCanvas && pixiCanvas.parentNode) pixiCanvas.parentNode.removeChild(pixiCanvas);
+                this.pixiApp.destroy(true);
+            }catch(e){}
+            this.pixiApp = null;
+        }
+        if(window.app && window.app.canvas) window.app.canvas.resumeBackground();
     }
 }

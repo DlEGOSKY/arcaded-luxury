@@ -237,6 +237,10 @@ export class MemoryFlashGame {
     setStatus(text, color) { const el = document.getElementById('turn-msg'); if(el) { el.innerText = text; el.style.color = color; el.style.textShadow = `0 0 10px ${color}`; } }
     wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
+    cleanup() {
+        this.isRunning = false;
+        this._paused = true;
+    }
     // --- CORRECCIÓN CRÍTICA: Fin de Juego ---
     gameOver() {
         this.isRunning = false;

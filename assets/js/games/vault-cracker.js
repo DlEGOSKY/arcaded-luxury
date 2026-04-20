@@ -303,6 +303,10 @@ export class VaultCrackerGame {
         // Delegamos todo al main
         if(this.onQuit) this.onQuit(this.score);
     }
+    cleanup() {
+        this.isRunning = false;
+        this._paused = true;
+    }
     pause() {
         this._paused = true;
         this.isRunning = false;

@@ -420,3 +420,24 @@ export function resolveText(element, targetString, duration = 800) {
         iterations += targetString.length / maxIterations;
     }, duration / maxIterations);
 }
+
+/**
+ * Muestra un overlay de carga sobre screen-game mientras se inicializa algo async (ej. Pixi.init).
+ * Retorna el elemento para poder removerlo con hideGameLoader.
+ */
+export function showGameLoader(text = 'CARGANDO') {
+    const el = document.createElement('div');
+    el.className = 'game-loading-overlay';
+    el.innerHTML = `<div class="loader"></div><div>${text}</div>`;
+    (document.getElementById('screen-game') || document.body).appendChild(el);
+    return el;
+}
+
+/**
+ * Remueve el loader con fade-out. Seguro de llamar con null/undefined.
+ */
+export function hideGameLoader(el) {
+    if (!el) return;
+    el.classList.add('fading-out');
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 250);
+}

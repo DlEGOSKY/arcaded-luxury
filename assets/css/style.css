@@ -14,6 +14,30 @@
     --text-main: #e2e8f0;
     --font-display: 'Orbitron', sans-serif;
     --font-ui: 'Inter', sans-serif;
+
+    /* --- SURFACE TOKENS ---
+       Sobrescritos por los temas (body.t_*) para evitar 300+ reglas
+       duplicadas. Cada tema solo setea tokens; los componentes los
+       consumen via var().                                          */
+    --nav-bg:             rgba(5,8,18,0.92);
+    --nav-border:         rgba(255,255,255,0.06);
+    --lobby-bg:           transparent;
+    --card-bg:            rgba(10,16,30,0.85);
+    --card-border:        rgba(255,255,255,0.07);
+    --card-hover-border:  var(--primary);
+    --card-hover-shadow:  rgba(59,130,246,0.4);
+    --btn-bg:             rgba(59,130,246,0.1);
+    --btn-border:         var(--primary);
+    --btn-hover-bg:       rgba(59,130,246,0.2);
+    --btn-hover-shadow:   rgba(59,130,246,0.4);
+    --tab-color:          #475569;
+    --tab-font:           var(--font-display);
+    --tab-hover-color:    #94a3b8;
+    --tab-hover-bg:       rgba(255,255,255,0.05);
+    --tab-active-color:   var(--primary);
+    --tab-active-bg:      rgba(255,255,255,0.05);
+    --vignette-opacity:   0.9;
+    --scanlines-opacity:  0.6;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent; }
@@ -25,30 +49,101 @@ body {
     animation: flicker 0.15s infinite;
 }
 
-/* --- 2. VISUAL EFFECTS --- */
+/* --- 2. VISUAL EFFECTS ---
+   BLOQUE CANONICO. No duplicar .scanlines / .vignette en otras
+   secciones del archivo. Los temas (body.t_*) solo deben sobrescribir
+   propiedades puntuales (opacity, background, display).
+   Stack de capas (de abajo hacia arriba):
+     canvas (0) < #ui-layer (10) < .vignette (9998)
+     < .scanlines (9999) < #flash-layer (10000)
+   NOTA: .crt-overlay se fusiono dentro de .vignette para eliminar
+   una capa fullscreen redundante (ambos oscurecian las esquinas).
+*/
 canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
 
 .vignette {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: radial-gradient(circle, transparent 40%, #000 100%);
-    pointer-events: none; z-index: 1; opacity: 0.8;
+    background: radial-gradient(
+        circle,
+        transparent 50%,
+        rgba(0,0,0,0.5) 85%,
+        rgba(0,0,0,0.9) 100%
+    );
+    pointer-events: none; z-index: 9998; opacity: var(--vignette-opacity);
     transition: box-shadow 0.3s ease;
 }
 .vignette.critical { box-shadow: inset 0 0 100px #ef4444; animation: panic-pulse 0.5s infinite; }
 
 .scanlines {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
-    background-size: 100% 4px; pointer-events: none; z-index: 900; opacity: 0.6;
+    background: linear-gradient(
+        to bottom,
+        rgba(255,255,255,0),
+        rgba(255,255,255,0) 50%,
+        rgba(0,0,0,0.1) 50%,
+        rgba(0,0,0,0.1)
+    );
+    background-size: 100% 4px;
+    pointer-events: none; z-index: 9999; opacity: var(--scanlines-opacity);
+    animation: scanlineMove 10s linear infinite;
+    will-change: background-position;
 }
 
 #flash-layer {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: white; opacity: 0; pointer-events: none; z-index: 1000; transition: opacity 0.1s;
+    background: white; opacity: 0; pointer-events: none; z-index: 10000; transition: opacity 0.1s;
 }
 
 @keyframes flicker { 0% { opacity: 0.99; } 5% { opacity: 0.98; } 10% { opacity: 0.99; } 100% { opacity: 0.99; } }
 @keyframes panic-pulse { 0% { opacity: 0.8; } 50% { opacity: 1; box-shadow: inset 0 0 150px #ef4444; } 100% { opacity: 0.8; } }
+@keyframes scanlineMove { 0% { background-position: 0 0; } 100% { background-position: 0 100%; } }
+
+/* Respetar preferencia del SO: apagar animaciones idle de capas fullscreen */
+@media (prefers-reduced-motion: reduce) {
+    body { animation: none; }
+    .scanlines { animation: none; }
+    .vignette.critical { animation: none; }
+}
+
+/* --- PERFORMANCE MODE (toggle manual en Settings → chk-performance) ---
+   Apaga lo mas caro: el flicker idle del body, el scanlineMove permanente,
+   la capa .scanlines fullscreen, el text-shadow global de h1/h2/h3 y
+   los filter:blur / backdrop-filter. Los juegos siguen intactos porque
+   no usan estos layers decorativos.                                     */
+body.performance-mode { animation: none; }
+body.performance-mode .scanlines { display: none; }
+body.performance-mode .vignette  { opacity: 0.5; }
+body.performance-mode *,
+body.performance-mode *::before,
+body.performance-mode *::after {
+    animation: none !important;
+    text-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    filter: none !important;
+}
+
+/* Pausar animaciones en contenedores explicitamente ocultos. Ahorra RAF
+   en modales cerrados, pantallas marcadas .hidden, y subtrees aria-hidden.
+   No se usa `.screen:not(.active)` porque hay una ventana de ~400ms durante
+   las transiciones entre pantallas en la que ninguna tiene .active, y no
+   queremos cortar las animaciones de salida/entrada a mitad. */
+.hidden,
+.hidden *,
+[aria-hidden="true"] * {
+    animation-play-state: paused !important;
+}
+
+/* Toggle de scanlines via clase en body (evita que inline style sea pisado
+   por los overrides de tema como `body.t_doom .scanlines { display:none }`). */
+body.no-scanlines .scanlines { display: none; }
+
+/* CSS containment: aislar reflow/repaint de overlays fullscreen. El browser
+   sabe que cambios dentro del modal no afectan al layout externo, asi que
+   no re-calcula el resto de la pagina cuando el modal actualiza su contenido. */
+.modal, #game-ui-overlay, #toast-container {
+    contain: layout paint style;
+}
 
 /* --- 3. UI LAYOUT & INTERACTION --- */
 #ui-layer {
@@ -90,6 +185,13 @@ canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0
     z-index: 20;
 }
 
+/* El welcome screen es visible por defecto — no depende de JS para su primer render */
+#screen-welcome:not(.hidden) {
+    opacity: 1;
+    pointer-events: auto;
+    z-index: 20;
+}
+
 /* LA CLASE HIDDEN AHORA SOLO SIRVE PARA DISPLAY:NONE EN CASOS RAROS */
 .hidden {
     display: none !important;
@@ -118,11 +220,11 @@ h1 { font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3.5rem); marg
 h2 { font-family: var(--font-display); margin: 0; font-size: 1.2rem; color: var(--primary); text-transform: uppercase; letter-spacing: 2px; }
 
 .btn {
-    background: rgba(59, 130, 246, 0.1); border: 1px solid var(--primary); color: var(--primary); padding: 15px 40px; font-family: var(--font-display); font-size: 1.2rem; cursor: pointer; transition: 0.2s; text-transform: uppercase; letter-spacing: 2px; margin-top: 20px; 
+    background: var(--btn-bg); border: 1px solid var(--btn-border); color: var(--btn-border); padding: 15px 40px; font-family: var(--font-display); font-size: 1.2rem; cursor: pointer; transition: 0.2s; text-transform: uppercase; letter-spacing: 2px; margin-top: 20px; 
     clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
     pointer-events: auto;
 }
-.btn:hover { background: var(--primary); color: #fff; box-shadow: 0 0 20px var(--primary); transform: scale(1.05); }
+.btn:hover { background: var(--btn-hover-bg); color: #fff; box-shadow: 0 0 20px var(--btn-hover-shadow); transform: scale(1.05); }
 .btn:active { transform: scale(0.95); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); }
 
@@ -1137,50 +1239,17 @@ body.t_vhs::after {
 }
 
 /* =========================================
-   PULIDO FINAL: FILTRO CRT & SCANLINES
+   PULIDO FINAL (ex FILTRO CRT & SCANLINES)
+   .crt-overlay, .scanlines y @keyframes scanlineMove se
+   consolidaron en el bloque canonico "VISUAL EFFECTS" al inicio
+   del archivo. Aqui solo queda el glow de textos.
    ========================================= */
 
-/* 1. Oscurecimiento de esquinas (Vignette) */
-.crt-overlay {
-    position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: radial-gradient(
-        circle,
-        rgba(0,0,0,0) 60%,
-        rgba(0,0,0,0.4) 90%,
-        rgba(0,0,0,0.8) 100%
-    );
-    pointer-events: none; /* IMPORTANTE: Deja pasar los clics */
-    z-index: 9998; /* Por encima de casi todo */
-}
-
-/* 2. Líneas de escaneo (Scanlines) */
-.scanlines {
-    position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: linear-gradient(
-        to bottom,
-        rgba(255,255,255,0),
-        rgba(255,255,255,0) 50%,
-        rgba(0,0,0,0.1) 50%,
-        rgba(0,0,0,0.1)
-    );
-    background-size: 100% 4px; /* Tamaño de las líneas */
-    pointer-events: none;
-    z-index: 9999;
-    opacity: 0.6;
-    animation: scanlineMove 10s linear infinite;
-}
-
-/* Animación sutil para que las líneas no estén congeladas */
-@keyframes scanlineMove {
-    0% { background-position: 0 0; }
-    100% { background-position: 0 100%; }
-}
-
-/* 3. Un pequeño brillo extra a los textos de neón */
+/* Brillo neon en textos clave. Antes eran 2 capas (5px + 15px) = doble
+   composite per repaint. Reducido a 1 capa de 10px: mantiene la identidad
+   cyber/neon con ~50% menos costo de shadow blur. */
 h1, h2, h3, .btn-buy, .rank-letter, .toast-title {
-    text-shadow: 0 0 5px currentColor, 0 0 15px currentColor;
+    text-shadow: 0 0 10px currentColor;
 }
 
 
@@ -2992,42 +3061,12 @@ body.t_receipt .rank-circle { border: 2px solid #000; color: #000; box-shadow: n
 body.t_receipt .stat-item { border: 1px solid #000; background: none; color: #000; }
 body.t_receipt .stat-value, body.t_receipt .agent-title { color: #000; text-shadow: none; }
 
-/* --- CONFIGURACIÓN VISUAL NEURO-ATLAS --- */
-
-/* Capa de ruido procedimental animada [cite: 52, 53] */
-#noise-layer {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    filter: url(#static-noise);
-    opacity: 0.04; /* Intensidad sutil del grano [cite: 55] */
-    pointer-events: none; z-index: 9998;
-    animation: noise-jitter 0.2s steps(4) infinite;
-}
-
-@keyframes noise-jitter {
-    0% { transform: translate(0,0); }
-    50% { transform: translate(-1%, -1%); }
-    100% { transform: translate(1%, 1%); }
-}
-
-/* Scanlines: emulación de rejilla de monitor antiguo [cite: 28, 31] */
-.scanlines {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: repeating-linear-gradient(
-        to bottom,
-        rgba(255, 255, 255, 0) 0px,
-        rgba(255, 255, 255, 0) 1px,
-        rgba(0, 0, 0, 0.2) 2px,
-        rgba(0, 0, 0, 0.2) 3px
-    );
-    pointer-events: none; z-index: 9999;
-}
-
-/* Vignette: emula la curvatura del vidrio y la caída de luz [cite: 29, 37] */
-.vignette {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: radial-gradient(circle, transparent 50%, rgba(0,0,0,0.8) 100%);
-    pointer-events: none; z-index: 10000;
-}
+/* --- CONFIGURACIÓN VISUAL NEURO-ATLAS ---
+   (ex #noise-layer eliminado: el <div id="noise-layer"> nunca existia en
+    index.html y el filter url(#static-noise) apuntaba a un SVG inexistente.
+    .scanlines y .vignette viven en el bloque canonico "VISUAL EFFECTS"
+    al inicio del archivo; no redefinir aqui.)
+*/
 
 /* --- SISTEMA DE INTEGRIDAD Y OVERCLOCK --- */
 .integrity-container {
@@ -3548,8 +3587,9 @@ body.t_receipt .stat-value, body.t_receipt .agent-title { color: #000; text-shad
     z-index: 50;
     pointer-events: none;
     height: 56px;
-    background: rgba(5,10,20,0.75);
-    backdrop-filter: blur(8px);
+    background: rgba(5,10,20,0.85);
+    /* backdrop-filter removido: el HUD esta siempre visible durante el
+       juego y un blur fullwidth aqui compite con el render del canvas. */
     border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .hud-top button { pointer-events: auto; }
@@ -4347,9 +4387,10 @@ body.t_receipt .stat-value, body.t_receipt .agent-title { color: #000; text-shad
     justify-content: space-between;
     padding: 0 20px;
     height: 56px;
-    background: rgba(5, 8, 18, 0.9);
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    backdrop-filter: blur(12px);
+    background: var(--nav-bg);
+    border-bottom: 1px solid var(--nav-border);
+    /* backdrop-filter removido: fondo al 92% ya es casi opaco, el blur
+       no aportaba visualmente pero forzaba compositor permanente. */
     flex-shrink: 0;
     gap: 16px;
     z-index: 20;
@@ -4380,15 +4421,15 @@ body.t_receipt .stat-value, body.t_receipt .agent-title { color: #000; text-shad
     border: 1px solid rgba(255,255,255,0.07);
     border-radius: 8px;
     cursor: pointer;
-    font-family: var(--font-display);
+    font-family: var(--tab-font);
     font-size: 0.65rem;
     letter-spacing: 1.5px;
-    color: #475569;
+    color: var(--tab-color);
     transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
     white-space: nowrap;
 }
 .nav-tab i { font-size: 0.85rem; }
-.nav-tab:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.15); color: #94a3b8; }
+.nav-tab:hover { background: var(--tab-hover-bg); border-color: rgba(255,255,255,0.15); color: var(--tab-hover-color); }
 
 .nav-tab-daily  { --tc: #f97316; }
 .nav-tab-pass   { --tc: #d946ef; }
@@ -4410,6 +4451,7 @@ body.t_receipt .stat-value, body.t_receipt .agent-title { color: #000; text-shad
     overflow-y: auto;
     overflow-x: hidden;
     align-content: start;
+    background: var(--lobby-bg);
     scrollbar-width: thin;
     scrollbar-color: var(--primary) transparent;
 }
@@ -4419,9 +4461,9 @@ body.t_receipt .stat-value, body.t_receipt .agent-title { color: #000; text-shad
 /* Juego card rediseñada */
 .game-card-v2 {
     position: relative;
-    border: 1px solid rgba(255,255,255,0.07);
+    border: 1px solid var(--card-border);
     border-radius: 14px;
-    background: rgba(10,16,30,0.85);
+    background: var(--card-bg);
     overflow: hidden;
     cursor: pointer;
     transition: transform 0.18s cubic-bezier(0.2,0,0,1.4), box-shadow 0.18s ease, border-color 0.18s;
@@ -4436,11 +4478,32 @@ body.t_receipt .stat-value, body.t_receipt .agent-title { color: #000; text-shad
     opacity: 0;
     transition: opacity 0.18s;
     pointer-events: none;
+    /* Gradient radial desde arriba con el color del juego */
+    background: radial-gradient(
+        circle at 50% -20%,
+        color-mix(in srgb, var(--gc, var(--primary)) 20%, transparent) 0%,
+        transparent 60%
+    );
+    border-radius: inherit;
+}
+/* Acento superior (linea delgada de color del juego) */
+.game-card-v2::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 20%; right: 20%;
+    height: 1px;
+    background: var(--gc, var(--primary));
+    opacity: 0;
+    transition: opacity 0.2s, left 0.3s, right 0.3s;
+    pointer-events: none;
 }
 .game-card-v2:hover {
     transform: translateY(-4px) scale(1.02);
+    border-color: color-mix(in srgb, var(--gc, var(--card-hover-border)) 60%, transparent);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--gc, var(--card-hover-shadow)) 20%, transparent);
 }
 .game-card-v2:hover::before { opacity: 1; }
+.game-card-v2:hover::after { opacity: 0.7; left: 0; right: 0; }
 
 /* Área de click principal */
 .gcv2-body {
@@ -4513,6 +4576,22 @@ body.t_receipt .stat-value, body.t_receipt .agent-title { color: #000; text-shad
 }
 .gcv2-info:hover { color: white; border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.1); }
 
+/* Botón favorito (estrella) */
+.gcv2-fav {
+    position: absolute;
+    top: 4px; left: 4px;
+    background: transparent;
+    border: none;
+    font-size: 0.78rem;
+    cursor: pointer;
+    padding: 4px;
+    z-index: 10;
+    color: rgba(255,255,255,0.15);
+    transition: color 0.15s, transform 0.15s;
+}
+.gcv2-fav.active { color: #fbbf24; filter: drop-shadow(0 0 6px rgba(251,191,36,0.5)); }
+.gcv2-fav:hover { color: #fbbf24; transform: scale(1.2); }
+
 /* Card bloqueada */
 .game-card-v2.locked {
     opacity: 0.5;
@@ -4527,9 +4606,9 @@ body.t_receipt .stat-value, body.t_receipt .agent-title { color: #000; text-shad
     align-items: center;
     gap: 16px;
     padding: 10px 20px;
-    background: rgba(5,8,18,0.9);
-    border-top: 1px solid rgba(255,255,255,0.06);
-    backdrop-filter: blur(12px);
+    background: var(--nav-bg);
+    border-top: 1px solid var(--nav-border);
+    /* backdrop-filter removido por la misma razon que .main-nav */
     flex-shrink: 0;
     height: 52px;
 }
@@ -4543,6 +4622,13 @@ body.t_receipt .stat-value, body.t_receipt .agent-title { color: #000; text-shad
     display: flex; align-items: center; justify-content: center;
     font-size: 0.85rem;
     color: var(--primary);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+}
+.status-avatar-ring:hover {
+    transform: scale(1.08);
+    background: rgba(59,130,246,0.18);
+    box-shadow: 0 0 15px rgba(59,130,246,0.3);
 }
 .status-player { display: flex; flex-direction: column; gap: 1px; }
 .status-rank {
@@ -5246,6 +5332,62 @@ body.t_receipt .stat-value, body.t_receipt .agent-title { color: #000; text-shad
     border-top: 1px solid rgba(255,255,255,0.03);
 }
 
+/* Pista de atajos de teclado debajo de los botones */
+.cod-shortcut-hint {
+    font-size: 0.55rem;
+    color: #334155;
+    font-family: monospace;
+    letter-spacing: 2px;
+    text-align: center;
+    margin-top: 8px;
+    text-transform: uppercase;
+    opacity: 0.7;
+}
+
+/* =====================================================
+   FOCUS RING ACCESIBLE — solo aparece con teclado
+   ===================================================== */
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible,
+.game-card-v2:focus-visible,
+.gcv2-body:focus-visible {
+    outline: 2px solid var(--primary, #3b82f6);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 4px rgba(59,130,246,0.2);
+    border-radius: 8px;
+}
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* Botón aleatorio en el nav superior */
+.btn-random-game {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 5px 10px;
+    cursor: pointer;
+    color: #475569;
+    font-size: 0.7rem;
+    font-family: monospace;
+    letter-spacing: 1px;
+    transition: color 0.15s, border-color 0.15s, background 0.15s, transform 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 8px;
+}
+.btn-random-game:hover {
+    color: var(--primary);
+    border-color: rgba(59,130,246,0.3);
+    background: rgba(59,130,246,0.06);
+}
+.btn-random-game:active { transform: scale(0.96); }
+.btn-random-game i { transition: transform 0.3s; }
+.btn-random-game:hover i { transform: rotate(180deg); }
+
 /* S rank — anillo dorado pulsante extra */
 .rank-s .cod-rank-badge {
     animation: codRankPop 0.6s cubic-bezier(0.2,0,0,1.4) 0.5s both,
@@ -5947,6 +6089,292 @@ body.t_receipt .stat-value, body.t_receipt .agent-title { color: #000; text-shad
 
 
 /* =====================================================
+   SURFACE TOKENS POR TEMA
+   Cada bloque solo sobreescribe tokens; los componentes
+   (.main-nav, .status-bar, .game-card-v2, .lobby-grid,
+   .btn, .vignette, .scanlines) los consumen via var().
+   Las reglas de componente por-tema debajo son obsoletas
+   para las propiedades aqui cubiertas y se pueden borrar
+   en un ciclo posterior.
+   ===================================================== */
+
+body.t_bloodborne {
+    --nav-bg: rgba(8,3,0,0.98);
+    --nav-border: rgba(200,134,10,0.25);
+    --lobby-bg: radial-gradient(ellipse at center top, #110600 0%, #030100 70%);
+    --card-bg: rgba(10,5,0,0.95);
+    --card-hover-border: #c8860a;
+    --card-hover-shadow: rgba(200,134,10,0.3);
+    --btn-bg: rgba(200,134,10,0.1);
+    --btn-border: rgba(200,134,10,0.4);
+    --btn-hover-shadow: rgba(200,134,10,0.4);
+    --btn-hover-bg: rgba(200,134,10,0.2);
+    --vignette-opacity: 1;
+    --tab-color: rgba(200,134,10,0.6);
+    --tab-hover-color: #c8860a;
+    --tab-hover-bg: rgba(200,134,10,0.08);
+}
+body.t_c64 {
+    --nav-bg: rgba(30,30,140,0.98);
+    --nav-border: rgba(144,144,255,0.4);
+    --lobby-bg: #1a1a8a;
+    --card-bg: rgba(35,35,150,0.9);
+    --card-hover-border: #9090ff;
+    --card-hover-shadow: rgba(144,144,255,0.5);
+    --btn-bg: rgba(144,144,255,0.15);
+    --btn-border: rgba(144,144,255,0.5);
+    --btn-hover-shadow: rgba(144,144,255,0.5);
+    --btn-hover-bg: rgba(144,144,255,0.3);
+    --tab-color: #aaaaff;
+    --tab-font: 'Courier New', monospace;
+    --tab-hover-color: #aaaaff;
+    --tab-hover-bg: transparent;
+}
+body.t_celeste {
+    --nav-bg: rgba(3,8,18,0.99);
+    --nav-border: rgba(79,195,247,0.25);
+    --lobby-bg: radial-gradient(ellipse at top, #06101e 0%, #050d18 70%);
+    --card-bg: rgba(5,12,25,0.95);
+    --card-hover-border: #4fc3f7;
+    --card-hover-shadow: rgba(79,195,247,0.3);
+    --btn-bg: rgba(79,195,247,0.1);
+    --btn-border: rgba(79,195,247,0.4);
+    --btn-hover-shadow: rgba(79,195,247,0.4);
+    --btn-hover-bg: rgba(79,195,247,0.22);
+}
+body.t_cs16 {
+    --nav-bg: rgba(10,14,8,0.99);
+    --nav-border: rgba(74,124,89,0.3);
+    --lobby-bg: #0a0c08;
+    --card-bg: rgba(12,16,10,0.96);
+    --card-hover-border: #4a7c59;
+    --card-hover-shadow: rgba(74,124,89,0.35);
+    --btn-bg: rgba(74,124,89,0.1);
+    --btn-border: rgba(74,124,89,0.4);
+    --btn-hover-shadow: rgba(74,124,89,0.4);
+    --btn-hover-bg: rgba(74,124,89,0.22);
+}
+body.t_diablo {
+    --nav-bg: rgba(15,0,0,0.98);
+    --nav-border: rgba(185,28,28,0.35);
+    --lobby-bg: radial-gradient(ellipse at center, #1a0000 0%, #080000 80%);
+    --card-bg: rgba(20,2,2,0.95);
+    --card-hover-border: #b91c1c;
+    --card-hover-shadow: rgba(185,28,28,0.4);
+    --btn-bg: rgba(185,28,28,0.12);
+    --btn-border: rgba(185,28,28,0.45);
+    --btn-hover-shadow: rgba(185,28,28,0.45);
+    --btn-hover-bg: rgba(185,28,28,0.28);
+    --vignette-opacity: 1;
+    --scanlines-opacity: 0.25;
+}
+body.t_doom {
+    --nav-bg: rgba(20,0,0,0.95);
+    --nav-border: rgba(204,34,0,0.3);
+    --lobby-bg: #0a0000;
+    --card-bg: rgba(25,0,0,0.9);
+    --card-hover-border: #cc2200;
+    --card-hover-shadow: rgba(204,34,0,0.4);
+    --btn-bg: rgba(204,34,0,0.15);
+    --btn-border: rgba(204,34,0,0.5);
+    --btn-hover-shadow: rgba(204,34,0,0.5);
+    --btn-hover-bg: rgba(204,34,0,0.3);
+    --vignette-opacity: 1;
+    --scanlines-opacity: 0.4;
+    --tab-color: #ff6644;
+    --tab-hover-color: #ff2200;
+    --tab-hover-bg: rgba(204,34,0,0.1);
+}
+body.t_hazard { --btn-bg: #222; }
+body.t_hotline {
+    --nav-bg: rgba(10,0,10,0.98);
+    --nav-border: rgba(255,0,170,0.4);
+    --lobby-bg: #050005;
+    --card-bg: rgba(15,0,15,0.95);
+    --card-hover-border: #ff00aa;
+    --card-hover-shadow: rgba(255,0,170,0.6);
+    --btn-bg: rgba(255,0,170,0.1);
+    --btn-border: rgba(255,0,170,0.5);
+    --btn-hover-shadow: rgba(255,0,170,0.5);
+    --btn-hover-bg: rgba(255,0,170,0.25);
+    --vignette-opacity: 1;
+    --scanlines-opacity: 0.5;
+    --tab-color: #ff66cc;
+    --tab-hover-color: #ff00aa;
+    --tab-hover-bg: rgba(255,0,170,0.1);
+}
+body.t_limbo {
+    --nav-bg: rgba(0,0,0,0.99);
+    --nav-border: rgba(200,200,200,0.15);
+    --lobby-bg: #000000;
+    --card-bg: rgba(5,5,5,0.98);
+    --card-hover-border: #e0e0e0;
+    --btn-bg: rgba(200,200,200,0.06);
+    --btn-border: rgba(200,200,200,0.3);
+    --btn-hover-shadow: rgba(200,200,200,0.3);
+    --btn-hover-bg: rgba(200,200,200,0.14);
+    --vignette-opacity: 1;
+}
+body.t_matrix { --scanlines-opacity: 0.3; }
+body.t_minecraft {
+    --nav-bg: rgba(4,10,2,0.99);
+    --nav-border: rgba(93,168,50,0.3);
+    --lobby-bg: #050e02;
+    --card-bg: rgba(6,14,3,0.95);
+    --card-hover-border: #5da832;
+    --card-hover-shadow: rgba(93,168,50,0.4);
+    --btn-bg: rgba(93,168,50,0.1);
+    --btn-border: rgba(93,168,50,0.45);
+    --btn-hover-shadow: rgba(93,168,50,0.45);
+    --btn-hover-bg: rgba(93,168,50,0.25);
+    --scanlines-opacity: 0.3;
+}
+body.t_outrun {
+    --nav-bg: rgba(10,0,25,0.95);
+    --nav-border: rgba(255,45,122,0.3);
+    --lobby-bg: linear-gradient(180deg, #06000f 0%, #0d0025 100%);
+    --card-bg: rgba(15,0,30,0.9);
+    --card-hover-border: #ff2d7a;
+    --card-hover-shadow: rgba(255,45,122,0.4);
+    --btn-bg: rgba(255,45,122,0.15);
+    --btn-border: rgba(255,45,122,0.5);
+    --btn-hover-shadow: rgba(255,45,122,0.5);
+    --btn-hover-bg: rgba(255,45,122,0.3);
+    --vignette-opacity: 1;
+    --tab-color: #ff6eb0;
+    --tab-hover-color: #ff2d7a;
+    --tab-hover-bg: rgba(255,45,122,0.1);
+}
+body.t_pokemon {
+    --nav-bg: rgba(10,30,10,0.98);
+    --nav-border: rgba(155,188,15,0.4);
+    --lobby-bg: #0f380f;
+    --card-bg: rgba(15,45,15,0.95);
+    --card-hover-border: #9bbc0f;
+    --card-hover-shadow: rgba(155,188,15,0.4);
+    --btn-bg: rgba(155,188,15,0.1);
+    --btn-border: rgba(155,188,15,0.5);
+    --btn-hover-shadow: rgba(155,188,15,0.5);
+    --btn-hover-bg: rgba(155,188,15,0.25);
+    --vignette-opacity: 1;
+    --scanlines-opacity: 0.8;
+    --tab-color: #8bac0f;
+    --tab-font: 'Courier New', monospace;
+    --tab-hover-color: #9bbc0f;
+    --tab-hover-bg: rgba(155,188,15,0.1);
+}
+body.t_portal {
+    --nav-bg: rgba(6,6,6,0.99);
+    --nav-border: rgba(255,102,0,0.3);
+    --lobby-bg: #080808;
+    --card-bg: rgba(10,8,8,0.96);
+    --card-hover-border: #ff6600;
+    --card-hover-shadow: rgba(255,102,0,0.35);
+    --btn-bg: rgba(255,102,0,0.1);
+    --btn-border: rgba(255,102,0,0.45);
+    --btn-hover-shadow: rgba(255,102,0,0.45);
+    --btn-hover-bg: rgba(255,102,0,0.25);
+}
+body.t_quake {
+    --nav-bg: rgba(15,10,0,0.98);
+    --nav-border: rgba(217,119,6,0.3);
+    --lobby-bg: #0c0800;
+    --card-bg: rgba(20,12,2,0.95);
+    --card-hover-border: #d97706;
+    --card-hover-shadow: rgba(217,119,6,0.35);
+    --btn-bg: rgba(217,119,6,0.1);
+    --btn-border: rgba(217,119,6,0.4);
+    --btn-hover-shadow: rgba(217,119,6,0.4);
+    --scanlines-opacity: 0.4;
+}
+body.t_retro { --scanlines-opacity: 0.3; }
+body.t_starcraft {
+    --nav-bg: rgba(2,5,20,0.99);
+    --nav-border: rgba(59,130,246,0.3);
+    --lobby-bg: radial-gradient(ellipse at top, #040a20 0%, #020510 70%);
+    --card-bg: rgba(3,8,25,0.96);
+    --card-hover-border: #3b82f6;
+    --card-hover-shadow: rgba(59,130,246,0.35);
+    --btn-bg: rgba(59,130,246,0.1);
+    --btn-border: rgba(59,130,246,0.4);
+    --btn-hover-shadow: rgba(59,130,246,0.4);
+    --btn-hover-bg: rgba(59,130,246,0.22);
+    --vignette-opacity: 1;
+}
+body.t_synthwave {
+    --nav-bg: rgba(4,0,10,0.99);
+    --nav-border: rgba(247,37,133,0.3);
+    --lobby-bg: radial-gradient(ellipse at bottom, #0d0020 0%, #06000e 70%);
+    --card-bg: rgba(6,0,14,0.96);
+    --card-hover-border: #f72585;
+    --card-hover-shadow: rgba(247,37,133,0.4);
+    --btn-bg: rgba(247,37,133,0.1);
+    --btn-border: rgba(247,37,133,0.45);
+    --btn-hover-shadow: rgba(247,37,133,0.45);
+    --btn-hover-bg: rgba(247,37,133,0.25);
+    --vignette-opacity: 1;
+}
+body.t_terminal {
+    --nav-bg: rgba(0,2,0,0.99);
+    --nav-border: rgba(0,255,65,0.2);
+    --lobby-bg: #000300;
+    --card-bg: rgba(0,4,0,0.96);
+    --card-hover-border: #00ff41;
+    --card-hover-shadow: rgba(0,255,65,0.3);
+    --btn-bg: rgba(0,255,65,0.08);
+    --btn-border: rgba(0,255,65,0.35);
+    --btn-hover-shadow: rgba(0,255,65,0.35);
+    --btn-hover-bg: rgba(0,255,65,0.18);
+    --scanlines-opacity: 0.5;
+}
+body.t_tron {
+    --nav-bg: rgba(0,5,10,0.99);
+    --nav-border: rgba(0,245,255,0.25);
+    --lobby-bg: #000;
+    --card-bg: rgba(0,8,15,0.95);
+    --card-hover-border: #00f5ff;
+    --card-hover-shadow: rgba(0,245,255,0.4);
+    --btn-bg: rgba(0,245,255,0.08);
+    --btn-border: rgba(0,245,255,0.4);
+    --btn-hover-shadow: rgba(0,245,255,0.4);
+    --btn-hover-bg: rgba(0,245,255,0.2);
+    --vignette-opacity: 1;
+    --tab-color: rgba(0,245,255,0.6);
+    --tab-hover-color: #00f5ff;
+    --tab-hover-bg: rgba(0,245,255,0.07);
+}
+body.t_void { --vignette-opacity: 1; }
+body.t_waste { --vignette-opacity: 1; --scanlines-opacity: 0.7; }
+body.t_winamp {
+    --nav-bg: rgba(20,20,20,0.99);
+    --nav-border: rgba(0,255,0,0.25);
+    --lobby-bg: #1a1a1a;
+    --card-bg: rgba(25,25,25,0.98);
+    --card-hover-border: #00ff00;
+    --card-hover-shadow: rgba(0,255,0,0.3);
+    --btn-bg: rgba(0,255,0,0.05);
+    --btn-border: rgba(0,255,0,0.4);
+    --btn-hover-shadow: rgba(0,255,0,0.4);
+    --btn-hover-bg: rgba(0,255,0,0.15);
+    --scanlines-opacity: 1;
+    --tab-color: #00cc00;
+    --tab-font: 'Courier New', monospace;
+    --tab-hover-color: #00ff00;
+    --tab-hover-bg: rgba(0,255,0,0.07);
+}
+body.t_xperror {
+    --nav-bg: rgba(0,60,170,0.99);
+    --nav-border: rgba(255,255,255,0.2);
+    --lobby-bg: #0050cd;
+    --card-bg: rgba(0,50,150,0.9);
+    --card-hover-border: white;
+    --btn-bg: rgba(255,255,255,0.15);
+    --btn-border: rgba(255,255,255,0.5);
+    --btn-hover-shadow: rgba(255,255,255,0.5);
+    --btn-hover-bg: rgba(255,255,255,0.3);
+}
+
+/* =====================================================
    TEMAS NUEVOS V2 — Nostálgicos (CSS completo)
    ===================================================== */
 
@@ -5955,17 +6383,7 @@ body.t_doom {
     --primary: #cc2200; --gold: #ff4400; --accent: #ff6600; --success: #cc2200;
     --bg-dark: #0a0000; --text-main: #ffcccc;
 }
-body.t_doom .main-nav { background: rgba(20,0,0,0.95); border-bottom-color: rgba(204,34,0,0.3); }
-body.t_doom .game-card-v2 { background: rgba(25,0,0,0.9); border-color: rgba(204,34,0,0.2); }
-body.t_doom .game-card-v2:hover { border-color: #cc2200; box-shadow: 0 0 20px rgba(204,34,0,0.4); }
-body.t_doom .lobby-grid { background: #0a0000; }
-body.t_doom .status-bar { background: rgba(20,0,0,0.95); border-top-color: rgba(204,34,0,0.3); }
-body.t_doom .nav-tab { color: #ff6644; }
-body.t_doom .nav-tab:hover, body.t_doom .nav-tab.active-tab { color: #ff2200; background: rgba(204,34,0,0.1); }
-body.t_doom .btn { background: rgba(204,34,0,0.15); border-color: rgba(204,34,0,0.5); }
-body.t_doom .btn:hover { background: rgba(204,34,0,0.3); box-shadow: 0 0 20px rgba(204,34,0,0.4); }
 body.t_doom .vignette { background: radial-gradient(circle, transparent 40%, rgba(100,0,0,0.6) 100%); opacity: 1; }
-body.t_doom .scanlines { opacity: 0.4; }
 body.t_doom .shop-card-v2 { background: rgba(25,0,0,0.9); border-color: rgba(204,34,0,0.15); }
 
 /* ── OutRun 1986 — Synthwave 80s ── */
@@ -5973,15 +6391,6 @@ body.t_outrun {
     --primary: #ff2d7a; --gold: #ffcc00; --accent: #00cfff; --success: #00ff88;
     --bg-dark: #06000f; --text-main: #ffccee;
 }
-body.t_outrun .main-nav { background: rgba(10,0,25,0.95); border-bottom-color: rgba(255,45,122,0.3); }
-body.t_outrun .game-card-v2 { background: rgba(15,0,30,0.9); border-color: rgba(255,45,122,0.15); }
-body.t_outrun .game-card-v2:hover { border-color: #ff2d7a; box-shadow: 0 0 20px rgba(255,45,122,0.4), 0 0 40px rgba(0,207,255,0.1); }
-body.t_outrun .lobby-grid { background: linear-gradient(180deg, #06000f 0%, #0d0025 100%); }
-body.t_outrun .status-bar { background: rgba(10,0,25,0.95); border-top-color: rgba(255,45,122,0.3); }
-body.t_outrun .nav-tab { color: #ff6eb0; }
-body.t_outrun .nav-tab:hover { color: #ff2d7a; background: rgba(255,45,122,0.1); }
-body.t_outrun .btn { background: rgba(255,45,122,0.15); border-color: rgba(255,45,122,0.5); color: #ff2d7a; }
-body.t_outrun .btn:hover { background: rgba(255,45,122,0.3); box-shadow: 0 0 20px rgba(255,45,122,0.5); }
 body.t_outrun .vignette { background: radial-gradient(circle, transparent 30%, rgba(60,0,80,0.7) 100%); opacity: 1; }
 
 /* ── Commodore 64 — Azul electrónico ── */
@@ -5990,13 +6399,6 @@ body.t_c64 {
     --bg-dark: #1a1a8a; --text-main: #c8c8ff;
     --font-ui: 'Courier New', monospace;
 }
-body.t_c64 .main-nav { background: rgba(30,30,140,0.98); border-bottom-color: rgba(144,144,255,0.4); }
-body.t_c64 .game-card-v2 { background: rgba(35,35,150,0.9); border-color: rgba(144,144,255,0.25); border-radius: 4px; }
-body.t_c64 .game-card-v2:hover { border-color: #9090ff; box-shadow: 0 0 15px rgba(144,144,255,0.5); }
-body.t_c64 .lobby-grid { background: #1a1a8a; }
-body.t_c64 .status-bar { background: rgba(30,30,140,0.98); border-top-color: rgba(144,144,255,0.4); }
-body.t_c64 .nav-tab { color: #aaaaff; font-family: 'Courier New', monospace; }
-body.t_c64 .btn { background: rgba(144,144,255,0.15); border-color: rgba(144,144,255,0.5); border-radius: 2px; }
 body.t_c64 .btn:hover { background: rgba(144,144,255,0.3); }
 body.t_c64 h1, body.t_c64 h2 { font-family: 'Courier New', monospace; text-transform: uppercase; }
 body.t_c64 .scanlines { display: none; }
@@ -6007,31 +6409,13 @@ body.t_hotline {
     --primary: #ff00aa; --gold: #ffee00; --accent: #ff4400; --success: #00ff00;
     --bg-dark: #050005; --text-main: #ffccff;
 }
-body.t_hotline .main-nav { background: rgba(10,0,10,0.98); border-bottom-color: rgba(255,0,170,0.4); }
-body.t_hotline .game-card-v2 { background: rgba(15,0,15,0.95); border-color: rgba(255,0,170,0.15); }
-body.t_hotline .game-card-v2:hover { border-color: #ff00aa; box-shadow: 0 0 15px rgba(255,0,170,0.6), inset 0 0 10px rgba(255,0,170,0.05); }
-body.t_hotline .lobby-grid { background: #050005; }
-body.t_hotline .status-bar { background: rgba(10,0,10,0.98); border-top-color: rgba(255,0,170,0.4); }
-body.t_hotline .nav-tab { color: #ff66cc; }
-body.t_hotline .nav-tab:hover { color: #ff00aa; background: rgba(255,0,170,0.1); }
-body.t_hotline .btn { background: rgba(255,0,170,0.1); border-color: rgba(255,0,170,0.5); color: #ff00aa; }
-body.t_hotline .btn:hover { background: rgba(255,0,170,0.25); box-shadow: 0 0 25px rgba(255,0,170,0.5); }
 body.t_hotline .vignette { background: radial-gradient(circle, transparent 30%, rgba(80,0,50,0.8) 100%); opacity: 1; }
-body.t_hotline .scanlines { opacity: 0.5; }
 
 /* ── Bloodborne — Amanecer de Yharnam ── */
 body.t_bloodborne {
     --primary: #c8860a; --gold: #d4a017; --accent: #8b1a1a; --success: #c8860a;
     --bg-dark: #030100; --text-main: #d4b896;
 }
-body.t_bloodborne .main-nav { background: rgba(8,3,0,0.98); border-bottom-color: rgba(200,134,10,0.25); }
-body.t_bloodborne .game-card-v2 { background: rgba(10,5,0,0.95); border-color: rgba(200,134,10,0.12); }
-body.t_bloodborne .game-card-v2:hover { border-color: #c8860a; box-shadow: 0 0 20px rgba(200,134,10,0.3); }
-body.t_bloodborne .lobby-grid { background: radial-gradient(ellipse at center top, #110600 0%, #030100 70%); }
-body.t_bloodborne .status-bar { background: rgba(8,3,0,0.98); border-top-color: rgba(200,134,10,0.25); }
-body.t_bloodborne .nav-tab { color: #c8860a99; }
-body.t_bloodborne .nav-tab:hover { color: #c8860a; background: rgba(200,134,10,0.08); }
-body.t_bloodborne .btn { background: rgba(200,134,10,0.1); border-color: rgba(200,134,10,0.4); color: #c8860a; }
 body.t_bloodborne .btn:hover { background: rgba(200,134,10,0.2); }
 body.t_bloodborne .vignette { background: radial-gradient(circle, transparent 20%, rgba(50,10,0,0.85) 100%); opacity: 1; }
 body.t_bloodborne .shop-card-v2 { background: rgba(10,5,0,0.95); border-color: rgba(200,134,10,0.12); }
@@ -6042,14 +6426,6 @@ body.t_pokemon {
     --bg-dark: #0f380f; --text-main: #9bbc0f;
     --font-ui: 'Courier New', monospace;
 }
-body.t_pokemon .main-nav { background: rgba(10,30,10,0.98); border-bottom-color: rgba(155,188,15,0.4); }
-body.t_pokemon .game-card-v2 { background: rgba(15,45,15,0.95); border-color: rgba(155,188,15,0.2); border-radius: 2px; }
-body.t_pokemon .game-card-v2:hover { border-color: #9bbc0f; box-shadow: 0 0 15px rgba(155,188,15,0.4); }
-body.t_pokemon .lobby-grid { background: #0f380f; }
-body.t_pokemon .status-bar { background: rgba(10,30,10,0.98); border-top-color: rgba(155,188,15,0.4); }
-body.t_pokemon .nav-tab { color: #8bac0f; font-family: 'Courier New', monospace; }
-body.t_pokemon .nav-tab:hover { color: #9bbc0f; background: rgba(155,188,15,0.1); }
-body.t_pokemon .btn { background: rgba(155,188,15,0.1); border-color: rgba(155,188,15,0.5); color: #9bbc0f; border-radius: 2px; }
 body.t_pokemon .btn:hover { background: rgba(155,188,15,0.25); }
 body.t_pokemon .vignette { background: radial-gradient(circle, transparent 20%, rgba(5,20,5,0.85) 100%); opacity: 1; }
 body.t_pokemon .scanlines { background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,20,0,0.4) 4px); opacity: 0.8; }
@@ -6059,10 +6435,6 @@ body.t_tron {
     --primary: #00f5ff; --gold: #00ccff; --accent: #0088aa; --success: #00f5ff;
     --bg-dark: #000000; --text-main: #aaffff;
 }
-body.t_tron .main-nav { background: rgba(0,5,10,0.99); border-bottom-color: rgba(0,245,255,0.25); }
-body.t_tron .game-card-v2 { background: rgba(0,8,15,0.95); border-color: rgba(0,245,255,0.12); }
-body.t_tron .game-card-v2:hover { border-color: #00f5ff; box-shadow: 0 0 20px rgba(0,245,255,0.4), inset 0 0 10px rgba(0,245,255,0.05); }
-body.t_tron .lobby-grid { background: #000; }
 /* Grid lines de TRON */
 body.t_tron .lobby-grid::before {
     content: '';
@@ -6071,11 +6443,6 @@ body.t_tron .lobby-grid::before {
                       linear-gradient(90deg, rgba(0,245,255,0.04) 1px, transparent 1px);
     background-size: 60px 60px;
 }
-body.t_tron .status-bar { background: rgba(0,5,10,0.99); border-top-color: rgba(0,245,255,0.25); }
-body.t_tron .nav-tab { color: #00ccff99; }
-body.t_tron .nav-tab:hover { color: #00f5ff; background: rgba(0,245,255,0.07); }
-body.t_tron .btn { background: rgba(0,245,255,0.08); border-color: rgba(0,245,255,0.4); color: #00f5ff; border-radius: 2px; }
-body.t_tron .btn:hover { background: rgba(0,245,255,0.2); box-shadow: 0 0 20px rgba(0,245,255,0.4); }
 body.t_tron .vignette { background: radial-gradient(circle, transparent 30%, rgba(0,5,20,0.8) 100%); opacity: 1; }
 
 /* ── Winamp — Terminal verde clásico ── */
@@ -6084,14 +6451,6 @@ body.t_winamp {
     --bg-dark: #1a1a1a; --text-main: #00ff00;
     --font-ui: 'Courier New', monospace;
 }
-body.t_winamp .main-nav { background: rgba(20,20,20,0.99); border-bottom-color: rgba(0,255,0,0.25); }
-body.t_winamp .game-card-v2 { background: rgba(25,25,25,0.98); border-color: rgba(0,255,0,0.12); border-radius: 0; }
-body.t_winamp .game-card-v2:hover { border-color: #00ff00; box-shadow: 0 0 12px rgba(0,255,0,0.3); }
-body.t_winamp .lobby-grid { background: #1a1a1a; }
-body.t_winamp .status-bar { background: rgba(20,20,20,0.99); border-top-color: rgba(0,255,0,0.25); }
-body.t_winamp .nav-tab { color: #00cc00; font-family: 'Courier New', monospace; }
-body.t_winamp .nav-tab:hover { color: #00ff00; background: rgba(0,255,0,0.07); }
-body.t_winamp .btn { background: rgba(0,255,0,0.05); border-color: rgba(0,255,0,0.4); color: #00ff00; border-radius: 2px; }
 body.t_winamp .btn:hover { background: rgba(0,255,0,0.15); }
 body.t_winamp .scanlines { background: repeating-linear-gradient(0deg,transparent,transparent 1px,rgba(0,0,0,0.35) 2px); opacity: 1; }
 body.t_winamp h1, body.t_winamp h2, body.t_winamp .game-card-v2 * { font-family: 'Courier New', monospace; }
@@ -6289,6 +6648,261 @@ body.t_winamp h1, body.t_winamp h2, body.t_winamp .game-card-v2 * { font-family:
 .daily-task-v3:hover { border-color: var(--tc, rgba(255,255,255,0.15)); transform: translateX(4px); }
 .daily-task-v3.done { opacity: 0.7; cursor: default; }
 .daily-task-v3.done:hover { transform: none; }
+
+/* Progress bar dentro de cada task de daily/weekly */
+.dt-progress-bar {
+    width: 100%;
+    height: 3px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 6px;
+}
+.dt-progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 0 6px currentColor;
+}
+
+/* Subtitle del daily con countdown */
+.daily-subtitle-v3 {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.dp-sep { opacity: 0.3; }
+
+/* =====================================================
+   NEON PASS — toolbar con filtros, stats y jump button
+   ===================================================== */
+.np-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 20px;
+    background: rgba(5,8,18,0.7);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    flex-wrap: wrap;
+}
+.np-filters {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.np-filter-btn {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.08);
+    color: #475569;
+    padding: 5px 10px;
+    font-size: 0.6rem;
+    font-family: monospace;
+    letter-spacing: 1px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.np-filter-btn:hover { color: #94a3b8; border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.03); }
+.np-filter-btn.active {
+    background: rgba(59,130,246,0.12);
+    border-color: rgba(59,130,246,0.4);
+    color: var(--primary);
+    box-shadow: 0 0 10px rgba(59,130,246,0.15);
+}
+
+.np-stats-mini {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    color: var(--primary);
+}
+.np-stats-mini .np-stats-sep { color: #334155; }
+.np-stats-mini #np-stats-total { color: #64748b; }
+.np-stats-mini .np-stats-lbl {
+    font-family: monospace;
+    font-size: 0.55rem;
+    color: #475569;
+    letter-spacing: 1.5px;
+    margin-left: 4px;
+}
+.np-jump-btn {
+    background: rgba(59,130,246,0.08);
+    border: 1px solid rgba(59,130,246,0.25);
+    color: var(--primary);
+    width: 26px; height: 26px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    margin-left: 6px;
+    transition: all 0.15s;
+}
+.np-jump-btn:hover {
+    background: rgba(59,130,246,0.2);
+    border-color: var(--primary);
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(59,130,246,0.4);
+}
+
+/* Pulso cuando jump to current hace target en un card */
+.np-card.np-pulse {
+    animation: npPulse 1.6s ease;
+}
+@keyframes npPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.6); }
+    20%      { box-shadow: 0 0 0 12px rgba(59,130,246,0); }
+    40%      { box-shadow: 0 0 0 20px rgba(59,130,246,0); }
+}
+
+/* =====================================================
+   SHOP TOOLBAR — búsqueda, filtros por categoría, toggles
+   ===================================================== */
+.shop-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    background: rgba(5,8,18,0.85);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.shop-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 200px;
+    flex: 0 0 auto;
+}
+.shop-search-icon {
+    position: absolute;
+    left: 10px;
+    color: #475569;
+    font-size: 0.7rem;
+    pointer-events: none;
+}
+.shop-search input {
+    background: rgba(10,16,30,0.8);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: white;
+    font-family: monospace;
+    font-size: 0.72rem;
+    padding: 7px 30px 7px 28px;
+    border-radius: 7px;
+    width: 200px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.shop-search input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+}
+.shop-search-clear {
+    position: absolute;
+    right: 6px;
+    background: transparent;
+    border: none;
+    color: #475569;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+}
+.shop-search-clear:hover { color: #ef4444; }
+
+.shop-filter-chips {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
+}
+.shop-chip {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.08);
+    color: #475569;
+    padding: 5px 10px;
+    font-size: 0.58rem;
+    font-family: monospace;
+    letter-spacing: 1.5px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+.shop-chip:hover { color: #94a3b8; border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.03); }
+.shop-chip.active {
+    background: rgba(251,191,36,0.12);
+    border-color: rgba(251,191,36,0.4);
+    color: var(--gold);
+    box-shadow: 0 0 10px rgba(251,191,36,0.15);
+}
+
+.shop-toggles {
+    display: flex;
+    gap: 6px;
+}
+.shop-toggle-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 9px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 0.55rem;
+    font-family: monospace;
+    letter-spacing: 1.5px;
+    color: #475569;
+    user-select: none;
+}
+.shop-toggle-pill input { accent-color: var(--primary); cursor: pointer; }
+.shop-toggle-pill:has(input:checked) {
+    background: rgba(59,130,246,0.1);
+    border-color: rgba(59,130,246,0.4);
+    color: var(--primary);
+}
+
+/* Card inalcanzable (precio > credits) */
+.shop-card-v2.unaffordable {
+    opacity: 0.55;
+    filter: grayscale(0.4);
+}
+.shop-card-v2.unaffordable .scv2-btn {
+    background: rgba(239,68,68,0.08);
+    border-color: rgba(239,68,68,0.3);
+    color: #ef4444;
+}
+
+/* Responsive: en mobile apilar toolbar */
+@media (max-width: 720px) {
+    .shop-toolbar { flex-direction: column; align-items: stretch; padding: 8px 12px; }
+    .shop-search { min-width: unset; }
+    .shop-search input { width: 100%; }
+    .shop-filter-chips { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; }
+    .shop-toggles { justify-content: flex-start; flex-wrap: wrap; }
+}
 
 .dt-icon-wrap {
     width: 44px; height: 44px;
@@ -6791,19 +7405,19 @@ body.reduce-motion * {
 .welcome-boot {
     font-family: monospace;
     font-size: 0.7rem;
-    color: #334155;
+    color: #64748b;
     line-height: 1.8;
     text-align: left;
     width: 100%;
     max-width: 320px;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.04);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
     border-radius: 8px;
     padding: 12px 16px;
 }
 .boot-line {
-    opacity: 0;
-    animation: wFadeIn 0.3s ease var(--d,0s) forwards;
+    /* backwards: antes del delay está en opacity:0. Después queda en estado base (visible). */
+    animation: wFadeInStart 0.3s ease var(--d,0s) backwards;
     letter-spacing: 0.5px;
 }
 
@@ -6816,7 +7430,7 @@ body.reduce-motion * {
     font-family: monospace;
     font-size: 0.7rem;
     color: #475569;
-    animation: wFadeIn 0.4s ease 1.4s both;
+    animation: wFadeInStart 0.4s ease 1.4s backwards;
 }
 .wr-stats {
     font-size: 0.62rem;
@@ -6838,23 +7452,41 @@ body.reduce-motion * {
     letter-spacing: 3px;
     cursor: pointer;
     transition: all 0.2s;
+    animation:
+        wFadeInStart 0.4s ease 1.6s backwards,
+        welcomeBreath 3s ease-in-out 2.2s infinite;
 }
 .welcome-btn:hover {
     background: rgba(59,130,246,0.25);
-    box-shadow: 0 0 30px rgba(59,130,246,0.2);
+    box-shadow: 0 0 30px rgba(59,130,246,0.25);
     transform: translateY(-2px);
     color: white;
+    /* Pausar el breath al hover para que no compita con el hover effect */
+    animation-play-state: running, paused;
+}
+@keyframes welcomeBreath {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.35); }
+    50%      { box-shadow: 0 0 20px 4px rgba(59,130,246,0.12); }
 }
 .welcome-version {
     font-size: 0.52rem;
     color: #1e293b;
     font-family: monospace;
     letter-spacing: 2px;
-    opacity: 0;
-    animation: wFadeIn 0.3s ease 2s forwards;
+    animation: wFadeInStart 0.3s ease 2s backwards;
 }
 
 @keyframes wFadeIn { from{opacity:0} to{opacity:1} }
+/* Variante que empieza en opacity 0 solo durante el delay, luego fade in.
+   backwards+forwards = both — pero el estado base del elemento es opacity:1
+   por lo que si la animación no corre, el elemento igual es visible. */
+@keyframes wFadeInStart { 0%{opacity:0} 100%{opacity:1} }
+
+/* Garantizar que las animaciones del welcome corren cuando es visible */
+#screen-welcome:not(.hidden) .boot-line,
+#screen-welcome:not(.hidden) .welcome-btn {
+    animation-play-state: running !important;
+}
 
 /* =====================================================
    TRANSICIONES DE PANTALLA — suaves
@@ -6863,11 +7495,11 @@ body.reduce-motion * {
     transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.2,0,0,1) !important;
 }
 .screen.entering {
-    animation: screenEnter 0.3s cubic-bezier(0.2,0,0,1) forwards;
+    animation: screenEnter 0.35s cubic-bezier(0.2,0,0,1) forwards;
 }
 @keyframes screenEnter {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; transform: translateY(14px) scale(0.995); filter: blur(4px); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);     filter: blur(0);   }
 }
 
 
@@ -6881,15 +7513,7 @@ body.t_diablo {
     --primary: #b91c1c; --gold: #dc2626; --accent: #991b1b; --success: #b91c1c;
     --bg-dark: #080000; --text-main: #fca5a5;
 }
-body.t_diablo .main-nav { background: rgba(15,0,0,0.98); border-bottom-color: rgba(185,28,28,0.35); }
-body.t_diablo .game-card-v2 { background: rgba(20,2,2,0.95); border-color: rgba(185,28,28,0.15); }
-body.t_diablo .game-card-v2:hover { border-color: #b91c1c; box-shadow: 0 0 20px rgba(185,28,28,0.4); }
-body.t_diablo .lobby-grid { background: radial-gradient(ellipse at center, #1a0000 0%, #080000 80%); }
-body.t_diablo .status-bar { background: rgba(15,0,0,0.98); border-top-color: rgba(185,28,28,0.35); }
-body.t_diablo .btn { background: rgba(185,28,28,0.12); border-color: rgba(185,28,28,0.45); color: #fca5a5; }
-body.t_diablo .btn:hover { background: rgba(185,28,28,0.28); box-shadow: 0 0 18px rgba(185,28,28,0.4); }
 body.t_diablo .vignette { background: radial-gradient(circle, transparent 25%, rgba(80,0,0,0.7) 100%); opacity: 1; }
-body.t_diablo .scanlines { opacity: 0.25; }
 
 /* Counter-Strike 1.6 — verde militar sobre oscuro */
 body.t_cs16 {
@@ -6897,12 +7521,6 @@ body.t_cs16 {
     --bg-dark: #0a0c08; --text-main: #c8d4c0;
     --font-ui: 'Courier New', monospace;
 }
-body.t_cs16 .main-nav { background: rgba(10,14,8,0.99); border-bottom-color: rgba(74,124,89,0.3); }
-body.t_cs16 .game-card-v2 { background: rgba(12,16,10,0.96); border-color: rgba(74,124,89,0.15); border-radius: 2px; }
-body.t_cs16 .game-card-v2:hover { border-color: #4a7c59; box-shadow: 0 0 15px rgba(74,124,89,0.35); }
-body.t_cs16 .lobby-grid { background: #0a0c08; }
-body.t_cs16 .status-bar { background: rgba(10,14,8,0.99); border-top-color: rgba(74,124,89,0.3); }
-body.t_cs16 .btn { background: rgba(74,124,89,0.1); border-color: rgba(74,124,89,0.4); color: #8fbc8f; border-radius: 2px; }
 body.t_cs16 .btn:hover { background: rgba(74,124,89,0.22); }
 
 /* Quake — marrón industrial con detalles naranja */
@@ -6911,13 +7529,6 @@ body.t_quake {
     --bg-dark: #0c0800; --text-main: #d4b483;
     --font-ui: 'Courier New', monospace;
 }
-body.t_quake .main-nav { background: rgba(15,10,0,0.98); border-bottom-color: rgba(217,119,6,0.3); }
-body.t_quake .game-card-v2 { background: rgba(20,12,2,0.95); border-color: rgba(217,119,6,0.12); border-radius: 2px; }
-body.t_quake .game-card-v2:hover { border-color: #d97706; box-shadow: 0 0 18px rgba(217,119,6,0.35); }
-body.t_quake .lobby-grid { background: #0c0800; }
-body.t_quake .status-bar { background: rgba(15,10,0,0.98); border-top-color: rgba(217,119,6,0.3); }
-body.t_quake .btn { background: rgba(217,119,6,0.1); border-color: rgba(217,119,6,0.4); color: #d97706; border-radius: 2px; }
-body.t_quake .scanlines { opacity: 0.4; }
 
 /* Windows XP Error — BSOD azul */
 body.t_xperror {
@@ -6925,12 +7536,6 @@ body.t_xperror {
     --bg-dark: #0050cd; --text-main: #ffffff;
     --font-ui: 'Courier New', monospace;
 }
-body.t_xperror .main-nav { background: rgba(0,60,170,0.99); border-bottom-color: rgba(255,255,255,0.2); }
-body.t_xperror .game-card-v2 { background: rgba(0,50,150,0.9); border-color: rgba(255,255,255,0.2); border-radius: 0; }
-body.t_xperror .game-card-v2:hover { border-color: white; box-shadow: none; background: rgba(0,70,190,0.9); }
-body.t_xperror .lobby-grid { background: #0050cd; }
-body.t_xperror .status-bar { background: rgba(0,60,170,0.99); border-top-color: rgba(255,255,255,0.15); }
-body.t_xperror .btn { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.5); color: white; border-radius: 0; }
 body.t_xperror .btn:hover { background: rgba(255,255,255,0.3); }
 body.t_xperror .scanlines { display: none; }
 body.t_xperror .vignette { display: none; }
@@ -6940,13 +7545,6 @@ body.t_starcraft {
     --primary: #3b82f6; --gold: #fbbf24; --accent: #2563eb; --success: #3b82f6;
     --bg-dark: #020510; --text-main: #b8cfef;
 }
-body.t_starcraft .main-nav { background: rgba(2,5,20,0.99); border-bottom-color: rgba(59,130,246,0.3); }
-body.t_starcraft .game-card-v2 { background: rgba(3,8,25,0.96); border-color: rgba(59,130,246,0.12); }
-body.t_starcraft .game-card-v2:hover { border-color: #3b82f6; box-shadow: 0 0 20px rgba(59,130,246,0.35), 0 0 4px rgba(251,191,36,0.2); }
-body.t_starcraft .lobby-grid { background: radial-gradient(ellipse at top, #040a20 0%, #020510 70%); }
-body.t_starcraft .status-bar { background: rgba(2,5,20,0.99); border-top-color: rgba(59,130,246,0.3); }
-body.t_starcraft .btn { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.4); color: #60a5fa; }
-body.t_starcraft .btn:hover { background: rgba(59,130,246,0.22); box-shadow: 0 0 16px rgba(59,130,246,0.3); }
 body.t_starcraft .vignette { background: radial-gradient(circle, transparent 30%, rgba(0,0,20,0.7) 100%); opacity: 1; }
 
 
@@ -7070,15 +7668,25 @@ body.t_starcraft .vignette { background: radial-gradient(circle, transparent 30%
     .nav-tab span { display: none; }
 }
 
-/* Touch — aumentar área de tap en elementos pequeños */
+/* Touch — aumentar área de tap a 44px mínimo (Apple HIG / Material) */
 @media (hover: none) and (pointer: coarse) {
-    .game-card-v2 { min-height: 110px; }
-    .lf-btn { min-height: 36px; }
+    .game-card-v2 { min-height: 120px; }
+    .lf-btn { min-height: 44px; padding: 10px 16px; }
     .btn-claim-daily-v3 { min-height: 48px !important; }
-    .tut-btn-next, .tut-btn-skip { min-height: 40px; }
-    .wr-key { min-height: 42px !important; }
-    .pd-cell { min-width: 32px !important; min-height: 32px !important; }
+    .tut-btn-next, .tut-btn-skip { min-height: 44px; }
+    .wr-key { min-height: 44px !important; }
+    .pd-cell { min-width: 36px !important; min-height: 36px !important; }
     .ng-cell { min-height: 44px !important; }
+    .nav-tab { min-height: 40px; min-width: 44px; padding: 8px 10px; }
+    .gcv2-fav, .gcv2-info { width: 28px !important; height: 28px !important; }
+
+    /* Feedback táctil visible en active (presión) */
+    .game-card-v2:active { transform: scale(0.97); transition: transform 0.08s; }
+    .btn:active, .nav-tab:active, .welcome-btn:active { transform: scale(0.97); transition: transform 0.08s; }
+
+    /* Desactivar hover-only effects: mostrar siempre como activos en mobile */
+    .game-card-v2::before { opacity: 0.4; }
+    .game-card-v2::after { opacity: 0.3; left: 10%; right: 10%; }
 }
 
 
@@ -7092,27 +7700,15 @@ body.t_celeste {
     --primary: #4fc3f7; --gold: #81d4fa; --accent: #0288d1;
     --bg-dark: #050d18; --text-main: #b3e5fc;
 }
-body.t_celeste .main-nav { background: rgba(3,8,18,0.99); border-bottom-color: rgba(79,195,247,0.25); }
-body.t_celeste .game-card-v2 { background: rgba(5,12,25,0.95); border-color: rgba(79,195,247,0.12); }
-body.t_celeste .game-card-v2:hover { border-color: #4fc3f7; box-shadow: 0 0 20px rgba(79,195,247,0.3); }
-body.t_celeste .lobby-grid { background: radial-gradient(ellipse at top, #06101e 0%, #050d18 70%); }
-body.t_celeste .btn { background: rgba(79,195,247,0.1); border-color: rgba(79,195,247,0.4); color: #81d4fa; }
 body.t_celeste .btn:hover { background: rgba(79,195,247,0.22); }
-body.t_celeste .status-bar { background: rgba(3,8,18,0.99); border-top-color: rgba(79,195,247,0.25); }
 
 /* Portal — naranja y azul Aperture */
 body.t_portal {
     --primary: #ff6600; --gold: #0066ff; --accent: #cc5200;
     --bg-dark: #080808; --text-main: #e0e0e0;
 }
-body.t_portal .main-nav { background: rgba(6,6,6,0.99); border-bottom-color: rgba(255,102,0,0.3); }
-body.t_portal .game-card-v2 { background: rgba(10,8,8,0.96); border-color: rgba(255,102,0,0.12); border-radius: 4px; }
 body.t_portal .game-card-v2:nth-child(even) { border-color: rgba(0,102,255,0.12); }
-body.t_portal .game-card-v2:hover { border-color: #ff6600; box-shadow: 0 0 18px rgba(255,102,0,0.35); }
-body.t_portal .lobby-grid { background: #080808; }
-body.t_portal .btn { background: rgba(255,102,0,0.1); border-color: rgba(255,102,0,0.45); color: #ff8833; border-radius: 4px; }
 body.t_portal .btn:hover { background: rgba(255,102,0,0.25); }
-body.t_portal .status-bar { background: rgba(6,6,6,0.99); border-top-color: rgba(0,102,255,0.3); }
 
 /* Minecraft — verde pixelado */
 body.t_minecraft {
@@ -7120,27 +7716,14 @@ body.t_minecraft {
     --bg-dark: #050e02; --text-main: #c8e6c9;
     --font-ui: 'Courier New', monospace;
 }
-body.t_minecraft .main-nav { background: rgba(4,10,2,0.99); border-bottom-color: rgba(93,168,50,0.3); }
-body.t_minecraft .game-card-v2 { background: rgba(6,14,3,0.95); border-color: rgba(93,168,50,0.15); border-radius: 2px; }
-body.t_minecraft .game-card-v2:hover { border-color: #5da832; box-shadow: 0 0 0 2px rgba(93,168,50,0.4); }
-body.t_minecraft .lobby-grid { background: #050e02; }
-body.t_minecraft .btn { background: rgba(93,168,50,0.1); border-color: rgba(93,168,50,0.45); color: #7bc043; border-radius: 2px; }
 body.t_minecraft .btn:hover { background: rgba(93,168,50,0.25); }
-body.t_minecraft .status-bar { background: rgba(4,10,2,0.99); }
-body.t_minecraft .scanlines { opacity: 0.3; }
 
 /* Limbo — blanco sobre negro absoluto */
 body.t_limbo {
     --primary: #e0e0e0; --gold: #bdbdbd; --accent: #9e9e9e;
     --bg-dark: #000000; --text-main: #e0e0e0;
 }
-body.t_limbo .main-nav { background: rgba(0,0,0,0.99); border-bottom-color: rgba(200,200,200,0.15); }
-body.t_limbo .game-card-v2 { background: rgba(5,5,5,0.98); border-color: rgba(200,200,200,0.08); filter: grayscale(1); }
-body.t_limbo .game-card-v2:hover { border-color: #e0e0e0; box-shadow: none; filter: grayscale(0); }
-body.t_limbo .lobby-grid { background: #000000; }
-body.t_limbo .btn { background: rgba(200,200,200,0.06); border-color: rgba(200,200,200,0.3); color: #bdbdbd; }
 body.t_limbo .btn:hover { background: rgba(200,200,200,0.14); }
-body.t_limbo .status-bar { background: rgba(0,0,0,0.99); border-top-color: rgba(200,200,200,0.1); }
 body.t_limbo .vignette { background: radial-gradient(circle, transparent 20%, rgba(0,0,0,0.85) 100%); opacity: 1; }
 
 /* Synthwave — rosa/morado neón */
@@ -7148,13 +7731,6 @@ body.t_synthwave {
     --primary: #f72585; --gold: #b5179e; --accent: #7209b7;
     --bg-dark: #06000e; --text-main: #f8b4d9;
 }
-body.t_synthwave .main-nav { background: rgba(4,0,10,0.99); border-bottom-color: rgba(247,37,133,0.3); }
-body.t_synthwave .game-card-v2 { background: rgba(6,0,14,0.96); border-color: rgba(247,37,133,0.12); }
-body.t_synthwave .game-card-v2:hover { border-color: #f72585; box-shadow: 0 0 24px rgba(247,37,133,0.4), 0 0 6px rgba(114,9,183,0.3); }
-body.t_synthwave .lobby-grid { background: radial-gradient(ellipse at bottom, #0d0020 0%, #06000e 70%); }
-body.t_synthwave .btn { background: rgba(247,37,133,0.1); border-color: rgba(247,37,133,0.45); color: #f72585; }
-body.t_synthwave .btn:hover { background: rgba(247,37,133,0.25); box-shadow: 0 0 14px rgba(247,37,133,0.3); }
-body.t_synthwave .status-bar { background: rgba(4,0,10,0.99); border-top-color: rgba(114,9,183,0.4); }
 body.t_synthwave .vignette { opacity: 1; background: radial-gradient(circle, transparent 20%, rgba(50,0,80,0.6) 100%); }
 
 /* Terminal — verde puro monocromático */
@@ -7163,14 +7739,7 @@ body.t_terminal {
     --bg-dark: #000300; --text-main: #00ff41;
     --font-ui: 'Courier New', monospace;
 }
-body.t_terminal .main-nav { background: rgba(0,2,0,0.99); border-bottom-color: rgba(0,255,65,0.2); }
-body.t_terminal .game-card-v2 { background: rgba(0,4,0,0.96); border-color: rgba(0,255,65,0.1); border-radius: 2px; color: #00ff41; }
-body.t_terminal .game-card-v2:hover { border-color: #00ff41; box-shadow: 0 0 12px rgba(0,255,65,0.3); background: rgba(0,20,0,0.96); }
-body.t_terminal .lobby-grid { background: #000300; }
-body.t_terminal .btn { background: rgba(0,255,65,0.08); border-color: rgba(0,255,65,0.35); color: #00ff41; border-radius: 2px; }
 body.t_terminal .btn:hover { background: rgba(0,255,65,0.18); }
-body.t_terminal .status-bar { background: rgba(0,2,0,0.99); border-top-color: rgba(0,255,65,0.2); }
-body.t_terminal .scanlines { opacity: 0.5; }
 
 
 
@@ -7212,4 +7781,55 @@ body.t_xperror * { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .pv2-record-history { display: none; padding: 4px 8px 8px; }
 .pv2-record-history.open { display: block; animation: wFadeIn 0.2s ease; }
 .pv2-hist-item { display: flex; justify-content: space-between; font-size: 0.58rem; color: #334155; font-family: monospace; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+
+/* =====================================================
+   LOADER GENÉRICO — usado en juegos con fetch y en init de Pixi
+   ===================================================== */
+.loader {
+    width: 44px; height: 44px;
+    border: 2px solid rgba(255,255,255,0.08);
+    border-top-color: var(--accent, #a855f7);
+    border-right-color: var(--accent, #a855f7);
+    border-radius: 50%;
+    animation: loaderSpin 0.8s linear infinite;
+    margin: 0 auto;
+    box-shadow: 0 0 20px rgba(168,85,247,0.25);
+}
+@keyframes loaderSpin { to { transform: rotate(360deg); } }
+
+/* Loader de juego completo — para while Pixi.init() se ejecuta */
+.game-loading-overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px;
+    background: rgba(5,8,18,0.85);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 50;
+    font-family: monospace;
+    letter-spacing: 3px;
+    color: #94a3b8;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    animation: glFadeIn 0.15s ease;
+}
+.game-loading-overlay.fading-out { animation: glFadeOut 0.25s ease forwards; }
+@keyframes glFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes glFadeOut { to { opacity: 0; } }
+
+/* Error state para juegos con fetch fallido */
+.game-error-panel {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    background: rgba(10,16,30,0.95);
+    border: 1px solid rgba(239,68,68,0.4);
+    border-radius: 12px;
+    padding: 28px 32px;
+    text-align: center;
+    max-width: 360px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(239,68,68,0.1);
+}
+.game-error-panel i { font-size: 2rem; color: #ef4444; margin-bottom: 10px; filter: drop-shadow(0 0 10px rgba(239,68,68,0.5)); }
+.game-error-panel .gep-title { font-family: var(--font-display); font-size: 0.9rem; letter-spacing: 3px; color: white; margin-bottom: 6px; }
+.game-error-panel .gep-msg { font-size: 0.68rem; color: #94a3b8; font-family: monospace; letter-spacing: 1px; line-height: 1.5; }
+.game-error-panel .gep-hint { font-size: 0.58rem; color: #475569; font-family: monospace; margin-top: 14px; letter-spacing: 2px; }
 
