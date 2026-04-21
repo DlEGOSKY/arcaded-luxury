@@ -26,6 +26,12 @@ export class GlitchHuntGame {
         this.gameLoopId = null; this.lastTime = 0;
         this.gridSize = 3; this.targetIndex = -1;
         this.mode = 'STANDARD';
+        // NUEVAS MECÁNICAS
+        this.lives = 3;
+        this.maxLives = 3;
+        this.streak = 0;
+        this.maxStreak = 0;
+        this.revealAvailable = 2;
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.injectStyles();
     }
@@ -65,6 +71,22 @@ export class GlitchHuntGame {
         /* Glitch visual en el target — parpadeo sutil */
         .gh-cell.glitch-target { animation:ghTargetFlicker ${0}s ease-in-out infinite; }
         @keyframes ghTargetGlow { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 12px rgba(168,85,247,0.4)} }
+        /* Reveal visual temporal */
+        .gh-cell.revealed { animation:ghReveal 0.4s ease-in-out 3; box-shadow:0 0 20px #10b981 !important; border-color:#10b981 !important; }
+        @keyframes ghReveal { 0%,100%{background:rgba(16,185,129,0.15)} 50%{background:rgba(16,185,129,0.4)} }
+        /* Vidas HUD */
+        .gh-lives { display:inline-flex;gap:4px;align-items:center; }
+        .gh-heart { font-size:0.85rem;color:#ef4444;transition:all 0.2s; }
+        .gh-heart.lost { color:#334155;transform:scale(0.7); }
+        /* Power-up */
+        .gh-pwr { position:absolute;bottom:20px;left:50%;transform:translateX(-50%);padding:7px 14px;background:rgba(10,16,30,0.9);border:1.5px solid #10b981;border-radius:8px;color:#10b981;font-family:var(--font-display);font-size:0.62rem;letter-spacing:2px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:6px;z-index:30; }
+        .gh-pwr:hover:not(.used) { background:rgba(16,185,129,0.15);transform:translateX(-50%) translateY(-2px); }
+        .gh-pwr.used { opacity:0.3;pointer-events:none;filter:grayscale(1); }
+        .gh-pwr .cnt { color:#94a3b8;font-size:0.55rem; }
+        /* Streak chip */
+        .gh-streak-chip { position:absolute;top:70px;left:50%;transform:translateX(-50%);padding:4px 12px;background:rgba(168,85,247,0.15);border:1.5px solid #a855f7;border-radius:20px;color:#a855f7;font-family:var(--font-display);font-size:0.62rem;letter-spacing:2px;pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:25; }
+        .gh-streak-chip.show { opacity:1; }
+        .gh-streak-chip.hot { background:rgba(239,68,68,0.2);border-color:#ef4444;color:#ef4444; }
         `;
         document.head.appendChild(s);
     }
@@ -119,22 +141,65 @@ export class GlitchHuntGame {
         this.gridSize = this.mode==='BLITZ' ? 5 : 3;
         this.timeLeft = this.mode==='BLITZ' ? 2.0 : 5.0;
         this.lastTime = performance.now();
+        this.lives = 3; this.maxLives = 3;
+        this.streak = 0; this.maxStreak = 0;
+        this.revealAvailable = 2;
+
+        const heartsHTML = Array.from({length:this.maxLives},(_,i)=>`<i class="fa-solid fa-heart gh-heart"></i>`).join('');
 
         this.uiContainer.innerHTML = `
         <div class="gh-root">
             <div class="gh-hud">
                 <div class="gh-stat"><div class="gh-stat-lbl">NIVEL</div><div class="gh-stat-val" id="gh-level">1</div></div>
                 <div class="gh-stat"><div class="gh-stat-lbl">ACIERTOS</div><div class="gh-stat-val" id="gh-score">0</div></div>
+                <div class="gh-stat"><div class="gh-stat-lbl">VIDAS</div><div class="gh-lives" id="gh-lives">${heartsHTML}</div></div>
                 <div class="gh-stat"><div class="gh-stat-lbl">MODO</div><div class="gh-stat-val" style="font-size:0.7rem;color:#a855f7;">${this.mode}</div></div>
             </div>
+            <div class="gh-streak-chip" id="gh-streak">RACHA ×0</div>
             <div id="gh-grid-wrap" style="flex:1;display:flex;align-items:center;justify-content:center;width:100%;"></div>
             <div class="gh-time-wrap">
                 <div class="gh-time-lbl"><span>TIEMPO RESTANTE</span><span id="gh-time-lbl">${this.timeLeft.toFixed(1)}s</span></div>
                 <div class="gh-time-track"><div class="gh-time-fill" id="gh-time-fill" style="width:100%;background:#a855f7;"></div></div>
             </div>
+            <button class="gh-pwr" id="gh-reveal">REVELAR <span class="cnt">·${this.revealAvailable}</span> <span class="cnt">$20</span></button>
         </div>`;
+        const rv = document.getElementById('gh-reveal');
+        if (rv) rv.onclick = () => this.activateReveal();
         this.buildGrid();
         this.gameLoopId = requestAnimationFrame(ts => this.loop(ts));
+    }
+
+    activateReveal() {
+        if (!this.isRunning || this.revealAvailable <= 0) return;
+        if (window.app.credits < 20) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Revelar cuesta $20', 'danger'); } catch(e){} return; }
+        window.app.credits -= 20;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e) {}
+        this.revealAvailable--;
+        const cells = document.querySelectorAll('.gh-cell');
+        if (cells[this.targetIndex]) cells[this.targetIndex].classList.add('revealed');
+        try { this.audio.playTone(1500, 'sine', 0.15); } catch(e){}
+        const btn = document.getElementById('gh-reveal');
+        if (btn) {
+            btn.innerHTML = `REVELAR <span class="cnt">·${this.revealAvailable}</span> <span class="cnt">$20</span>`;
+            if (this.revealAvailable <= 0) btn.classList.add('used');
+        }
+    }
+
+    updateStreakChip() {
+        const el = document.getElementById('gh-streak');
+        if (!el) return;
+        if (this.streak >= 3) {
+            let m = 1;
+            if (this.streak >= 10) m = 3;
+            else if (this.streak >= 6) m = 2;
+            else if (this.streak >= 3) m = 1.5;
+            el.textContent = `RACHA ×${this.streak} · BONUS ×${m}`;
+            el.classList.add('show');
+            el.classList.toggle('hot', this.streak >= 6);
+        } else {
+            el.classList.remove('show', 'hot');
+        }
     }
 
     buildGrid() {
@@ -181,20 +246,41 @@ export class GlitchHuntGame {
         if(!this.isRunning) return;
         if(isTarget){
             cellEl.classList.add('hit');
-            this.score++; this.level++;
+            this.streak++;
+            if (this.streak > this.maxStreak) this.maxStreak = this.streak;
+            // Streak multiplier
+            let streakMulti = 1;
+            if (this.streak >= 10) streakMulti = 3;
+            else if (this.streak >= 6) streakMulti = 2;
+            else if (this.streak >= 3) streakMulti = 1.5;
+            this.score += streakMulti;
+            this.level++;
             this.timeLeft = this.mode==='BLITZ' ? 2.0 : Math.min(5.0, this.timeLeft + 0.5);
-            try{ this.audio.playWin(1); }catch(e){}
+            try{ this.audio.playWin(streakMulti>1?3:1); }catch(e){}
             // Aumentar dificultad: cuadrícula más grande en niveles altos
             if(this.level > 5 && this.gridSize < 5 && this.mode!=='BLITZ') this.gridSize = 4;
             if(this.level > 9 && this.gridSize < 6 && this.mode!=='BLITZ') this.gridSize = 5;
+            this.updateStreakChip();
             const s=document.getElementById('gh-score'); if(s)s.innerText=this.score;
             const l=document.getElementById('gh-level'); if(l)l.innerText=this.level;
             setTimeout(()=>this.buildGrid(), 220);
         } else {
             cellEl.classList.add('miss');
-            this.timeLeft = Math.max(0, this.timeLeft - 1.0);
+            this.lives--;
+            this.streak = 0;
+            this.updateStreakChip();
+            this.timeLeft = Math.max(0, this.timeLeft - 0.5);
             try{ this.audio.playLose(); }catch(e){}
             document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'),300);
+            const livesEl = document.getElementById('gh-lives');
+            if (livesEl) {
+                livesEl.innerHTML = Array.from({length:this.maxLives},(_,i)=>
+                    `<i class="fa-solid fa-heart gh-heart${i>=this.lives?' lost':''}"></i>`
+                ).join('');
+            }
+            if (this.lives <= 0) {
+                setTimeout(() => this.gameOver(), 300);
+            }
         }
     }
 
@@ -230,6 +316,14 @@ export class GlitchHuntGame {
     gameOver() {
         this.isRunning = false;
         if(this.gameLoopId) cancelAnimationFrame(this.gameLoopId);
+        // Bonus por racha máxima
+        if (this.maxStreak >= 5) {
+            const bonus = this.maxStreak * 3;
+            window.app.credits += bonus;
+            try { window.app.showToast('RACHA MÁXIMA', `${this.maxStreak} · +${bonus} CR`, 'success'); } catch(e) {}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            try { window.app.save(); } catch(e) {}
+        }
         if(this.onQuit) this.onQuit(this.score);
     }
 }

@@ -29,7 +29,15 @@ export class HoloMatchGame {
         
         this.mode = 'STANDARD';
         this.combo = 0;
+        this.maxCombo = 0;
         this.score = 0;
+        // NUEVAS MECÁNICAS
+        this.peekAvailable = 2;
+        this.freezeAvailable = 1;
+        this.freezeActive = false;
+        this.freezeTimer = null;
+        this.lastMatchTime = 0;
+        this.fastMatches = 0;
 
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.injectStyles();
@@ -65,6 +73,16 @@ export class HoloMatchGame {
             .mode-std { border-color: #3b82f6; color: #3b82f6; }
             .mode-virus { border-color: #ef4444; color: #ef4444; }
             .mode-rush { border-color: #eab308; color: #eab308; }
+            /* Power-ups */
+            .hm-pwrs { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:10px; z-index:30; pointer-events:auto; }
+            .hm-pwr { padding:8px 14px; background:rgba(10,16,30,0.9); border:1.5px solid #3b82f6; border-radius:8px; color:#3b82f6; font-family:var(--font-display); font-size:0.62rem; letter-spacing:2px; cursor:pointer; transition:all 0.15s; display:flex; align-items:center; gap:6px; }
+            .hm-pwr:hover:not(.used) { background:rgba(59,130,246,0.15); transform:translateY(-2px); }
+            .hm-pwr.used { opacity:0.3; pointer-events:none; filter:grayscale(1); }
+            .hm-pwr .cnt { color:#94a3b8; font-size:0.55rem; }
+            .holo-card-container.peeked { transform:rotateY(180deg); animation:hmPeek 2s ease both; }
+            @keyframes hmPeek { 0%,80%{opacity:1} 100%{opacity:1} }
+            body.hm-freeze .hm-value#hm-time { animation:hmFrz 0.4s infinite alternate; }
+            @keyframes hmFrz { from{filter:hue-rotate(0)} to{filter:hue-rotate(50deg)brightness(1.2)} }
         `;
         document.head.appendChild(style);
     }
@@ -111,9 +129,16 @@ export class HoloMatchGame {
         this.matchesFound = 0;
         this.score = 0;
         this.combo = 0;
+        this.maxCombo = 0;
         this.firstCard = null;
         this.secondCard = null;
         this.isProcessing = false;
+        // Reset power-ups
+        this.peekAvailable = 2;
+        this.freezeAvailable = 1;
+        this.freezeActive = false;
+        this.lastMatchTime = 0;
+        this.fastMatches = 0;
         
         if (this.mode === 'STANDARD') { this.cols = 4; this.rows = 3; this.totalPairs = 6; this.timeLeft = 40.0; } 
         else if (this.mode === 'VIRUS') { this.cols = 4; this.rows = 4; this.totalPairs = 7; this.timeLeft = 60.0; } 
@@ -175,7 +200,63 @@ export class HoloMatchGame {
                 </div>
             </div>
             ${gridHTML}
+            <div class="hm-pwrs">
+                <button class="hm-pwr" id="hm-peek">PEEK <span class="cnt">·${this.peekAvailable}</span> <span class="cnt">$25</span></button>
+                <button class="hm-pwr" id="hm-freeze">FREEZE <span class="cnt">$20</span></button>
+            </div>
         </div>`;
+        const pk = document.getElementById('hm-peek');
+        if (pk) pk.onclick = () => this.activatePeek();
+        const fz = document.getElementById('hm-freeze');
+        if (fz) fz.onclick = () => this.activateFreeze();
+    }
+
+    activatePeek() {
+        if (!this.isRunning || this.peekAvailable<=0 || this.isProcessing) return;
+        if (window.app.credits < 25) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Peek cuesta $25', 'danger'); } catch(e){} return; }
+        window.app.credits -= 25;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e) {}
+        this.peekAvailable--;
+        // Muestra todas las cartas no-matched por 1.2s
+        const unmatched = this.cards.filter(c => !c.isMatched && !c.isFlipped);
+        unmatched.forEach(c => {
+            const el = document.getElementById(`card-${c.id}`);
+            if (el) el.classList.add('flipped');
+        });
+        try { this.audio.playTone(1400, 'sine', 0.15); } catch(e){}
+        setTimeout(() => {
+            unmatched.forEach(c => {
+                if (c.isMatched) return;
+                const el = document.getElementById(`card-${c.id}`);
+                if (el && !c.isFlipped) el.classList.remove('flipped');
+            });
+        }, 1200);
+        const btn = document.getElementById('hm-peek');
+        if (btn) {
+            btn.innerHTML = `PEEK <span class="cnt">·${this.peekAvailable}</span> <span class="cnt">$25</span>`;
+            if (this.peekAvailable<=0) btn.classList.add('used');
+        }
+    }
+
+    activateFreeze() {
+        if (!this.isRunning || this.freezeAvailable<=0 || this.freezeActive) return;
+        if (window.app.credits < 20) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Freeze cuesta $20', 'danger'); } catch(e){} return; }
+        window.app.credits -= 20;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e) {}
+        this.freezeAvailable--;
+        this.freezeActive = true;
+        document.body.classList.add('hm-freeze');
+        try { this.audio.playTone(1600, 'sine', 0.15); } catch(e){}
+        const btn = document.getElementById('hm-freeze');
+        if (btn) { btn.classList.add('used'); btn.innerHTML = 'ACTIVO · 4s'; }
+        if (this.freezeTimer) clearTimeout(this.freezeTimer);
+        this.freezeTimer = setTimeout(() => {
+            this.freezeActive = false;
+            document.body.classList.remove('hm-freeze');
+            if (btn) btn.innerHTML = 'AGOTADO';
+        }, 4000);
     }
 
     handleCardClick(id) {
@@ -227,12 +308,20 @@ export class HoloMatchGame {
         if (card1.data.val === card2.data.val) {
             this.audio.playWin(1);
             this.combo++;
+            if (this.combo > this.maxCombo) this.maxCombo = this.combo;
+            // Fast match bonus: si el match es <2s después del anterior
+            const now = Date.now();
+            const isFast = this.lastMatchTime > 0 && (now - this.lastMatchTime) < 2000;
+            if (isFast) this.fastMatches++;
+            this.lastMatchTime = now;
             this.updateComboUI();
-            const points = 10 * this.combo;
+            const fastBonus = isFast ? 5 : 0;
+            const points = (10 * this.combo) + fastBonus;
             this.score += points;
             const globalScore = document.getElementById('ui-score');
             if(globalScore) globalScore.innerText = this.score;
             if (this.mode === 'RUSH') { this.timeLeft += 3; window.app.showToast("+3s", "Time Extension", "success"); }
+            if (isFast) { try { window.app.showToast('FAST MATCH', `+${fastBonus} bonus`, 'success'); } catch(e){} }
             await new Promise(r => setTimeout(r, 300));
             card1.el.classList.add('matched');
             card2.el.classList.add('matched');
@@ -272,9 +361,11 @@ export class HoloMatchGame {
     loop(timestamp) {
         if(!this.isRunning) return;
         if (!this.lastTime) this.lastTime = timestamp;
-        const dt = (timestamp - this.lastTime) / 1000;
+        let dt = (timestamp - this.lastTime) / 1000;
         this.lastTime = timestamp;
         if (dt > 0.1) { this.gameLoopId = requestAnimationFrame((t) => this.loop(t)); return; }
+        // Freeze: tiempo corre a 25%
+        if (this.freezeActive) dt *= 0.25;
         this.timeLeft -= dt;
         const timeEl = document.getElementById('hm-time');
         if(timeEl) {
@@ -289,11 +380,21 @@ export class HoloMatchGame {
     win() {
         this.isRunning = false;
         if(this.gameLoopId) cancelAnimationFrame(this.gameLoopId);
+        if(this.freezeTimer) { clearTimeout(this.freezeTimer); this.freezeTimer = null; }
+        document.body.classList.remove('hm-freeze');
         
         const timeBonus = Math.floor(this.timeLeft * 5);
         this.score += timeBonus;
-        
-        // Llamada Inteligente
+        // Bonus por fast matches y max combo + victory
+        let extraBonus = Math.floor(this.timeLeft * 2);
+        if (this.fastMatches >= 3) extraBonus += this.fastMatches * 5;
+        if (this.maxCombo >= 4) extraBonus += this.maxCombo * 3;
+        if (extraBonus > 0) {
+            window.app.credits += extraBonus;
+            try { window.app.showToast('VICTORIA', `+${extraBonus} CR · Combo ×${this.maxCombo}`, 'success'); } catch(e) {}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            try { window.app.save(); } catch(e) {}
+        }
         if(this.onQuit) this.onQuit(this.score);
     }
 
@@ -311,16 +412,28 @@ export class HoloMatchGame {
     cleanup() {
         this.isRunning = false;
         if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId = null; }
+        if(this.freezeTimer) { clearTimeout(this.freezeTimer); this.freezeTimer = null; }
+        document.body.classList.remove('hm-freeze');
     }
 
     gameOver() {
         if(!this.isRunning) return;
         this.isRunning = false;
         if(this.gameLoopId) cancelAnimationFrame(this.gameLoopId);
+        if(this.freezeTimer) { clearTimeout(this.freezeTimer); this.freezeTimer = null; }
+        document.body.classList.remove('hm-freeze');
         
         try { this.audio.playLose(); } catch(e){}
-        
-        // Llamada Inteligente
+        // Bonus por fast matches y max combo
+        let bonus = 0;
+        if (this.fastMatches >= 3) bonus += this.fastMatches * 5;
+        if (this.maxCombo >= 4) bonus += this.maxCombo * 3;
+        if (bonus > 0) {
+            window.app.credits += bonus;
+            try { window.app.showToast('BONUS FINAL', `+${bonus} CR · ${this.fastMatches} fast`, 'success'); } catch(e) {}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            try { window.app.save(); } catch(e) {}
+        }
         if(this.onQuit) this.onQuit(this.score);
     }
 }

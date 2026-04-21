@@ -8,6 +8,11 @@ export class ReactionChainGame {
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.score       = 0;
         this.mode        = 'NORMAL';
+        // NUEVAS MECÁNICAS
+        this.streak = 0;
+        this.maxStreak = 0;
+        this.fastChains = 0;
+        this.timeBoostsAvailable = 2;
         this.injectStyles();
     }
 
@@ -33,6 +38,13 @@ export class ReactionChainGame {
             .rc-msg { font-family:var(--font-display);font-size:0.72rem;letter-spacing:2px;color:#94a3b8;min-height:18px; }
             .rc-chain-bar { width:100%;max-width:420px;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden; }
             .rc-chain-fill { height:100%;background:var(--primary);border-radius:2px;transition:width 0.1s linear; }
+            /* Power-up + streak */
+            .rc-foot { display:flex;gap:10px;align-items:center;width:100%;max-width:420px;justify-content:space-between;margin-top:4px; }
+            .rc-pwr { padding:6px 12px;background:rgba(10,16,30,0.9);border:1.5px solid #10b981;border-radius:8px;color:#10b981;font-family:var(--font-display);font-size:0.6rem;letter-spacing:2px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:6px; }
+            .rc-pwr:hover:not(.used) { background:rgba(16,185,129,0.15);transform:translateY(-2px); }
+            .rc-pwr.used { opacity:0.3;pointer-events:none;filter:grayscale(1); }
+            .rc-pwr .cnt { color:#94a3b8;font-size:0.52rem; }
+            .rc-streak { padding:3px 10px;background:rgba(251,191,36,0.15);border:1px solid #fbbf24;border-radius:15px;color:#fbbf24;font-family:var(--font-display);font-size:0.6rem;letter-spacing:2px; }
         `;
         document.head.appendChild(s);
     }
@@ -78,8 +90,14 @@ export class ReactionChainGame {
         this.mode    = mode;
         this.score   = 0;
         this.round   = 0;
-        this.lives   = mode === 'ENDLESS' ? 3 : 999;
+        // 3 vidas en todos los modos (antes solo ENDLESS)
+        this.lives   = 3;
+        this.maxLives = 3;
         this.baseTime= mode === 'SPEED' ? 8000 : 12000;
+        // Reset mecánicas
+        this.streak = 0; this.maxStreak = 0;
+        this.fastChains = 0;
+        this.timeBoostsAvailable = 2;
         try { this.canvas.setMood('CYAN'); } catch(e) {}
         this.newChain();
     }
@@ -113,8 +131,8 @@ export class ReactionChainGame {
     }
 
     render() {
-        const livesHTML = Array.from({length: Math.min(this.lives, 5)}, (_, i) =>
-            `<i class="fa-solid fa-heart" style="color:#ec4899;font-size:0.75rem;margin:0 2px;"></i>`
+        const livesHTML = Array.from({length: this.maxLives}, (_, i) =>
+            `<i class="fa-solid fa-heart" style="color:${i>=this.lives?'#334155':'#ec4899'};font-size:0.75rem;margin:0 2px;transition:all 0.2s;${i>=this.lives?'transform:scale(0.7);':''}"></i>`
         ).join('');
 
         const nodesHTML = this.chain.map(n => {
@@ -128,6 +146,8 @@ export class ReactionChainGame {
             >${n.id + 1}</div>`;
         }).join('');
 
+        const streakHTML = this.streak >= 2 ? `<div class="rc-streak">RACHA ×${this.streak}</div>` : '<div></div>';
+
         this.uiContainer.innerHTML = `
         <div class="rc-root">
             <div class="rc-header">
@@ -138,21 +158,45 @@ export class ReactionChainGame {
             <div class="rc-chain-bar"><div class="rc-chain-fill" id="rc-bar-fill" style="width:100%;"></div></div>
             <div class="rc-arena">${nodesHTML}</div>
             <div class="rc-msg" id="rc-msg">Toca los nodos del 1 al ${this.chain.length} en orden</div>
+            <div class="rc-foot">
+                ${streakHTML}
+                <button class="rc-pwr${this.timeBoostsAvailable<=0?' used':''}" id="rc-time">+3s <span class="cnt">·${this.timeBoostsAvailable}</span> <span class="cnt">$15</span></button>
+            </div>
         </div>`;
+        const tb = document.getElementById('rc-time');
+        if (tb) tb.onclick = () => this.activateTimeBoost();
         window.reactionChain = this;
+    }
+
+    activateTimeBoost() {
+        if (this.timeBoostsAvailable <= 0 || !this.chain || this.current >= this.chain.length) return;
+        if (window.app.credits < 15) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', '+3s cuesta $15', 'danger'); } catch(e){} return; }
+        window.app.credits -= 15;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e){}
+        this.timeBoostsAvailable--;
+        // Añadir 3s al timer actual
+        this.timeLimit += 3000;
+        this.startTime += 0; // no move startTime, solo ampliamos el total
+        try { this.audio.playTone(1500, 'sine', 0.12); } catch(e){}
+        try { window.app.showToast('+3 SEGUNDOS', 'Tiempo extendido', 'success'); } catch(e){}
+        const btn = document.getElementById('rc-time');
+        if (btn) {
+            btn.innerHTML = `+3s <span class="cnt">·${this.timeBoostsAvailable}</span> <span class="cnt">$15</span>`;
+            if (this.timeBoostsAvailable <= 0) btn.classList.add('used');
+        }
     }
 
     tap(id) {
         if(id !== this.current) {
-            // Wrong node
+            // Wrong node → pierde vida + rompe racha
             const el = document.getElementById('rc-node-' + id);
             if(el) { el.classList.add('wrong'); setTimeout(()=>el.classList.remove('wrong'),300); }
             try { this.audio.playTone(150,'square',0.05,0.1); } catch(e) {}
-            if(this.mode === 'ENDLESS') {
-                this.lives--;
-                if(this.lives <= 0) { clearInterval(this._timerInt); setTimeout(()=>this.endGame(),400); return; }
-                this.render(); window.reactionChain = this;
-            }
+            this.lives--;
+            this.streak = 0;
+            if(this.lives <= 0) { clearInterval(this._timerInt); setTimeout(()=>this.endGame(),400); return; }
+            this.render(); window.reactionChain = this;
             return;
         }
         // Correct
@@ -166,12 +210,25 @@ export class ReactionChainGame {
             clearInterval(this._timerInt);
             const elapsed = Date.now() - this.startTime;
             const timeBonus = Math.round((this.timeLimit - elapsed) / 100);
-            const pts = this.chain.length * 10 + timeBonus;
+            // Fast chain bonus: si se completa en <50% del tiempo
+            const isFast = elapsed < this.timeLimit * 0.5;
+            const fastBonus = isFast ? 20 : 0;
+            if (isFast) this.fastChains++;
+            // Streak
+            this.streak++;
+            if (this.streak > this.maxStreak) this.maxStreak = this.streak;
+            let streakMulti = 1;
+            if (this.streak >= 5) streakMulti = 2;
+            else if (this.streak >= 3) streakMulti = 1.5;
+            const basePts = this.chain.length * 10 + timeBonus + fastBonus;
+            const pts = Math.floor(basePts * streakMulti);
             this.score += pts;
             const sc = document.getElementById('rc-score');
             if(sc) sc.innerText = this.score;
             const msg = document.getElementById('rc-msg');
-            if(msg) { msg.style.color='#10b981'; msg.textContent = '¡CADENA COMPLETADA! +' + pts; }
+            const fastTxt = isFast ? ' + FAST' : '';
+            const streakTxt = streakMulti > 1 ? ` ×${streakMulti}` : '';
+            if(msg) { msg.style.color='#10b981'; msg.textContent = `¡CADENA! +${pts}${fastTxt}${streakTxt}`; }
             try { this.audio.playWin(3); } catch(e) {}
 
             if(this.mode === 'NORMAL' && this.round >= 5) {
@@ -190,17 +247,25 @@ export class ReactionChainGame {
         const msg = document.getElementById('rc-msg');
         if(msg) { msg.style.color='#ef4444'; msg.textContent='¡TIEMPO AGOTADO!'; }
         try { this.audio.playLose(); } catch(e) {}
-        if(this.mode === 'ENDLESS') {
-            this.lives--;
-            if(this.lives > 0) { setTimeout(()=>this.newChain(),1000); }
-            else setTimeout(()=>this.endGame(),1000);
-        } else {
-            setTimeout(()=>this.endGame(),1500);
-        }
+        // Timeout penaliza vida + rompe racha en todos los modos
+        this.lives--;
+        this.streak = 0;
+        if(this.lives > 0) { setTimeout(()=>this.newChain(),1000); }
+        else setTimeout(()=>this.endGame(),1000);
     }
 
     endGame() {
         clearInterval(this._timerInt);
+        // Bonus por maxStreak y fastChains
+        let bonus = 0;
+        if (this.maxStreak >= 3) bonus += this.maxStreak * 4;
+        if (this.fastChains >= 2) bonus += this.fastChains * 5;
+        if (bonus > 0) {
+            window.app.credits += bonus;
+            try { window.app.showToast('BONUS FINAL', `+${bonus} CR · Racha ×${this.maxStreak} · ${this.fastChains} rápidas`, 'success'); } catch(e){}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            try { window.app.save(); } catch(e){}
+        }
         delete window.reactionChain;
         if(this.onGameOver) this.onGameOver(this.score);
     }

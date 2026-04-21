@@ -16,6 +16,12 @@ export class OrbitTrackerGame {
         this.mode = 'STANDARD';
         this.level = 1;
         this.lockedCount = 0;
+        // NUEVAS MECÁNICAS
+        this.lockStreak = 0;         // frames consecutivos con al menos 1 lock
+        this.maxLockStreak = 0;
+        this.boostAvailable = 2;
+        this.comboFrames = 0;        // frames con lock completo (todos los orbes)
+        this.maxLevel = 1;
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.handleMove = this.handleMove.bind(this);
         this.pixiApp = null;
@@ -36,6 +42,13 @@ export class OrbitTrackerGame {
         .ot-stat-val { font-family:var(--font-display);font-size:0.9rem;color:white; }
         .ot-energy-track { width:180px;height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden; }
         .ot-energy-fill { height:100%;border-radius:4px;transition:width 0.1s,background 0.3s; }
+        .ot-pwr { position:absolute;bottom:22px;right:22px;padding:8px 14px;background:rgba(10,16,30,0.9);border:1.5px solid #10b981;border-radius:8px;color:#10b981;font-family:var(--font-display);font-size:0.62rem;letter-spacing:2px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:6px;z-index:30;pointer-events:auto; }
+        .ot-pwr:hover:not(.used) { background:rgba(16,185,129,0.15);transform:translateY(-2px); }
+        .ot-pwr.used { opacity:0.3;pointer-events:none;filter:grayscale(1); }
+        .ot-pwr .cnt { color:#94a3b8;font-size:0.55rem; }
+        .ot-combo-chip { position:absolute;top:75px;left:50%;transform:translateX(-50%);padding:4px 14px;background:rgba(34,211,238,0.15);border:1.5px solid #22d3ee;border-radius:20px;color:#22d3ee;font-family:var(--font-display);font-size:0.65rem;letter-spacing:2px;pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:20; }
+        .ot-combo-chip.show { opacity:1; }
+        .ot-combo-chip.full { background:rgba(251,191,36,0.2);border-color:#fbbf24;color:#fbbf24;transform:translateX(-50%) scale(1.05); }
         `;
         document.head.appendChild(s);
     }
@@ -94,6 +107,8 @@ export class OrbitTrackerGame {
     async start() {
         this.isRunning = true; this.score = 0; this.energy = 60; this.level = 1; this.lockedCount = 0;
         this.startTime = Date.now();
+        this.lockStreak = 0; this.maxLockStreak = 0;
+        this.boostAvailable = 2; this.comboFrames = 0; this.maxLevel = 1;
 
         // Crear canvas propio para este juego (no el de fondo)
         this.uiContainer.innerHTML = `
@@ -113,7 +128,11 @@ export class OrbitTrackerGame {
                     <div class="ot-stat-lbl">LOCKS</div>
                     <div class="ot-stat-val" id="ot-locks" style="color:#22d3ee;">0</div>
                 </div>
-            </div>`;
+            </div>
+            <div class="ot-combo-chip" id="ot-combo">STREAK</div>
+            <button class="ot-pwr" id="ot-boost">BOOST <span class="cnt">·${this.boostAvailable}</span> <span class="cnt">$20</span></button>`;
+        const bb = document.getElementById('ot-boost');
+        if (bb) bb.onclick = () => this.activateBoost();
 
         const cvs = document.getElementById('ot-canvas');
         cvs.width  = window.innerWidth;
@@ -231,13 +250,41 @@ export class OrbitTrackerGame {
         if(this._usePixi && this._pGfx) this._drawPixi();
         else this._drawCanvas();
 
+        // Bonus de streak: si tenemos locks sostenidos, energía extra
+        const allLocked = this.lockedCount === this.orbs.length && this.orbs.length > 0;
+        if (allLocked) {
+            this.comboFrames++;
+            this.lockStreak++;
+            if (this.lockStreak > this.maxLockStreak) this.maxLockStreak = this.lockStreak;
+            if (this.comboFrames > 30) totalEnergy += 0.5;    // combo sostenido → más energía
+            if (this.comboFrames > 120) totalEnergy += 0.5;   // combo épico
+        } else {
+            this.comboFrames = 0;
+            if (this.lockedCount === 0) this.lockStreak = Math.max(0, this.lockStreak - 1);
+        }
         this.energy = Math.max(0, Math.min(100, this.energy + totalEnergy));
         this.score = elapsed;
 
         if(elapsed > this.level * 10){
             this.level++;
+            if (this.level > this.maxLevel) this.maxLevel = this.level;
             if(this.mode === 'MULTI' && this.orbs.length < 3) this.spawnOrb();
             try{ window.app.showToast(`NIVEL ${this.level}`, 'Velocidad aumentada', 'default'); }catch(e){}
+        }
+
+        // Update combo chip
+        const chip = document.getElementById('ot-combo');
+        if (chip) {
+            if (allLocked && this.orbs.length > 1) {
+                chip.textContent = `COMBO COMPLETO · ${(this.comboFrames/60).toFixed(1)}s`;
+                chip.classList.add('show', 'full');
+            } else if (this.lockStreak > 60) {
+                chip.textContent = `STREAK · ${(this.lockStreak/60).toFixed(1)}s`;
+                chip.classList.add('show');
+                chip.classList.remove('full');
+            } else {
+                chip.classList.remove('show', 'full');
+            }
         }
 
         const scoreEl = document.getElementById('ot-score');
@@ -330,12 +377,38 @@ export class OrbitTrackerGame {
             this.pixiApp = null;
         }
     }
+    activateBoost() {
+        if (!this.isRunning || this.boostAvailable <= 0) return;
+        if (window.app.credits < 20) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Boost cuesta $20', 'danger'); } catch(e){} return; }
+        window.app.credits -= 20;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e) {}
+        this.boostAvailable--;
+        this.energy = Math.min(100, this.energy + 35);
+        try { this.audio.playTone(1400, 'sine', 0.2); } catch(e) {}
+        const btn = document.getElementById('ot-boost');
+        if (btn) {
+            btn.innerHTML = `BOOST <span class="cnt">·${this.boostAvailable}</span> <span class="cnt">$20</span>`;
+            if (this.boostAvailable <= 0) btn.classList.add('used');
+        }
+    }
+
     gameOver() {
         this.isRunning = false;
         if(this.animationId) cancelAnimationFrame(this.animationId);
         window.removeEventListener('mousemove', this.handleMove);
         window.removeEventListener('touchmove', this.handleMove);
         try{ this.audio.playLose(); }catch(e){}
+        // Bonus por max level alcanzado y streak máximo
+        let bonus = 0;
+        if (this.maxLevel >= 3) bonus += this.maxLevel * 4;
+        if (this.maxLockStreak >= 120) bonus += Math.floor(this.maxLockStreak / 60) * 3;
+        if (bonus > 0) {
+            window.app.credits += bonus;
+            try { window.app.showToast('BONUS FINAL', `+${bonus} CR · Nivel ${this.maxLevel}`, 'success'); } catch(e) {}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            try { window.app.save(); } catch(e) {}
+        }
         if(this.onQuit) this.onQuit(parseFloat(this.score.toFixed(1)));
     }
 }

@@ -7,9 +7,16 @@ export class PhaseShifterGame {
         this.cursorPos = 50; this.speed = 1.5; this.direction = 1;
         this.zoneWidth = 30; this.animationId = null;
         this.mode = 'STANDARD';
-        this.lives = 3;             // Modo survival
-        this.multiZone = false;     // Modo MULTI: múltiples zonas
-        this.zones = [];            // [{center, width}]
+        this.lives = 3;
+        this.maxLives = 3;
+        this.streak = 0;
+        this.perfects = 0;
+        this.totalRounds = 0;
+        this.multiZone = false;
+        this.zones = [];
+        this.freezeAvailable = 1;
+        this.freezeActive = false;
+        this.freezeTimer = null;
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.handleInput = this.handleInput.bind(this);
         this.injectStyles();
@@ -28,7 +35,22 @@ export class PhaseShifterGame {
         .ps-zone { position:absolute;top:0;height:100%;left:50%;transform:translateX(-50%);transition:width 0.15s ease,background 0.1s; }
         .ps-zone-inner { position:absolute;inset:0;border-left:2px solid #ec4899;border-right:2px solid #ec4899;background:rgba(236,72,153,0.2);box-shadow:0 0 16px rgba(236,72,153,0.35);border-radius:inherit; }
         .ps-zone.hit .ps-zone-inner { background:rgba(255,255,255,0.7);box-shadow:0 0 30px white; }
+        .ps-zone.perfect .ps-zone-inner { background:rgba(16,185,129,0.7);box-shadow:0 0 40px #10b981;border-color:#10b981; }
         .ps-zone.miss .ps-zone-inner { background:rgba(239,68,68,0.3);border-color:#ef4444; }
+        /* Marcador central de la zona (perfect spot) */
+        .ps-zone-center { position:absolute;top:10%;bottom:10%;left:50%;width:2px;background:rgba(255,255,255,0.4);transform:translateX(-50%);box-shadow:0 0 6px white;pointer-events:none; }
+        .ps-perfect-fb { position:absolute;left:50%;top:-34px;transform:translateX(-50%);font-family:var(--font-display);font-size:0.9rem;color:#10b981;text-shadow:0 0 14px #10b981;letter-spacing:3px;pointer-events:none;animation:psPF 0.8s ease both; }
+        @keyframes psPF { from{opacity:0;transform:translateX(-50%) translateY(10px)} 30%{opacity:1;transform:translateX(-50%) translateY(-4px)} to{opacity:0;transform:translateX(-50%) translateY(-20px)} }
+        /* Streak chip */
+        .ps-streak-chip { position:absolute;top:20px;right:20px;padding:6px 14px;background:rgba(10,16,30,0.9);border:1.5px solid #f97316;border-radius:20px;color:#f97316;font-family:var(--font-display);font-size:0.7rem;letter-spacing:2px;opacity:0;transition:opacity 0.2s,transform 0.2s; }
+        .ps-streak-chip.show { opacity:1; }
+        .ps-streak-chip.hot { background:rgba(239,68,68,0.2);border-color:#ef4444;color:#ef4444;transform:scale(1.1); }
+        /* Power-up */
+        .ps-pwr { position:absolute;bottom:22px;left:50%;transform:translateX(-50%);padding:8px 18px;background:rgba(10,16,30,0.9);border:1.5px solid #3b82f6;border-radius:8px;color:#3b82f6;font-family:var(--font-display);font-size:0.65rem;letter-spacing:2px;cursor:pointer;transition:all 0.15s;z-index:9999; }
+        .ps-pwr:hover:not(.used) { background:rgba(59,130,246,0.15);transform:translateX(-50%) translateY(-2px); }
+        .ps-pwr.used { opacity:0.3;pointer-events:none;filter:grayscale(1); }
+        body.ps-freeze .ps-cursor { animation:psFreeze 0.3s infinite alternate; }
+        @keyframes psFreeze { from{filter:hue-rotate(0)} to{filter:hue-rotate(60deg)} }
         .ps-cursor { position:absolute;top:0;bottom:0;width:5px;background:#fff;box-shadow:0 0 18px white,0 0 6px white;transform:translateX(-50%);z-index:10;border-radius:3px; }
         .ps-cursor-trail { position:absolute;top:0;bottom:0;width:20px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15));transform:translateX(-100%);z-index:9;border-radius:3px; }
         .ps-lives { display:flex;gap:6px;align-items:center; }
@@ -84,27 +106,34 @@ export class PhaseShifterGame {
     }
 
     start() {
-        this.isRunning = true; this.score = 0; this.lives = 3;
+        this.isRunning = true; this.score = 0; this.lives = 3; this.maxLives = 3;
+        this.streak = 0; this.perfects = 0; this.totalRounds = 0;
+        this.freezeAvailable = 1; this.freezeActive = false;
         this.speed = this.mode==='MULTI' ? 1.2 : 1.0;
         this.zoneWidth = this.mode==='MULTI' ? 20 : 40;
         this.cursorPos = 0; this.direction = 1;
         this.multiZone = (this.mode==='MULTI');
 
+        const centerMark = this.multiZone ? '' : '<div class="ps-zone-center"></div>';
         this.uiContainer.innerHTML = `
         <div class="ps-root">
             <div style="display:flex;align-items:center;gap:20px;">
                 <div class="ps-score-big" id="ps-score">0</div>
-                ${this.mode==='SURVIVAL'?`<div class="ps-lives" id="ps-lives">${'<i class="fa-solid fa-heart ps-heart"></i>'.repeat(3)}</div>`:''}
+                <div class="ps-lives" id="ps-lives">${'<i class="fa-solid fa-heart ps-heart"></i>'.repeat(3)}</div>
             </div>
             <div class="ps-track" id="ps-track">
                 <div class="ps-track-grid"></div>
-                <div class="ps-zone" id="ps-zone" style="width:${this.zoneWidth}%;"><div class="ps-zone-inner"></div></div>
+                <div class="ps-zone" id="ps-zone" style="width:${this.zoneWidth}%;"><div class="ps-zone-inner"></div>${centerMark}</div>
                 <div class="ps-cursor-trail" id="ps-trail"></div>
                 <div class="ps-cursor" id="ps-cursor" style="left:0%;"></div>
             </div>
             <div class="ps-info">ESPACIO / CLICK PARA DETENER</div>
+            <div class="ps-streak-chip" id="ps-streak">RACHA ×0</div>
+            <button class="ps-pwr" id="ps-freeze">CONGELAR <span style="opacity:0.6;font-size:0.55rem;margin-left:4px;">$25</span></button>
         </div>
         <div id="ps-click-layer" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9000;cursor:pointer;"></div>`;
+        const fBtn = document.getElementById('ps-freeze');
+        if (fBtn) fBtn.onclick = (e) => { e.stopPropagation(); this.activateFreeze(); };
 
         if(this.multiZone) this._buildMultiZones();
 
@@ -131,24 +160,73 @@ export class PhaseShifterGame {
     handleInput(e) {
         if(!this.isRunning) return;
         if(e.type==='keydown'&&e.code!=='Space') return;
-        const hit = this.multiZone
-            ? this.zones.some(z => this.cursorPos >= z.center-z.width/2 && this.cursorPos <= z.center+z.width/2)
-            : (this.cursorPos >= 50-this.zoneWidth/2 && this.cursorPos <= 50+this.zoneWidth/2);
-        if(hit) this.success(); else this.fail();
+        // Ignorar botones de power-up
+        if(e.type==='mousedown' && e.target && e.target.closest && e.target.closest('.ps-pwr')) return;
+        let hit, isPerfect;
+        if (this.multiZone) {
+            const inZone = this.zones.find(z => this.cursorPos >= z.center-z.width/2 && this.cursorPos <= z.center+z.width/2);
+            hit = !!inZone;
+            isPerfect = inZone && Math.abs(this.cursorPos - inZone.center) < inZone.width * 0.15;
+        } else {
+            const center = 50;
+            const diff = Math.abs(this.cursorPos - center);
+            hit = diff <= this.zoneWidth/2;
+            isPerfect = diff < this.zoneWidth * 0.15;
+        }
+        if(hit) this.success(isPerfect); else this.fail();
     }
 
-    success() {
-        this.score++;
-        try{ this.audio.playWin(1); }catch(e){}
+    success(isPerfect = false) {
+        this.totalRounds++;
+        this.streak++;
+        if (isPerfect) this.perfects++;
+        // Score con perfect bonus + streak multiplier
+        let streakMulti = 1;
+        if (this.streak >= 15) streakMulti = 3;
+        else if (this.streak >= 8) streakMulti = 2;
+        else if (this.streak >= 4) streakMulti = 1.5;
+        const basePts = isPerfect ? 3 : 1;
+        const gained = Math.floor(basePts * streakMulti);
+        this.score += gained;
+        try{ this.audio.playWin(isPerfect?3:1); }catch(e){}
         const scoreEl = document.getElementById('ps-score');
         if(scoreEl){ scoreEl.classList.add('pop'); setTimeout(()=>scoreEl.classList.remove('pop'),120); scoreEl.innerText=this.score; }
         const zone = document.getElementById('ps-zone');
-        if(zone){ zone.classList.add('hit'); setTimeout(()=>zone.classList.remove('hit'),120); }
+        if(zone){
+            zone.classList.add(isPerfect?'perfect':'hit');
+            setTimeout(()=>zone.classList.remove(isPerfect?'perfect':'hit'),150);
+        }
+        // Feedback perfect
+        if (isPerfect && zone) {
+            const fb = document.createElement('div');
+            fb.className = 'ps-perfect-fb';
+            fb.textContent = streakMulti>1 ? `PERFECT ×${streakMulti*3}` : 'PERFECT';
+            zone.appendChild(fb);
+            setTimeout(()=>fb.remove(), 800);
+        }
+        // Update streak chip
+        this.updateStreakChip();
         // Acelerar y estrechar
-        this.speed = Math.min(4.5, this.speed+0.18);
+        this.speed = Math.min(4.5, this.speed + (isPerfect?0.22:0.18));
         if(!this.multiZone) this.zoneWidth = Math.max(4, this.zoneWidth*0.88);
         const z = document.getElementById('ps-zone'); if(z) z.style.width=this.zoneWidth+'%';
         this.cursorPos = Math.random()<0.5?0:100; this.direction = this.cursorPos===0?1:-1;
+    }
+
+    updateStreakChip() {
+        const el = document.getElementById('ps-streak');
+        if (!el) return;
+        if (this.streak >= 3) {
+            let m = 1;
+            if (this.streak >= 15) m = 3;
+            else if (this.streak >= 8) m = 2;
+            else if (this.streak >= 4) m = 1.5;
+            el.textContent = `RACHA ×${this.streak} · BONUS ×${m}`;
+            el.classList.add('show');
+            el.classList.toggle('hot', this.streak >= 8);
+        } else {
+            el.classList.remove('show', 'hot');
+        }
     }
 
     fail() {
@@ -156,12 +234,38 @@ export class PhaseShifterGame {
         const zone = document.getElementById('ps-zone'); if(zone){ zone.classList.add('miss'); setTimeout(()=>zone.classList.remove('miss'),200); }
         try{ this.audio.playLose(); }catch(e){}
         document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'),300);
-        if(this.mode==='SURVIVAL'){
-            this.lives--;
-            const hearts = document.querySelectorAll('.ps-heart');
-            hearts.forEach((h,i)=>{ if(i>=this.lives)h.classList.add('lost'); });
-            if(this.lives<=0) this.gameOver();
-        } else this.gameOver();
+        this.streak = 0;
+        this.updateStreakChip();
+        this.lives--;
+        const hearts = document.querySelectorAll('.ps-heart');
+        hearts.forEach((h,i)=>{ if(i>=this.lives)h.classList.add('lost'); });
+        if(this.lives<=0) this.gameOver();
+        // En caso no-survival: sigue jugando pero con más penalización de speed
+    }
+
+    activateFreeze() {
+        if (!this.isRunning || this.freezeAvailable <= 0 || this.freezeActive) return;
+        if (window.app.credits < 25) {
+            try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Congelar cuesta $25', 'danger'); } catch(e) {}
+            return;
+        }
+        window.app.credits -= 25;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e) {}
+        this.freezeAvailable--;
+        this.freezeActive = true;
+        document.body.classList.add('ps-freeze');
+        const prevSpeed = this.speed;
+        this.speed = prevSpeed * 0.25;
+        const btn = document.getElementById('ps-freeze');
+        if (btn) { btn.classList.add('used'); btn.innerHTML = 'ACTIVO · 2s'; }
+        try { this.audio.playTone(1600, 'sine', 0.15); } catch(e) {}
+        this.freezeTimer = setTimeout(() => {
+            this.freezeActive = false;
+            document.body.classList.remove('ps-freeze');
+            this.speed = prevSpeed;
+            if (btn) btn.innerHTML = 'AGOTADO';
+        }, 2000);
     }
 
     loop() {
@@ -190,16 +294,25 @@ export class PhaseShifterGame {
         this.isRunning = false;
         if(this.animationId) { cancelAnimationFrame(this.animationId); this.animationId = null; }
         if(this._quitTimer) { clearTimeout(this._quitTimer); this._quitTimer = null; }
+        if(this.freezeTimer) { clearTimeout(this.freezeTimer); this.freezeTimer = null; }
+        document.body.classList.remove('ps-freeze');
         const layer=document.getElementById('ps-click-layer'); if(layer)layer.remove();
         window.removeEventListener('keydown', this.handleInput);
     }
     gameOver() {
         this.isRunning = false;
         if(this.animationId) cancelAnimationFrame(this.animationId);
+        if(this.freezeTimer) { clearTimeout(this.freezeTimer); this.freezeTimer = null; }
+        document.body.classList.remove('ps-freeze');
         const layer=document.getElementById('ps-click-layer'); if(layer)layer.remove();
         window.removeEventListener('keydown', this.handleInput);
-        const prize = this.score * 5;
+        // Bonus por perfects
+        const perfectBonus = this.perfects * 3;
+        const prize = this.score * 5 + perfectBonus;
         window.app.credits += prize; window.app.save();
+        if (this.perfects > 0) {
+            try { window.app.showToast('PERFECTS', `${this.perfects} × +3 = +${perfectBonus} CR`, 'success'); } catch(e) {}
+        }
         this._quitTimer = setTimeout(()=>{ if(this.onQuit)this.onQuit(this.score); },400);
     }
 }

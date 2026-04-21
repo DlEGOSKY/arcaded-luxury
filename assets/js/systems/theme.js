@@ -18,6 +18,10 @@ const FAVICON_COLORS = {
     't_portal':    '#ff6600',
     't_terminal':  '#00ff41',
     't_gameby':    '#5da832',
+    // V3
+    't_dos622':    '#c0c0c0',
+    't_ipod':      '#1d6fff',
+    't_n64':       '#7a52a0',
 };
 
 const THEME_SFX = {
@@ -26,6 +30,10 @@ const THEME_SFX = {
     't_matrix':   { click: { freq: 800, type: 'square',   dur: 0.03 }, hover: { freq: 400, type: 'square', dur: 0.02 } },
     't_terminal': { click: { freq: 600, type: 'square',   dur: 0.03 }, hover: { freq: 300, type: 'square', dur: 0.02 } },
     't_diablo':   { click: { freq: 120, type: 'sawtooth', dur: 0.08 }, hover: { freq:  80, type: 'sine',   dur: 0.04 } },
+    // V3
+    't_dos622':   { click: { freq: 900, type: 'square',   dur: 0.03 }, hover: { freq: 600, type: 'square', dur: 0.02 } },   // PC speaker beep
+    't_ipod':     { click: { freq: 1200,type: 'sine',     dur: 0.02 }, hover: { freq: 800, type: 'sine',   dur: 0.01 } },   // Click crisp suave
+    't_n64':      { click: { freq: 540, type: 'triangle', dur: 0.05 }, hover: { freq: 380, type: 'triangle', dur: 0.03 } }, // Tono cartridge chunky
 };
 
 // -------------------------------------------------------------

@@ -125,7 +125,8 @@ export class AudioController {
     // --- MÚSICA GENERATIVA DE LOBBY ---
     setAmbience(theme) {
         if(!this.initialized) return;
-        this.stopAmbience();
+        // Si hay musica corriendo, fade-out de 0.8s (crossfade con la nueva)
+        this.stopAmbience(0.8);
 
         // Configuración musical por tema
         const THEME_MUSIC = {
@@ -199,14 +200,43 @@ export class AudioController {
         this.ambienceOsc = this._ambienceNodes[0]; // compatibilidad
     }
 
-    stopAmbience() {
+    stopAmbience(fadeSec = 0) {
         this._arpeggioActive = false;
         clearTimeout(this._arpeggioTimer);
-        if(this._ambienceNodes) {
+
+        if(!this._ambienceNodes || !this._ambienceNodes.length) {
+            if(this.ambienceOsc) { try { this.ambienceOsc.stop(); } catch(e) {} this.ambienceOsc = null; }
+            return;
+        }
+
+        if(fadeSec > 0 && this.ctx) {
+            // CROSSFADE: todos los GainNode anteriores fade-out sobre `fadeSec`
+            // luego disconnect. Los OscillatorNodes seguian vivos; los paramos
+            // al final del fade.
+            const nodes = this._ambienceNodes.slice();
+            const now = this.ctx.currentTime;
+            nodes.forEach(n => {
+                try {
+                    if(n.gain && n.gain.setValueAtTime) {
+                        n.gain.cancelScheduledValues(now);
+                        n.gain.setValueAtTime(n.gain.value, now);
+                        n.gain.linearRampToValueAtTime(0, now + fadeSec);
+                    }
+                } catch(e) {}
+            });
+            // Detener los oscillators al terminar el fade
+            setTimeout(() => {
+                nodes.forEach(n => { try { n.stop ? n.stop() : n.disconnect(); } catch(e) {} });
+            }, fadeSec * 1000 + 50);
+            // Liberar referencia inmediatamente (ya no son los "activos")
+            this._ambienceNodes = [];
+            this.ambienceOsc = null;
+        } else {
+            // Corte brusco (compat anterior)
             this._ambienceNodes.forEach(n => { try { n.stop ? n.stop() : n.disconnect(); } catch(e) {} });
             this._ambienceNodes = [];
+            if(this.ambienceOsc) { try { this.ambienceOsc.stop(); } catch(e) {} this.ambienceOsc = null; }
         }
-        if(this.ambienceOsc) { try { this.ambienceOsc.stop(); } catch(e) {} this.ambienceOsc = null; }
     }
 
     setTension(active) {

@@ -139,34 +139,102 @@ export function showAchievementToast(ach) {
     if(!container) return;
 
     const el = document.createElement('div');
+    el.className = 'ach-toast-epic';
     el.style.cssText =
-        'background:linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.08));' +
-        'border:1px solid rgba(251,191,36,0.5);border-left:3px solid #fbbf24;' +
+        'position:relative;overflow:hidden;' +
+        'background:linear-gradient(135deg,rgba(251,191,36,0.18),rgba(245,158,11,0.08));' +
+        'border:1px solid rgba(251,191,36,0.55);border-left:3px solid #fbbf24;' +
         'border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;' +
-        'box-shadow:0 8px 32px rgba(0,0,0,0.5),0 0 20px rgba(251,191,36,0.15);' +
-        'max-width:320px;opacity:0;transform:translateX(60px) scale(0.85);' +
-        'transition:all 0.4s cubic-bezier(0.2,0,0,1.3);';
+        'box-shadow:0 8px 32px rgba(0,0,0,0.55),0 0 24px rgba(251,191,36,0.22);' +
+        'max-width:340px;';
+
+    // Capa de shine que pasara con GSAP
+    const shine = '<div class="ach-toast-shine"></div>';
 
     el.innerHTML = `
-        <div style="font-size:1.6rem;filter:drop-shadow(0 0 8px rgba(251,191,36,0.6));">${ach.icon}</div>
-        <div style="flex:1;min-width:0;">
-            <div style="font-size:0.56rem;color:#fbbf24;font-family:monospace;letter-spacing:2px;margin-bottom:2px;">LOGRO DESBLOQUEADO</div>
-            <div style="font-family:var(--font-display);font-size:0.82rem;color:white;letter-spacing:1px;">${ach.name}</div>
-            <div style="font-size:0.62rem;color:#94a3b8;margin-top:1px;">${ach.desc}</div>
+        ${shine}
+        <div class="ach-toast-icon" style="font-size:1.8rem;filter:drop-shadow(0 0 10px rgba(251,191,36,0.8));flex-shrink:0;">${ach.icon}</div>
+        <div style="flex:1;min-width:0;position:relative;z-index:2;">
+            <div class="ach-toast-header" style="font-size:0.56rem;color:#fbbf24;font-family:monospace;letter-spacing:2.5px;margin-bottom:2px;">
+                <i class="fa-solid fa-trophy" style="margin-right:4px;"></i>LOGRO DESBLOQUEADO
+            </div>
+            <div class="ach-toast-name" style="font-family:var(--font-display);font-size:0.85rem;color:white;letter-spacing:1px;">${ach.name}</div>
+            <div class="ach-toast-desc" style="font-size:0.62rem;color:#d1d5db;margin-top:2px;">${ach.desc}</div>
         </div>
-        <i class="fa-solid fa-trophy" style="color:#fbbf24;opacity:0.6;font-size:1.1rem;"></i>
     `;
 
     container.appendChild(el);
-    requestAnimationFrame(() => {
-        el.style.opacity = '1';
-        el.style.transform = 'none';
-    });
-    setTimeout(() => {
+
+    const hasGsap    = typeof window.gsap     !== 'undefined';
+    const hasConfetti = typeof window.confetti !== 'undefined';
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+                       || window.app?.settings?.reduceMotion;
+
+    // Confetti dorado mini desde el toast
+    if(hasConfetti && !reducedMotion) {
+        setTimeout(() => {
+            const rect = el.getBoundingClientRect();
+            const x = (rect.left + rect.width / 2) / window.innerWidth;
+            const y = (rect.top  + rect.height / 2) / window.innerHeight;
+            window.confetti({
+                particleCount: 35,
+                spread: 55,
+                startVelocity: 25,
+                scalar: 0.7,
+                origin: { x, y },
+                colors: ['#fbbf24', '#f59e0b', '#fde68a', '#ffffff'],
+                disableForReducedMotion: true,
+            });
+        }, 250);
+    }
+
+    if(hasGsap && !reducedMotion) {
+        const gsap = window.gsap;
+        // Entrada dramatica con bounce
+        gsap.from(el, {
+            x: 80,
+            opacity: 0,
+            scale: 0.7,
+            duration: 0.55,
+            ease: 'back.out(1.8)',
+        });
+        // Icono con pulso extra
+        gsap.from(el.querySelector('.ach-toast-icon'), {
+            scale: 0,
+            rotation: -180,
+            duration: 0.7,
+            delay: 0.2,
+            ease: 'elastic.out(1, 0.5)',
+        });
+        // Shine barrido a los 400ms
+        const shineEl = el.querySelector('.ach-toast-shine');
+        if(shineEl) {
+            gsap.fromTo(shineEl,
+                { x: '-150%', opacity: 0.9 },
+                { x: '150%', opacity: 0, duration: 1.0, delay: 0.4, ease: 'power2.inOut' }
+            );
+        }
+        // Salida: slide y fade
+        gsap.to(el, {
+            x: 100, opacity: 0, scale: 0.9,
+            duration: 0.45, delay: 4.5, ease: 'power2.in',
+            onComplete: () => el.remove(),
+        });
+    } else {
+        // Fallback CSS (sin GSAP)
         el.style.opacity = '0';
-        el.style.transform = 'translateX(60px)';
-        setTimeout(() => el.remove(), 400);
-    }, 4500);
+        el.style.transform = 'translateX(60px) scale(0.85)';
+        el.style.transition = 'all 0.4s cubic-bezier(0.2,0,0,1.3)';
+        requestAnimationFrame(() => {
+            el.style.opacity = '1';
+            el.style.transform = 'none';
+        });
+        setTimeout(() => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateX(60px)';
+            setTimeout(() => el.remove(), 400);
+        }, 4500);
+    }
 }
 
 // -------------------------------------------------------------

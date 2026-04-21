@@ -102,7 +102,7 @@ export function renderPanel(app) {
         '</div>' +
         lbHTML +
         (playerPos <= 3
-            ? `<div style="margin-top:6px;text-align:center;font-size:0.55rem;color:#fbbf24;font-family:monospace;">🏆 TOP ${playerPos} — CALLCARD EXCLUSIVA AL FINAL</div>`
+            ? `<div style="margin-top:6px;text-align:center;font-size:0.55rem;color:#fbbf24;font-family:monospace;">TOP ${playerPos} — CALLCARD EXCLUSIVA AL FINAL</div>`
             : '') +
         '</div>';
 }

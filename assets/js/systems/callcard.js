@@ -25,6 +25,10 @@ const COLOR_SETS = {
     hacker:    ['#00ff41', '#00cc33'],
     retro:     ['#ff0000', '#ffff00', '#00ff00', '#00ffff', '#ff00ff'],
     gold:      ['#ffd700', '#ffa500', '#ffec8b', '#ff8c00'],
+    // V3 (2026-Q4)
+    dos622:    ['#c0c0c0', '#ffff55', '#55ff55', '#ffffff'],
+    ipod:      ['#a8a8a8', '#1d6fff', '#f0f0f0', '#e0e0e0'],
+    n64:       ['#7a52a0', '#ff6b35', '#ffcc33', '#50c878'],
 };
 
 // -------------------------------------------------------------
@@ -493,6 +497,109 @@ function buildEffects(ctx, canvas, W, H, T, P, pick) {
                 ctx.fillText(p.sym, p.x, p.y);
             });
             ctx.globalAlpha = 1; ctx.textAlign = 'left';
+        },
+
+        // MS-DOS 6.22 — CRT fósforo + líneas BIOS cayendo + prompt C:\> parpadeante
+        dos622() {
+            ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.fillRect(0, 0, W, H);
+            // Scanlines
+            for(let y = 0; y < H; y += 3) {
+                ctx.fillStyle = 'rgba(192,192,192,0.03)'; ctx.fillRect(0, y, W, 1);
+            }
+            // Líneas de BIOS scrollando
+            const lines = [
+                'IBM PC DOS 6.22', 'Memory: 640KB OK',
+                'C:\\> dir', 'C:\\> autoexec.bat',
+                'HIMEM loaded', 'EMM386 loaded',
+                'Starting MS-DOS...', '32MB extended',
+                'VGA adapter detected', 'Loading config.sys',
+                'C:\\> _', 'A:\\> format c:',
+            ];
+            ctx.font = '11px "Courier New", monospace';
+            P.slice(0, 25).forEach((p, i) => {
+                if(!p.code) { p.code = lines[i % lines.length]; p.alpha = Math.random() * 0.6 + 0.2; }
+                p.y += 0.7;
+                if(p.y > H) { p.y = -15; p.x = Math.random() * (W - 180); p.code = lines[Math.floor(Math.random() * lines.length)]; }
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.alpha > 0.5 ? '#55ff55' : '#c0c0c0';
+                ctx.fillText(p.code, p.x, p.y);
+            });
+            // Cursor parpadeante
+            const blink = Math.floor(T() * 1.5) % 2 === 0;
+            if(blink) {
+                ctx.globalAlpha = 0.8;
+                ctx.fillStyle = '#55ff55';
+                ctx.fillRect(W * 0.12, H * 0.88, 8, 13);
+            }
+            ctx.globalAlpha = 1;
+        },
+
+        // iPOD CLASSIC — click wheel girando + notas musicales
+        ipod() {
+            ctx.fillStyle = 'rgba(15,15,20,0.18)'; ctx.fillRect(0, 0, W, H);
+            const t = T();
+            const cx = W / 2, cy = H * 0.45;
+            // Click wheel background glow
+            const gl = ctx.createRadialGradient(cx, cy, 20, cx, cy, 110);
+            gl.addColorStop(0, 'rgba(29,111,255,0.08)');
+            gl.addColorStop(1, 'transparent');
+            ctx.fillStyle = gl;
+            ctx.beginPath(); ctx.arc(cx, cy, 110, 0, Math.PI * 2); ctx.fill();
+            // Click wheel ring
+            ctx.strokeStyle = 'rgba(200,200,200,0.4)';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(cx, cy, 80, 0, Math.PI * 2); ctx.stroke();
+            ctx.strokeStyle = 'rgba(200,200,200,0.2)';
+            ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.stroke();
+            // Indicador rotando
+            const angle = t * 1.2;
+            ctx.save(); ctx.translate(cx, cy); ctx.rotate(angle);
+            ctx.fillStyle = 'rgba(29,111,255,0.7)';
+            ctx.shadowBlur = 12; ctx.shadowColor = '#1d6fff';
+            ctx.beginPath(); ctx.arc(55, 0, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.restore(); ctx.shadowBlur = 0;
+            // Notas musicales flotando hacia arriba
+            const notes = ['\u266a', '\u266b', '\u266c', '\u2669'];
+            ctx.font = 'bold 18px sans-serif';
+            ctx.textAlign = 'center';
+            P.forEach(p => {
+                if(!p.sym) { p.sym = notes[Math.floor(Math.random() * notes.length)]; }
+                p.y -= 0.6 + p.size * 0.15;
+                p.x += Math.sin(t * 0.7 + p.vx * 2) * 0.5;
+                if(p.y < -20) { p.y = H + 20; p.x = Math.random() * W; p.sym = notes[Math.floor(Math.random() * notes.length)]; }
+                ctx.globalAlpha = p.alpha * 0.55;
+                ctx.fillStyle = Math.random() < 0.3 ? '#1d6fff' : '#e8e8e8';
+                ctx.fillText(p.sym, p.x, p.y);
+            });
+            ctx.globalAlpha = 1; ctx.textAlign = 'left';
+        },
+
+        // N64 — bloques chunky 3D cayendo (morado/naranja/amarillo/verde)
+        n64() {
+            ctx.fillStyle = 'rgba(15,5,25,0.18)'; ctx.fillRect(0, 0, W, H);
+            const COLORS = ['#7a52a0', '#ff6b35', '#ffcc33', '#50c878'];
+            P.forEach(p => {
+                if(!p.col) { p.col = COLORS[Math.floor(Math.random() * COLORS.length)]; p.spin = Math.random() * Math.PI * 2; p.spinV = (Math.random() - 0.5) * 0.05; }
+                p.y += 1.2 + p.size * 0.25;
+                p.spin += p.spinV;
+                if(p.y > H + 20) { p.y = -20; p.x = Math.random() * W; p.col = COLORS[Math.floor(Math.random() * COLORS.length)]; }
+                const s = 14 + p.size * 3;
+                ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.spin);
+                // Cubo chunky con sombreado 3D
+                ctx.globalAlpha = p.alpha * 0.8;
+                ctx.fillStyle = p.col;
+                ctx.fillRect(-s/2, -s/2, s, s);
+                // Highlight superior (3D effect)
+                ctx.fillStyle = 'rgba(255,255,255,0.35)';
+                ctx.fillRect(-s/2, -s/2, s, 3);
+                ctx.fillRect(-s/2, -s/2, 3, s);
+                // Shadow inferior
+                ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                ctx.fillRect(-s/2, s/2 - 3, s, 3);
+                ctx.fillRect(s/2 - 3, -s/2, 3, s);
+                ctx.restore();
+            });
+            ctx.globalAlpha = 1;
         },
     };
 }

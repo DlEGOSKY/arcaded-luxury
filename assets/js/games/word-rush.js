@@ -16,6 +16,11 @@ export class WordRushGame {
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.score       = 0;
         this.mode        = 'NORMAL';
+        // NUEVAS MECÁNICAS
+        this.streak = 0;                // palabras resueltas consecutivamente
+        this.maxStreak = 0;
+        this.hintAvailable = 2;
+        this.revealedLetters = [];      // índices ya revelados en la palabra actual
         this.injectStyles();
     }
 
@@ -48,6 +53,14 @@ export class WordRushGame {
             .wr-key.miss  { background:#1e293b;color:#334155; }
             .wr-key.wide  { min-width:44px;font-size:0.6rem; }
             .wr-msg { font-family:var(--font-display);font-size:0.75rem;letter-spacing:2px;color:#94a3b8;min-height:20px;text-align:center; }
+            .wr-pwrs { display:flex;gap:8px;justify-content:center;margin-top:4px; }
+            .wr-pwr { padding:6px 12px;background:rgba(10,16,30,0.9);border:1.5px solid #a855f7;border-radius:8px;color:#a855f7;font-family:var(--font-display);font-size:0.6rem;letter-spacing:2px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:6px; }
+            .wr-pwr:hover:not(.used) { background:rgba(168,85,247,0.15);transform:translateY(-2px); }
+            .wr-pwr.used { opacity:0.3;pointer-events:none;filter:grayscale(1); }
+            .wr-pwr .cnt { color:#94a3b8;font-size:0.52rem; }
+            .wr-streak { display:inline-block;margin-left:12px;padding:3px 10px;background:rgba(251,191,36,0.15);border:1px solid #fbbf24;border-radius:15px;color:#fbbf24;font-family:var(--font-display);font-size:0.62rem;letter-spacing:2px; }
+            .wr-cell.hint { border-color:#10b981 !important;color:#10b981 !important;box-shadow:0 0 12px #10b981;animation:wrHint 0.5s ease-in-out 2; }
+            @keyframes wrHint { 0%,100%{background:rgba(16,185,129,0.15)} 50%{background:rgba(16,185,129,0.35)} }
         `;
         document.head.appendChild(s);
     }
@@ -95,6 +108,10 @@ export class WordRushGame {
         this.wordsGuessed = 0;
         this.maxAttempts  = mode === 'HARD' ? 4 : 6;
         this.keyStates    = {};
+        // Reset nuevas mecánicas
+        this.streak = 0; this.maxStreak = 0;
+        this.hintAvailable = 2;
+        this.revealedLetters = [];
         try { this.canvas.setMood('CYAN'); } catch(e) {}
         if(mode === 'BLITZ') {
             this.timeLeft = 180;
@@ -115,6 +132,7 @@ export class WordRushGame {
         this.attempts = [];
         this.current  = '';
         this.solved   = false;
+        this.revealedLetters = [];   // se resetean al cambiar de palabra
         this.render();
         this.attachKeyboard();
     }
@@ -159,6 +177,8 @@ export class WordRushGame {
             ).join('') +
         '</div>';
 
+        const streakHTML = this.streak >= 2 ? `<span class="wr-streak">RACHA ×${this.streak}</span>` : '';
+
         this.uiContainer.innerHTML = `
         <div class="wr-root">
             <div class="wr-header">
@@ -167,11 +187,53 @@ export class WordRushGame {
                 ${timerHTML}
                 <div class="wr-stat"><div class="wr-stat-val" style="color:#334155;">${this.attempts.length}/${maxR}</div><div class="wr-stat-lbl">INTENTOS</div></div>
             </div>
+            ${streakHTML}
             <div class="wr-grid">${rows}</div>
             <div class="wr-msg" id="wr-msg"></div>
             ${keyboard}
+            <div class="wr-pwrs">
+                <button class="wr-pwr" id="wr-hint">HINT <span class="cnt">·${this.hintAvailable}</span> <span class="cnt">$15</span></button>
+            </div>
         </div>`;
+        const hb = document.getElementById('wr-hint');
+        if (hb) hb.onclick = () => this.activateHint();
         window.wordRush = this;
+    }
+
+    activateHint() {
+        if (this.hintAvailable <= 0 || this.solved) return;
+        if (window.app.credits < 15) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Hint cuesta $15', 'danger'); } catch(e){} return; }
+        // Buscar índice no revelado todavía
+        const available = [];
+        for (let i = 0; i < 5; i++) if (!this.revealedLetters.includes(i)) available.push(i);
+        if (available.length === 0) return;
+        window.app.credits -= 15;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e){}
+        this.hintAvailable--;
+        const idx = available[Math.floor(Math.random() * available.length)];
+        this.revealedLetters.push(idx);
+        const letter = this.target[idx];
+        try { window.app.showToast('PISTA', `Posición ${idx+1}: ${letter}`, 'gold'); } catch(e){}
+        try { this.audio.playTone(1500, 'sine', 0.12); } catch(e){}
+        // Resaltar en la fila activa (próxima a escribir)
+        setTimeout(() => {
+            const rows = document.querySelectorAll('.wr-row');
+            const activeRow = rows[this.attempts.length];
+            if (activeRow) {
+                const cell = activeRow.children[idx];
+                if (cell) {
+                    cell.textContent = letter;
+                    cell.classList.add('hint');
+                    setTimeout(() => cell.classList.remove('hint'), 2000);
+                }
+            }
+        }, 100);
+        const btn = document.getElementById('wr-hint');
+        if (btn) {
+            btn.innerHTML = `HINT <span class="cnt">·${this.hintAvailable}</span> <span class="cnt">$15</span>`;
+            if (this.hintAvailable <= 0) btn.classList.add('used');
+        }
     }
 
     attachKeyboard() {
@@ -219,11 +281,20 @@ export class WordRushGame {
         this.current = '';
         const won = result.every(r => r === 'hit');
         if(won) {
-            const pts = (this.maxAttempts - this.attempts.length + 1) * 20;
+            this.streak++;
+            if (this.streak > this.maxStreak) this.maxStreak = this.streak;
+            let streakMulti = 1;
+            if (this.streak >= 5) streakMulti = 2;
+            else if (this.streak >= 3) streakMulti = 1.5;
+            const speedBonus = this.attempts.length <= 3 ? 30 : 0;
+            const basePts = (this.maxAttempts - this.attempts.length + 1) * 20 + speedBonus;
+            const pts = Math.floor(basePts * streakMulti);
             this.score += pts;
             this.wordsGuessed++;
             this.solved = true;
-            this.showMsg('¡CORRECTO! +' + pts + ' PTS', '#10b981');
+            const speedTxt = speedBonus > 0 ? ' + SPEED' : '';
+            const streakTxt = streakMulti > 1 ? ` ×${streakMulti}` : '';
+            this.showMsg(`¡CORRECTO! +${pts} PTS${speedTxt}${streakTxt}`, '#10b981');
             try { this.audio.playWin(3); } catch(e) {}
             this.render(); window.wordRush = this;
             if(this.mode === 'BLITZ') {
@@ -232,6 +303,7 @@ export class WordRushGame {
                 setTimeout(() => this.endGame(false), 2000);
             }
         } else if(this.attempts.length >= this.maxAttempts) {
+            this.streak = 0;
             this.showMsg('ERA: ' + this.target, '#ef4444');
             try { this.audio.playLose(); } catch(e) {}
             this.render(); window.wordRush = this;
@@ -259,6 +331,16 @@ export class WordRushGame {
     endGame(timeout) {
         clearInterval(this.timerInt);
         window.removeEventListener('keydown', this._kbHandler);
+        // Bonus por palabras resueltas y racha máxima
+        let bonus = 0;
+        if (this.wordsGuessed >= 2) bonus += this.wordsGuessed * 5;
+        if (this.maxStreak >= 3) bonus += this.maxStreak * 4;
+        if (bonus > 0) {
+            window.app.credits += bonus;
+            try { window.app.showToast('BONUS FINAL', `+${bonus} CR · ${this.wordsGuessed} palabras · Racha ×${this.maxStreak}`, 'success'); } catch(e){}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            try { window.app.save(); } catch(e){}
+        }
         if(this.onGameOver) this.onGameOver(this.score);
     }
 

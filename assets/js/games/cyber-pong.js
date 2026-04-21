@@ -40,9 +40,10 @@ export class CyberPongGame {
     showModeSelect() {
         if(!this.uiContainer) this.uiContainer = document.getElementById('game-ui-overlay');
         const modes = [
-            { id:'pong-normal', mc:'#3b82f6', icon:'fa-table-tennis-paddle-ball', name:'NORMAL',   desc:'Dificultad progresiva'        },
-            { id:'pong-fast',   mc:'#ef4444', icon:'fa-forward-fast',             name:'TURBO',    desc:'Bola x2 velocidad · 5 vidas'  },
-            { id:'pong-chaos',  mc:'#a855f7', icon:'fa-tornado',                  name:'CAOS',     desc:'Bola acelera tras cada golpe'  },
+            { id:'pong-normal', mc:'#3b82f6', icon:'fa-table-tennis-paddle-ball', name:'NORMAL',    desc:'Dificultad progresiva'                 },
+            { id:'pong-fast',   mc:'#ef4444', icon:'fa-forward-fast',             name:'TURBO',     desc:'Bola x2 velocidad · 5 vidas'           },
+            { id:'pong-chaos',  mc:'#a855f7', icon:'fa-tornado',                  name:'CAOS',      desc:'Bola acelera tras cada golpe'          },
+            { id:'pong-tour',   mc:'#fbbf24', icon:'fa-trophy',                   name:'TORNEO',    desc:'Mejor de 3 sets · first-to-5 rallies' },
         ];
         this.uiContainer.innerHTML = `
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:28px;width:100%;background:rgba(0,0,10,0.5);">
@@ -70,6 +71,7 @@ export class CyberPongGame {
         document.getElementById('pong-normal').onclick = () => this.startWithMode('NORMAL');
         document.getElementById('pong-fast').onclick   = () => this.startWithMode('TURBO');
         document.getElementById('pong-chaos').onclick  = () => this.startWithMode('CHAOS');
+        document.getElementById('pong-tour').onclick   = () => this.startWithMode('TOURNAMENT');
         document.getElementById('pong-back').onclick   = () => { if(this.onGameOver) this.onGameOver(0); };
     }
 
@@ -85,8 +87,13 @@ export class CyberPongGame {
         this.resetBallWH(W, H);
         this.lives      = mode === 'TURBO' ? 5 : 3;
         this.score      = 0;
-        this.difficulty = mode === 'TURBO' ? 2 : 1;
+        this.difficulty = mode === 'TURBO' ? 2 : mode === 'TOURNAMENT' ? 1.5 : 1;
         this.isPlaying  = true;
+        // TORNEO: mejor de 3 sets (first to 5 rallies each)
+        this.sets = { player: 0, ai: 0 };
+        this.setScore = { player: 0, ai: 0 };
+        this.pointsPerSet = 5;
+        this.setsToWin = 2;
 
         if (window.app && window.app.canvas) window.app.canvas.pauseBackground();
 
@@ -190,10 +197,10 @@ export class CyberPongGame {
         this._txtScore.position.set(W/2, 12);
         stage.addChild(this._txtScore);
 
-        // Lives text
-        this._txtLives = new PIXI.Text({ text: '❤ ❤ ❤', style: {
-            fontFamily: 'Arial', fontSize: 18,
-            fill: 0xef4444
+        // Lives / Sets text
+        this._txtLives = new PIXI.Text({ text: '● ● ●', style: {
+            fontFamily: 'Orbitron, monospace', fontSize: 14,
+            fill: 0xef4444, letterSpacing: 3
         }});
         this._txtLives.anchor.set(0.5, 0);
         this._txtLives.position.set(W/2, 58);
@@ -242,11 +249,25 @@ export class CyberPongGame {
             .circle(this.ball.x, this.ball.y, this.ballSize)
             .fill({color: 0xffffff});
 
-        // Score
-        this._txtScore.text = String(this.score);
-        let hearts = '';
-        for(let i=0;i<this.lives;i++) hearts += '❤ ';
-        this._txtLives.text = hearts.trim();
+        // Score / Sets según modo
+        if(this.mode === 'TOURNAMENT') {
+            this._txtScore.text = `${this.setScore.player} - ${this.setScore.ai}`;
+            this._txtScore.style.fill = 0xfbbf24;
+            // Marcadores de sets ganados: bullet dorado = set, hueco = pendiente
+            let pSets = '';
+            for(let i=0;i<this.setsToWin;i++) pSets += (i < this.sets.player ? '●' : '○') + ' ';
+            let aSets = '';
+            for(let i=0;i<this.setsToWin;i++) aSets += (i < this.sets.ai ? '●' : '○') + ' ';
+            this._txtLives.text = `${pSets.trim()}  SETS  ${aSets.trim()}`;
+            this._txtLives.style.fill = 0xfbbf24;
+        } else {
+            this._txtScore.text = String(this.score);
+            this._txtScore.style.fill = 0xffffff;
+            let dots = '';
+            for(let i=0;i<this.lives;i++) dots += '● ';
+            this._txtLives.text = dots.trim();
+            this._txtLives.style.fill = 0xef4444;
+        }
     }
 
     _spawnParticles(x, y, color) {
@@ -330,10 +351,16 @@ export class CyberPongGame {
                 try{ this.audio.playTone(400,'square',0.1); }catch(e){}
                 this._spawnParticles(this.ball.x, this.ball.y, 0x00ff88);
             } else if(this.ball.x<0) {
-                this.lives--;
+                // Punto para la IA
                 try{ this.audio.playLose(); }catch(e){}
                 this._spawnParticles(0, this.ball.y, 0xef4444);
-                if(this.lives<=0) this.end(); else this.resetBall();
+                if(this.mode === 'TOURNAMENT') {
+                    this.setScore.ai++;
+                    if(this.setScore.ai >= this.pointsPerSet) { this._endSet('ai'); } else { this.resetBall(); }
+                } else {
+                    this.lives--;
+                    if(this.lives<=0) this.end(); else this.resetBall();
+                }
             }
         }
 
@@ -344,12 +371,38 @@ export class CyberPongGame {
                 this.ball.x = W-20-this.paddleWidth;
                 try{ this.audio.playTone(300,'square',0.1); }catch(e){}
             } else if(this.ball.x>W) {
+                // Punto para jugador
                 this.score++; this.difficulty+=0.3;
                 try{ this.audio.playWin(5); }catch(e){}
                 this._spawnParticles(W, this.ball.y, 0xfbbf24);
-                this.resetBall();
+                if(this.mode === 'TOURNAMENT') {
+                    this.setScore.player++;
+                    if(this.setScore.player >= this.pointsPerSet) { this._endSet('player'); } else { this.resetBall(); }
+                } else {
+                    this.resetBall();
+                }
             }
         }
+    }
+
+    _endSet(winner) {
+        this.sets[winner]++;
+        try { this.audio.playWin(winner==='player'?8:2); } catch(e){}
+        // Mostrar toast del set
+        try {
+            const msg = winner === 'player' ? '¡SET GANADO!' : 'SET PERDIDO';
+            const type = winner === 'player' ? 'success' : 'danger';
+            window.app.showToast(msg, `Sets ${this.sets.player}-${this.sets.ai}`, type);
+        } catch(e) {}
+        // ¿Match terminado?
+        if(this.sets.player >= this.setsToWin || this.sets.ai >= this.setsToWin) {
+            this.end();
+            return;
+        }
+        // Reset para siguiente set
+        this.setScore = { player: 0, ai: 0 };
+        this.difficulty = 1.5;
+        setTimeout(() => this.resetBall(), 800);
     }
 
     draw() {
@@ -392,6 +445,19 @@ export class CyberPongGame {
 
     end() {
         this.isPlaying = false;
+        // Bonus TORNEO: +50 CR por set ganado, +200 CR si gana el match
+        if(this.mode === 'TOURNAMENT') {
+            const matchWon = this.sets.player >= this.setsToWin;
+            const bonus = (this.sets.player * 50) + (matchWon ? 200 : 0);
+            if(bonus > 0) {
+                try { window.app.credits += bonus; window.app.save(); } catch(e){}
+                try {
+                    const title = matchWon ? 'CHAMPION' : 'TORNEO FINALIZADO';
+                    window.app.showToast(title, `+${bonus} CR · Sets: ${this.sets.player}-${this.sets.ai}`, matchWon ? 'success' : 'gold');
+                    const vc = document.getElementById('val-credits'); if(vc) vc.innerText = window.app.credits;
+                } catch(e){}
+            }
+        }
         this.cleanup();
         if(this.onGameOver) this.onGameOver(this.score);
     }

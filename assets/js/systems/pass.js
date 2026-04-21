@@ -268,16 +268,25 @@ export function claim(app, lvl) {
     if(!app.stats.passClaimed) app.stats.passClaimed = [];
     if(app.stats.passClaimed.includes(lvl)) return;
 
+    // Capturar el card antes de re-render para la animacion FX
+    const cardEl = document.querySelector(`.np-card[data-lvl="${lvl}"]`);
+
     app.stats.passClaimed.push(lvl);
 
     grantReward(app, reward);
     playClaimEffects(app, reward);
 
+    // FX: secuencia epica con GSAP + confetti del color de rareza
+    if(cardEl && app.fx) {
+        try { app.fx.rewardClaim(cardEl, reward.rarity || 'common'); } catch(e) {}
+    }
+
     const label = RARITY_LABELS[reward.rarity] || '';
     app.showToast(`[${label}] ${reward.name}`, reward.desc || '', 'purple');
 
     app.save();
-    render(app);
+    // Pequeño delay para que se vea la animacion del card antes del re-render
+    setTimeout(() => render(app), 450);
 }
 
 function grantReward(app, reward) {

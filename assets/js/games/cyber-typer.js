@@ -20,6 +20,13 @@ export class CyberTyperGame {
         this.gameLoopId = null;
         this.mode = 'STANDARD';
         this.wordBank = [];
+        // NUEVAS MECÁNICAS
+        this.maxCombo = 0;
+        this.perfectWords = 0;
+        this.nukeAvailable = 1;
+        this.slowAvailable = 1;
+        this.slowActive = false;
+        this.slowTimer = null;
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.handleInput = this.handleInput.bind(this);
         this.handleKeyDown = this.handleKeyDown.bind(this);
@@ -60,6 +67,14 @@ export class CyberTyperGame {
         /* Explosion word */
         @keyframes ct2WordExplode { to{opacity:0;transform:translateX(-50%) scale(2);} }
         .ct2-word.exploding { animation:ct2WordExplode 0.25s ease forwards; }
+        /* Power-ups */
+        .ct2-pwrs { position:absolute; bottom:100px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:30; }
+        .ct2-pwr { padding:6px 12px; background:rgba(0,0,0,0.85); border:1.5px solid #00ff41; border-radius:8px; color:#00ff41; font-family:monospace; font-size:0.62rem; letter-spacing:2px; cursor:pointer; transition:all 0.15s; display:flex; align-items:center; gap:6px; pointer-events:auto; }
+        .ct2-pwr:hover:not(.used) { background:rgba(0,255,65,0.12); transform:translateY(-2px); }
+        .ct2-pwr.used { opacity:0.3; pointer-events:none; filter:grayscale(1); }
+        .ct2-pwr .cnt { color:#00aa33; font-size:0.55rem; }
+        body.ct2-slow .ct2-word { animation:ct2SlowHue 0.5s infinite alternate; }
+        @keyframes ct2SlowHue { from{filter:hue-rotate(0)} to{filter:hue-rotate(60deg)} }
         `;
         document.head.appendChild(s);
     }
@@ -140,6 +155,9 @@ export class CyberTyperGame {
         this.lives = this.mode==='BOSS'?1:3;
         this.lastSpawn = performance.now();
         this.lastTime  = performance.now();
+        // Reset nuevas mecánicas
+        this.maxCombo = 0; this.perfectWords = 0;
+        this.nukeAvailable = 1; this.slowAvailable = 1; this.slowActive = false;
 
         const gs = document.getElementById('ui-score'); if(gs)gs.innerText='0';
 
@@ -154,6 +172,10 @@ export class CyberTyperGame {
                 <div class="ct2-hud-cell"><div class="ct2-hud-lbl">VIDAS</div><div class="ct2-hud-val" id="ct2-lives">${'<i class="fa-solid fa-heart" style="color:#ef4444;margin:0 2px;"></i>'.repeat(this.lives)}</div></div>
                 <div class="ct2-hud-cell"><div class="ct2-hud-lbl">NIVEL</div><div class="ct2-hud-val" id="ct2-level">1</div></div>
             </div>
+            <div class="ct2-pwrs">
+                <button class="ct2-pwr" id="ct2-nuke">NUKE <span class="cnt">$30</span></button>
+                <button class="ct2-pwr" id="ct2-slow">SLOW <span class="cnt">$20</span></button>
+            </div>
             <div class="ct2-input-zone">
                 <div class="ct2-input-display" style="color:${modeColor};" id="ct2-input-display">
                     <span id="ct2-input-text"></span>
@@ -161,6 +183,10 @@ export class CyberTyperGame {
                 </div>
             </div>
             <input type="text" id="ct2-hidden" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">`;
+        const nk = document.getElementById('ct2-nuke');
+        if (nk) nk.onclick = () => this.activateNuke();
+        const sl = document.getElementById('ct2-slow');
+        if (sl) sl.onclick = () => this.activateSlow();
 
         const inp = document.getElementById('ct2-hidden');
         inp.focus();
@@ -222,8 +248,13 @@ export class CyberTyperGame {
         if(w.el){ w.el.classList.add('exploding'); setTimeout(()=>w.el?.remove(),250); }
         this.activeWords = this.activeWords.filter(a=>a!==w);
         this.combo++;
+        if (this.combo > this.maxCombo) this.maxCombo = this.combo;
         const mult = Math.min(5, 1+Math.floor(this.combo/3));
-        const pts  = w.text.length * 10 * mult;
+        // Perfect word bonus: si la palabra se destruyó en la mitad superior de la pantalla
+        const isPerfect = w.y < window.innerHeight * 0.4;
+        if (isPerfect) this.perfectWords++;
+        const perfectBonus = isPerfect ? 5 : 0;
+        const pts  = w.text.length * 10 * mult + perfectBonus;
         this.score += pts;
 
         // Combo popup
@@ -315,19 +346,80 @@ export class CyberTyperGame {
         if(this.isRunning) this.gameLoopId = requestAnimationFrame(t => this.loop(t));
     }
 
+    activateNuke() {
+        if (!this.isRunning || this.nukeAvailable <= 0) return;
+        if (this.activeWords.length === 0) return;
+        if (window.app.credits < 30) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Nuke cuesta $30', 'danger'); } catch(e){} return; }
+        window.app.credits -= 30;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e) {}
+        this.nukeAvailable--;
+        // Destruye todas las palabras (sin combo bonus, pero da pts)
+        const killed = this.activeWords.length;
+        const pts = killed * 10;
+        this.score += pts;
+        this.activeWords.forEach(w => { if (w.el) { w.el.classList.add('exploding'); setTimeout(() => w.el?.remove(), 250); } });
+        this.activeWords = [];
+        const gs = document.getElementById('ui-score'); if (gs) gs.innerText = this.score;
+        const sc = document.getElementById('ct2-score'); if (sc) sc.innerText = this.score.toLocaleString();
+        try { this.audio.playWin(5); } catch(e){}
+        try { window.app.showToast('NUKE', `${killed} palabras · +${pts}`, 'success'); } catch(e){}
+        const btn = document.getElementById('ct2-nuke');
+        if (btn) { btn.classList.add('used'); btn.innerHTML = 'NUKE <span class="cnt">USADO</span>'; }
+    }
+
+    activateSlow() {
+        if (!this.isRunning || this.slowAvailable <= 0 || this.slowActive) return;
+        if (window.app.credits < 20) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Slow cuesta $20', 'danger'); } catch(e){} return; }
+        window.app.credits -= 20;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e) {}
+        this.slowAvailable--;
+        this.slowActive = true;
+        document.body.classList.add('ct2-slow');
+        const prevSpeed = this.fallSpeed;
+        this.fallSpeed = prevSpeed * 0.3;
+        this.activeWords.forEach(w => w.speed *= 0.3);
+        try { this.audio.playTone(1500, 'sine', 0.15); } catch(e){}
+        const btn = document.getElementById('ct2-slow');
+        if (btn) { btn.classList.add('used'); btn.innerHTML = 'SLOW <span class="cnt">ACTIVO</span>'; }
+        if (this.slowTimer) clearTimeout(this.slowTimer);
+        this.slowTimer = setTimeout(() => {
+            this.slowActive = false;
+            document.body.classList.remove('ct2-slow');
+            this.fallSpeed = prevSpeed;
+            this.activeWords.forEach(w => w.speed /= 0.3);
+            if (btn) btn.innerHTML = 'SLOW <span class="cnt">AGOTADO</span>';
+        }, 4000);
+    }
+
     cleanup() {
         this.isRunning = false;
         if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId = null; }
+        if(this.slowTimer) { clearTimeout(this.slowTimer); this.slowTimer = null; }
+        document.body.classList.remove('ct2-slow');
         if(this.handleKeyDown) window.removeEventListener('keydown', this.handleKeyDown);
     }
 
     gameOver() {
         this.isRunning = false;
         if(this.gameLoopId) cancelAnimationFrame(this.gameLoopId);
+        if(this.slowTimer) { clearTimeout(this.slowTimer); this.slowTimer = null; }
+        document.body.classList.remove('ct2-slow');
         window.removeEventListener('keydown', this.handleKeyDown);
         const inp=document.getElementById('ct2-hidden');
         if(inp){ inp.removeEventListener('input',this.handleInput); inp.removeEventListener('keydown',this.handleKeyDown); }
         try{ this.audio.playLose(); }catch(e){}
+        // Bonus por combo máximo y perfects
+        let bonus = 0;
+        if (this.maxCombo >= 5) bonus += this.maxCombo * 2;
+        if (this.perfectWords >= 5) bonus += this.perfectWords * 3;
+        if (bonus > 0) {
+            window.app.credits += bonus;
+            try { window.app.showToast('BONUS FINAL', `+${bonus} CR · Combo ×${this.maxCombo}`, 'success'); } catch(e){}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            try { window.app.save(); } catch(e){}
+        }
         if(this.onGameOver) this.onGameOver(this.score);
     }
 }

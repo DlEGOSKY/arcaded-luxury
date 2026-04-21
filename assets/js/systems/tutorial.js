@@ -97,6 +97,7 @@ function buildTooltip(app, idx, step, rect) {
         .join('');
 
     const nextLabel = idx === TUT_STEPS.length - 1 ? 'LISTO' : 'SIGUIENTE';
+    const canGoBack = idx > 0;
 
     tt.innerHTML = [
         `<div class="tut-step">PASO ${idx + 1} / ${TUT_STEPS.length}</div>`,
@@ -104,7 +105,8 @@ function buildTooltip(app, idx, step, rect) {
         `<div class="tut-desc">${step.desc}</div>`,
         `<div class="tut-actions">`,
         `  <div class="tut-dots">${dotsHTML}</div>`,
-        `  <div style="display:flex;gap:6px;">`,
+        `  <div style="display:flex;gap:6px;align-items:center;">`,
+        canGoBack ? `    <button class="tut-btn-skip" id="tut-back"><i class="fa-solid fa-arrow-left"></i></button>` : '',
         `    <button class="tut-btn-skip" id="tut-skip">SALTAR</button>`,
         `    <button class="tut-btn-next" id="tut-next">${nextLabel}</button>`,
         `  </div>`,
@@ -123,6 +125,26 @@ function buildTooltip(app, idx, step, rect) {
         playClick(app);
         finish(app);
     };
+    const backBtn = tt.querySelector('#tut-back');
+    if(backBtn) {
+        backBtn.onclick = () => {
+            playClick(app);
+            showStep(app, idx - 1);
+        };
+    }
+
+    // Animacion de entrada con GSAP si disponible
+    if(typeof window.gsap !== 'undefined') {
+        setTimeout(() => {
+            window.gsap.from(tt, {
+                opacity: 0,
+                scale: 0.85,
+                y: 10,
+                duration: 0.35,
+                ease: 'back.out(1.8)',
+            });
+        }, 0);
+    }
 
     return tt;
 }

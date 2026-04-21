@@ -49,6 +49,7 @@ export function save(app) {
             performance:  app.settings.performance,
             scanlines:    app.settings.scanlines,
             shake:        app.settings.shake,
+            countdown:    app.settings.countdown,
             reduceMotion: app.settings.reduceMotion,
             showNotifs:   app.settings.showNotifs,
         },
@@ -109,6 +110,7 @@ export function load(app) {
             if(d.settings.performance  !== undefined) app.settings.performance  = d.settings.performance;
             if(d.settings.scanlines    !== undefined) app.settings.scanlines    = d.settings.scanlines;
             if(d.settings.shake        !== undefined) app.settings.shake        = d.settings.shake;
+            if(d.settings.countdown    !== undefined) app.settings.countdown    = d.settings.countdown;
             if(d.settings.reduceMotion !== undefined) app.settings.reduceMotion = d.settings.reduceMotion;
             if(d.settings.showNotifs   !== undefined) app.settings.showNotifs   = d.settings.showNotifs;
         }

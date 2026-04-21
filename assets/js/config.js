@@ -213,6 +213,11 @@ export const CONFIG = {
         { id: 't_limbo',     type: 'THEME', name: 'Limbo',        icon: 'fa-solid fa-moon',             desc: 'Oscuridad total. Siluetas y sombras.',  price: 2200, val: 't_limbo', lore: 'En Limbo, nadie escucha tus gritos.' },
         { id: 't_synthwave', type: 'THEME', name: 'Synthwave',    icon: 'fa-solid fa-music',            desc: 'Neón rosa. Años 80 para siempre.',      price: 4000, val: 't_synthwave', lore: 'El futuro que nunca fue. Pero podría ser.' },
         { id: 't_terminal',  type: 'THEME', name: 'Terminal',     icon: 'fa-solid fa-terminal',         desc: 'Verde puro. El texto es todo.',         price: 1800, val: 't_terminal', lore: 'El texto es todo lo que necesitas.' },
+
+        // === TEMAS NOSTÁLGICOS V3 (2026-Q4) ===
+        { id: 't_dos622',    type: 'THEME', name: 'MS-DOS 6.22',  icon: 'fa-solid fa-computer',         desc: 'Disco duro zumbando. Prompt C:\\> .',   price: 2200, val: 't_dos622',   lore: 'C:\\> La era del MS-DOS. 640KB deberían bastar para cualquiera.' },
+        { id: 't_ipod',      type: 'THEME', name: 'iPod Classic', icon: 'fa-solid fa-headphones-simple', desc: 'Click-wheel. Plata y blanco.',          price: 2800, val: 't_ipod',     lore: '1000 canciones en tu bolsillo.' },
+        { id: 't_n64',       type: 'THEME', name: 'Nintendo 64',  icon: 'fa-solid fa-gamepad',           desc: 'Cartucho 256 megabits. 3 manijas.',     price: 3000, val: 't_n64',      lore: 'Mario corría en 3D por primera vez. El cartucho nunca fallaba.' },
         { id: 'p_circle', type: 'PARTICLE', name: 'Chispas', icon: 'fa-solid fa-circle', desc: 'Efecto estándar.', price: 0, val: 'circle' },
         { id: 'p_square', type: 'PARTICLE', name: 'Vóxeles', icon: 'fa-solid fa-cube', desc: 'Cubos de datos.', price: 500, val: 'square' },
         { id: 'p_star', type: 'PARTICLE', name: 'Polvo Estelar', icon: 'fa-solid fa-star', desc: 'Brilla intensamente.', price: 1200, val: 'star' },
@@ -263,6 +268,11 @@ export const CONFIG = {
         { id: 'cc_undertale',type: 'CALLCARD', name: 'Undertale',    icon: 'fa-solid fa-heart',          desc: 'Stay determined. No maten nada.',              price: 3800,  val: 'undertale', ref: 'Undertale' },
         { id: 'cc_hollow',   type: 'CALLCARD', name: 'Hollow Knight',icon: 'fa-solid fa-chess-knight',   desc: 'El reino olvidado. Mantis y sombras.',         price: 4200,  val: 'hollow',    ref: 'Hollow Knight' },
         { id: 'cc_stardew',  type: 'CALLCARD', name: 'Stardew',      icon: 'fa-solid fa-seedling',       desc: 'La granja te espera. Pelikan Town.',           price: 2000,  val: 'stardew',   ref: 'Stardew Valley' },
+
+        // --- CALLCARDS V3 (2026-Q4) --- hermanas de los temas V3
+        { id: 'cc_dos622',   type: 'CALLCARD', name: 'MS-DOS 6.22',  icon: 'fa-solid fa-computer',       desc: 'Pantalla fósforo. C:\\> parpadeando.',        price: 2500,  val: 'dos622',    ref: 'MS-DOS' },
+        { id: 'cc_ipod',     type: 'CALLCARD', name: 'iPod Classic', icon: 'fa-solid fa-music',          desc: 'Click wheel. Notas musicales flotando.',      price: 3000,  val: 'ipod',      ref: 'iPod' },
+        { id: 'cc_n64',      type: 'CALLCARD', name: 'Nintendo 64',  icon: 'fa-solid fa-gamepad',        desc: 'Cartucho 3D. Polígonos bajos icónicos.',      price: 3200,  val: 'n64',       ref: 'Nintendo 64' },
         { id: 'cc_halflife',  type:'CALLCARD', name:'Half-Life',  icon:'fa-solid fa-radiation',   desc:'Lambda. Freeman no habla.',           price:3800, val:'halflife',  ref:'Half-Life'  },
         { id: 'cc_portal',    type:'CALLCARD', name:'Portal',     icon:'fa-solid fa-circle',       desc:'The cake is a lie.',                  price:4200, val:'portal',    ref:'Portal'     },
         { id: 'cc_minecraft', type:'CALLCARD', name:'Minecraft',  icon:'fa-solid fa-cube',         desc:'Bloques hasta el infinito.',           price:2500, val:'minecraft', ref:'Minecraft'  },
@@ -497,6 +507,15 @@ export const CONFIG = {
         { id: 'simon_t',     name: 'El Eco',          unlock: 'ss_first',    desc: 'Repite lo que el sistema ordena' },
         { id: 'seasonal',    name: 'El Eterno',       unlock: 'season_vet',  desc: 'Tres temporadas. El sistema lo recuerda' },
         { id: 'architect',   name: 'El Architecto',       unlock: 'architect',    desc: 'Lo ha conseguido todo' },
+
+        // ── Logros V3 (temas nostálgicos 2026-Q4) ──
+        { id: 'retro_dos',    name: 'Retro Gamer',      desc: 'Desbloquea el tema MS-DOS 6.22',  check: s => (s.inventory||[]).includes('t_dos622'),  icon: '<i class="fa-solid fa-computer"></i>' },
+        { id: 'audiophile',   name: 'Audiófilo',        desc: 'Desbloquea el tema iPod Classic', check: s => (s.inventory||[]).includes('t_ipod'),    icon: '<i class="fa-solid fa-headphones-simple"></i>' },
+        { id: 'n64_kid',      name: 'N64 Kid',          desc: 'Desbloquea el tema Nintendo 64',  check: s => (s.inventory||[]).includes('t_n64'),     icon: '<i class="fa-solid fa-gamepad"></i>' },
+        { id: 'v3_collector', name: 'Nostálgico V3',    desc: 'Colecciona los 3 temas V3',       check: s => {
+            const inv = s.inventory||[];
+            return inv.includes('t_dos622') && inv.includes('t_ipod') && inv.includes('t_n64');
+        }, icon: '<i class="fa-solid fa-clock-rotate-left"></i>' },
     ],
 
     RANKS: [

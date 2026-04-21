@@ -66,6 +66,11 @@ export class CipherDecodeGame {
         this.timeLeft    = 0;
         this.timerInt    = null;
         this.isProcessing = false;
+        // NUEVAS MECÁNICAS
+        this.streak = 0;
+        this.maxStreak = 0;
+        this.perfectDecodes = 0;   // resueltas con >50% tiempo restante
+        this.halfAvailable = 2;    // power-up 50/50
         this.injectStyles();
     }
 
@@ -95,6 +100,14 @@ export class CipherDecodeGame {
             .cd-lives { display:flex;gap:6px;align-items:center; }
             .cd-heart { color:#ef4444;font-size:0.9rem;transition:all 0.2s; }
             .cd-heart.lost { color:#1e293b;filter:grayscale(1); }
+            /* Power-up + streak */
+            .cd-foot { display:flex;gap:10px;align-items:center;justify-content:space-between;width:100%;max-width:520px;margin-top:4px; }
+            .cd-pwr { padding:6px 12px;background:rgba(10,16,30,0.9);border:1.5px solid #a855f7;border-radius:8px;color:#a855f7;font-family:var(--font-display);font-size:0.6rem;letter-spacing:2px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:6px; }
+            .cd-pwr:hover:not(.used) { background:rgba(168,85,247,0.15);transform:translateY(-2px); }
+            .cd-pwr.used { opacity:0.3;pointer-events:none;filter:grayscale(1); }
+            .cd-pwr .cnt { color:#94a3b8;font-size:0.52rem; }
+            .cd-streak { padding:3px 10px;background:rgba(251,191,36,0.15);border:1px solid #fbbf24;border-radius:15px;color:#fbbf24;font-family:var(--font-display);font-size:0.6rem;letter-spacing:2px; }
+            .cd-opt.eliminated { opacity:0.25;pointer-events:none;filter:grayscale(1);text-decoration:line-through; }
         `;
         document.head.appendChild(s);
     }
@@ -142,6 +155,10 @@ export class CipherDecodeGame {
         this.lives = mode === 'EXPERT' ? 2 : 3;
         this.round = 0;
         this.isProcessing = false;
+        // Reset nuevas mecánicas
+        this.streak = 0; this.maxStreak = 0;
+        this.perfectDecodes = 0;
+        this.halfAvailable = 2;
         try { this.canvas.setMood('VAULT'); } catch(e) {}
         this.nextRound();
     }
@@ -182,11 +199,13 @@ export class CipherDecodeGame {
         this.timeLeft   = timeLimit;
 
         const livesHTML = Array.from({length: this.mode==='EXPERT'?2:3}, (_,i) =>
-            `<span class="cd-heart ${i >= this.lives ? 'lost' : ''}">♥</span>`).join('');
+            `<i class="fa-solid fa-heart cd-heart ${i >= this.lives ? 'lost' : ''}"></i>`).join('');
 
         const hintText = cipherKey === 'CAESAR'
             ? `Cifrado César · ${cipher.hint(shift)}`
             : `Cifrado ${cipher.name}`;
+
+        const streakHTML = this.streak >= 2 ? `<div class="cd-streak">RACHA ×${this.streak}</div>` : '<div></div>';
 
         this.uiContainer.innerHTML = `
         <div class="cd-root">
@@ -208,10 +227,36 @@ export class CipherDecodeGame {
                     ${opt}
                 </div>`).join('')}
             </div>
+            <div class="cd-foot">
+                ${streakHTML}
+                <button class="cd-pwr${this.halfAvailable<=0?' used':''}" id="cd-50">50/50 <span class="cnt">·${this.halfAvailable}</span> <span class="cnt">$20</span></button>
+            </div>
         </div>`;
+
+        const hb = document.getElementById('cd-50');
+        if (hb) hb.onclick = () => this.activate5050(word);
 
         window.cipherGame = this;
         this.startTimer(timeLimit);
+    }
+
+    activate5050(correctWord) {
+        if (this.halfAvailable <= 0 || this.isProcessing) return;
+        if (window.app.credits < 20) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', '50/50 cuesta $20', 'danger'); } catch(e){} return; }
+        window.app.credits -= 20;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e){}
+        this.halfAvailable--;
+        // Elimina 2 opciones incorrectas
+        const opts = Array.from(document.querySelectorAll('.cd-opt:not(.eliminated)'));
+        const wrongs = opts.filter(o => o.dataset.word !== correctWord);
+        wrongs.sort(() => Math.random() - 0.5).slice(0, 2).forEach(o => o.classList.add('eliminated'));
+        try { this.audio.playTone(1500, 'sine', 0.12); } catch(e){}
+        const btn = document.getElementById('cd-50');
+        if (btn) {
+            btn.innerHTML = `50/50 <span class="cnt">·${this.halfAvailable}</span> <span class="cnt">$20</span>`;
+            if (this.halfAvailable <= 0) btn.classList.add('used');
+        }
     }
 
     startTimer(total) {
@@ -248,16 +293,31 @@ export class CipherDecodeGame {
 
         if(isCorrect) {
             el.classList.add('correct');
+            // Streak
+            this.streak++;
+            if (this.streak > this.maxStreak) this.maxStreak = this.streak;
+            let streakMulti = 1;
+            if (this.streak >= 5) streakMulti = 2;
+            else if (this.streak >= 3) streakMulti = 1.5;
+            // Perfect decode si >50% tiempo restante
+            const totalTime = this.mode === 'EXPERT' ? 10 : this.mode === 'MORSE' ? 15 : 20;
+            const isPerfect = this.timeLeft > totalTime * 0.5;
+            if (isPerfect) this.perfectDecodes++;
             const timeBonus = Math.floor(this.timeLeft * 2);
-            const pts = 10 + timeBonus;
+            const perfectBonus = isPerfect ? 15 : 0;
+            const basePts = 10 + timeBonus + perfectBonus;
+            const pts = Math.floor(basePts * streakMulti);
             this.score += pts;
             const sc = document.getElementById('cd-score');
             if(sc) sc.innerText = this.score;
             try { this.audio.playWin(2); } catch(e) {}
-            try { window.app.showToast(`+${pts} PTS`, `Tiempo bonus: +${timeBonus}`, 'success'); } catch(e) {}
+            const perfectTxt = isPerfect ? ' + PERFECT' : '';
+            const streakTxt = streakMulti > 1 ? ` ×${streakMulti}` : '';
+            try { window.app.showToast(`+${pts} PTS${perfectTxt}${streakTxt}`, `Tiempo bonus: +${timeBonus}`, 'success'); } catch(e) {}
         } else {
             el.classList.add('wrong');
             this.lives--;
+            this.streak = 0;
             try { this.audio.playLose(); } catch(e) {}
             // Actualizar corazones
             const lv = document.getElementById('cd-lives');
@@ -277,6 +337,7 @@ export class CipherDecodeGame {
         if(this.isProcessing) return;
         this.isProcessing = true;
         this.lives--;
+        this.streak = 0;
         const allOpts = document.querySelectorAll('.cd-opt');
         allOpts.forEach(o => { o.setAttribute('disabled','true'); });
         try { this.audio.playLose(); } catch(e) {}
@@ -292,6 +353,16 @@ export class CipherDecodeGame {
     gameOver() {
         clearInterval(this.timerInt);
         try { this.audio.playLose(); } catch(e) {}
+        // Bonus por maxStreak y perfectDecodes
+        let bonus = 0;
+        if (this.maxStreak >= 3) bonus += this.maxStreak * 4;
+        if (this.perfectDecodes >= 2) bonus += this.perfectDecodes * 5;
+        if (bonus > 0) {
+            window.app.credits += bonus;
+            try { window.app.showToast('BONUS FINAL', `+${bonus} CR · Racha ×${this.maxStreak} · ${this.perfectDecodes} perfectas`, 'success'); } catch(e){}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            try { window.app.save(); } catch(e){}
+        }
         if(this.onGameOver) this.onGameOver(this.score);
     }
 

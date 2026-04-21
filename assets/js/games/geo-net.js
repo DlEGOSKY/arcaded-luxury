@@ -1,5 +1,8 @@
 import { CONFIG } from '../config.js';
 import { resolveText } from '../utils.js';
+import { icon } from '../systems/icons.js';
+
+const TARGET_ROUNDS = 10;
 
 // Datos de países extintos con banderas reales
 const EXTINCT = [
@@ -20,6 +23,10 @@ export class GeoNetGame {
         this.countryMap = new Map();
         this.score = 0;
         this.lives = 3;
+        this.questionsAnswered = 0;
+        this.winStreak = 0;
+        this.creditsEarned = 0;
+        this.questionStartTime = 0;
         this.isRunning = false;
         this.isProcessing = false;
         this.currentQuestion = null;
@@ -29,6 +36,10 @@ export class GeoNetGame {
         this.currentCountry = null;
         this.isOverclocked = false;
         this.currentBlur = 20;
+        this.powerups = {
+            fifty: { used:false, cost:15, name:'50/50',  ic:'scaleBalanced' },
+            skip:  { used:false, cost:25, name:'SALTAR', ic:'forward' }
+        };
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.injectStyles();
     }
@@ -81,6 +92,15 @@ export class GeoNetGame {
 
         /* War mode — 3 opciones */
         .geo-options.cols-3 { grid-template-columns:1fr 1fr 1fr; }
+
+        /* Power-ups */
+        .geo-powerups { display:flex; gap:8px; justify-content:center; width:100%; max-width:640px; flex-shrink:0; }
+        .geo-pu { flex:1; max-width:140px; padding:5px 8px; background:rgba(10,16,30,0.85); border:1.5px solid rgba(255,255,255,0.1); border-radius:8px; display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer; transition:all 0.15s; font-family:monospace; font-size:0.62rem; letter-spacing:1px; color:#94a3b8; }
+        .geo-pu:hover:not(.used) { transform:translateY(-1px); border-color:rgba(59,130,246,0.5); color:white; }
+        .geo-pu.used { opacity:0.25; filter:grayscale(1); pointer-events:none; }
+        .geo-pu-icon { font-size:0.85rem; color:#3b82f6; }
+        .geo-pu-cost { font-size:0.55rem; color:#fbbf24; margin-left:auto; }
+        .geo-btn.eliminated { opacity:0.15; pointer-events:none; filter:grayscale(1); }
         `;
         document.head.appendChild(s);
     }
@@ -158,6 +178,10 @@ export class GeoNetGame {
 
     startSession(mode) {
         this.mode = mode; this.score = 0; this.lives = 3;
+        this.questionsAnswered = 0;
+        this.winStreak = 0;
+        this.creditsEarned = 0;
+        Object.values(this.powerups).forEach(p => p.used = false);
         this.isRunning = true; this.currentCountry = null;
         this.nextQuestion();
     }
@@ -166,6 +190,7 @@ export class GeoNetGame {
         if(!this.isRunning) return;
         this.isProcessing = false;
         this.currentBlur = 22;
+        this.questionStartTime = performance.now();
         const all = Array.from(this.countryMap.values());
 
         if(this.mode === 'TERMINAL') {
@@ -221,15 +246,27 @@ export class GeoNetGame {
     }
 
     renderHUD() {
+        const streakColor = this.winStreak >= 3 ? '#f97316' : '#3b82f6';
+        const showPU = this.mode !== 'TERMINAL'; // power-ups solo en modos con opciones
         return `
         <div class="geo-hud">
+            <div class="geo-stat"><div class="geo-stat-lbl">PREGUNTA</div><div class="geo-stat-val">${this.questionsAnswered+1}<span style="font-size:0.6rem;color:#64748b;margin-left:2px;">/${TARGET_ROUNDS}</span></div></div>
+            <div class="geo-stat"><div class="geo-stat-lbl">RACHA</div><div class="geo-stat-val" style="color:${streakColor};">${this.winStreak}${this.winStreak>=3?' 🔥':''}</div></div>
             <div class="geo-stat"><div class="geo-stat-lbl">SCORE</div><div class="geo-stat-val" id="geo-score">${this.score}</div></div>
-            <div class="geo-stat"><div class="geo-stat-lbl">MODO</div><div class="geo-stat-val" style="font-size:0.7rem;color:#475569;">${this.mode}${this.isOverclocked?' ⚡':''}</div></div>
             <div class="geo-stat"><div class="geo-stat-lbl">VIDAS</div>
-                <div class="geo-lives">${'<i class="fa-solid fa-heart geo-life"></i>'.repeat(this.lives)}${'<i class="fa-solid fa-heart geo-life lost"></i>'.repeat(3-this.lives)}</div>
+                <div class="geo-lives">${Array.from({length:3}).map((_,i)=>`<span class="geo-life ${i>=this.lives?'lost':''}">${icon('heart')}</span>`).join('')}</div>
             </div>
         </div>
-        <div class="geo-timer-track"><div class="geo-timer-fill" id="geo-timer-fill" style="width:100%;"></div></div>`;
+        <div class="geo-timer-track"><div class="geo-timer-fill" id="geo-timer-fill" style="width:100%;"></div></div>
+        ${showPU ? `
+        <div class="geo-powerups">
+            ${Object.entries(this.powerups).map(([key,p])=>`
+                <div class="geo-pu ${p.used?'used':''}" data-pu="${key}">
+                    <span class="geo-pu-icon">${icon(p.ic)}</span>
+                    <span>${p.name}</span>
+                    <span class="geo-pu-cost">-${p.cost} CR</span>
+                </div>`).join('')}
+        </div>` : ''}`;
     }
 
     renderNormal(opts) {
@@ -372,6 +409,12 @@ export class GeoNetGame {
         document.querySelectorAll('.geo-btn').forEach(btn => {
             btn.onclick = () => this.handleAnswer(btn, this.currentCheckFn(btn));
         });
+        document.querySelectorAll('[data-pu]').forEach(pu => {
+            pu.onclick = () => {
+                if(this.isProcessing || this.powerups[pu.dataset.pu]?.used) return;
+                this.usePowerup(pu.dataset.pu);
+            };
+        });
     }
 
     handleAnswer(element, isCorrect) {
@@ -381,14 +424,45 @@ export class GeoNetGame {
 
         if(isCorrect){
             if(element?.classList) element.classList.add('correct');
-            this.score += this.isOverclocked ? 20 : 10;
+
+            // Speed bonus por tiempo de respuesta
+            const elapsed = (performance.now() - this.questionStartTime) / 1000;
+            let speedMulti = 1;
+            if (elapsed < 2) speedMulti = 2;
+            else if (elapsed < 4) speedMulti = 1.5;
+            else if (elapsed < 8) speedMulti = 1.2;
+
+            this.winStreak++;
+            let streakMulti = 1;
+            if (this.winStreak >= 10) streakMulti = 5;
+            else if (this.winStreak >= 5) streakMulti = 3;
+            else if (this.winStreak >= 3) streakMulti = 2;
+
+            const basePts = this.isOverclocked ? 20 : 10;
+            const gainedPts = Math.floor(basePts * speedMulti * streakMulti);
+            this.score += gainedPts;
+            this.questionsAnswered++;
+            // Créditos para ganancia (10 base × multis)
+            const baseCredits = this.isOverclocked ? 25 : 15;
+            const gainedCredits = Math.floor(baseCredits * speedMulti * streakMulti);
+            this.creditsEarned += gainedCredits;
+            window.app.credits += gainedCredits;
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
             const s = document.getElementById('geo-score'); if(s) s.innerText = this.score;
-            try{ this.audio.playWin(1); }catch(e){}
+            try{ this.audio.playWin(streakMulti >= 3 ? 10 : 1); }catch(e){}
+            const speedLabel = speedMulti >= 2 ? ' ¡RELÁMPAGO!' : (speedMulti >= 1.5 ? ' ¡RÁPIDO!' : '');
+            const streakLabel = streakMulti > 1 ? ` RACHA ×${streakMulti}` : '';
+            try { window.app.showToast('ENLACE CORRECTO' + speedLabel, `+$${gainedCredits}${streakLabel}`, 'success'); } catch(e){}
+            window.app.save();
             // En FRONTERA avanzar al siguiente país vecino
             if(this.mode === 'FRONTERA' && element?.dataset?.id){
                 this.currentCountry = this.countryMap.get(element.dataset.id) || this.currentCountry;
             }
-            setTimeout(() => this.nextQuestion(), 700);
+            if (this.questionsAnswered >= TARGET_ROUNDS) {
+                setTimeout(() => this.finishRun(true), 900);
+            } else {
+                setTimeout(() => this.nextQuestion(), 700);
+            }
         } else {
             this.takeDamage(element);
         }
@@ -397,6 +471,7 @@ export class GeoNetGame {
     takeDamage(element) {
         if(!this.isRunning) return;
         this.lives--;
+        this.winStreak = 0;
         if(element?.classList) element.classList.add('wrong');
         try{ this.audio.playLose(); }catch(e){}
         // Mostrar respuesta correcta
@@ -408,8 +483,61 @@ export class GeoNetGame {
         heartsEls.forEach((h,i) => { if(i >= this.lives) h.classList.add('lost'); });
         document.body.classList.add('shake-screen');
         setTimeout(() => document.body.classList.remove('shake-screen'), 350);
-        if(this.lives <= 0) setTimeout(() => this.gameOver(), 900);
-        else setTimeout(() => this.nextQuestion(), 1100);
+        if(this.lives <= 0) setTimeout(() => this.finishRun(false), 900);
+        else {
+            this.questionsAnswered++;
+            if (this.questionsAnswered >= TARGET_ROUNDS) {
+                setTimeout(() => this.finishRun(true), 1100);
+            } else {
+                setTimeout(() => this.nextQuestion(), 1100);
+            }
+        }
+    }
+
+    finishRun(completed) {
+        if(!this.isRunning) return;
+        this.isRunning = false;
+        if(this.timer) clearInterval(this.timer);
+        if (completed && this.lives > 0) {
+            const perfectBonus = this.lives === 3 ? 300 : 150;
+            this.creditsEarned += perfectBonus;
+            window.app.credits += perfectBonus;
+            try { window.app.showToast('SESIÓN COMPLETA', `+${perfectBonus} CR BONUS`, 'success'); } catch(e) {}
+            window.app.save();
+        }
+        this.onQuit(this.score);
+    }
+
+    usePowerup(key) {
+        const p = this.powerups[key];
+        if (!p || p.used) return;
+        if (window.app.credits < p.cost) {
+            try { window.app.showToast('SIN CRÉDITOS', `Necesitas ${p.cost} CR`, 'danger'); } catch(e) {}
+            return;
+        }
+        window.app.credits -= p.cost;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { this.audio.playClick?.(); } catch(e) {}
+        p.used = true;
+        if (key === 'fifty') this.applyFifty();
+        else if (key === 'skip') this.applySkip();
+        const puEl = this.uiContainer.querySelector(`[data-pu="${key}"]`);
+        if (puEl) puEl.classList.add('used');
+    }
+
+    applyFifty() {
+        const wrong = Array.from(this.uiContainer.querySelectorAll('.geo-btn'))
+            .filter(b => !this.currentCheckFn(b));
+        wrong.sort(() => Math.random() - 0.5);
+        const toHide = Math.min(2, wrong.length - 0);
+        wrong.slice(0, toHide).forEach(b => b.classList.add('eliminated'));
+        try { window.app.showToast('50/50', `${toHide} opciones eliminadas`, 'info'); } catch(e) {}
+    }
+
+    applySkip() {
+        try { window.app.showToast('SALTAR', 'Pregunta nueva', 'info'); } catch(e) {}
+        if (this.timer) clearInterval(this.timer);
+        this.nextQuestion();
     }
 
     startTimer(speed) {

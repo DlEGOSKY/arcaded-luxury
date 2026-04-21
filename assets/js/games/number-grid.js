@@ -8,6 +8,13 @@ export class NumberGridGame {
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.score       = 0;
         this.mode        = 'NORMAL';
+        // NUEVAS MECÁNICAS
+        this.lives = 3;
+        this.maxLives = 3;
+        this.lastTapTime = 0;
+        this.fastCombo = 0;
+        this.maxFastCombo = 0;
+        this.highlightAvailable = 2;
         this.injectStyles();
     }
 
@@ -27,8 +34,22 @@ export class NumberGridGame {
             .ng-cell.done  { background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981;cursor:default; }
             .ng-cell.wrong { background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444;animation:ngShake 0.3s ease; }
             .ng-cell.next  { border-color:rgba(251,191,36,0.5);box-shadow:0 0 8px rgba(251,191,36,0.2); }
+            .ng-cell.highlight { border-color:#10b981 !important;box-shadow:0 0 20px #10b981 !important;animation:ngHighlight 0.4s ease-in-out 5; }
+            @keyframes ngHighlight { 0%,100%{background:rgba(16,185,129,0.15)} 50%{background:rgba(16,185,129,0.4)} }
             @keyframes ngShake { 0%,100%{transform:translateX(0)} 33%{transform:translateX(-3px)} 66%{transform:translateX(3px)} }
             .ng-msg { font-family:var(--font-display);font-size:0.72rem;letter-spacing:2px;color:#94a3b8;min-height:20px; }
+            /* Vidas HUD */
+            .ng-lives { display:flex;gap:4px;align-items:center;justify-content:center; }
+            .ng-heart { font-size:0.85rem;color:#ef4444;transition:all 0.2s; }
+            .ng-heart.lost { color:#334155;transform:scale(0.7); }
+            /* Power-up */
+            .ng-pwr { padding:7px 14px;background:rgba(10,16,30,0.9);border:1.5px solid #10b981;border-radius:8px;color:#10b981;font-family:var(--font-display);font-size:0.62rem;letter-spacing:2px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:6px;margin-top:4px; }
+            .ng-pwr:hover:not(.used) { background:rgba(16,185,129,0.15);transform:translateY(-2px); }
+            .ng-pwr.used { opacity:0.3;pointer-events:none;filter:grayscale(1); }
+            .ng-pwr .cnt { color:#94a3b8;font-size:0.55rem; }
+            /* Speed chip */
+            .ng-speed-chip { font-family:var(--font-display);font-size:0.65rem;color:#fbbf24;letter-spacing:2px;padding:3px 10px;background:rgba(251,191,36,0.15);border:1.5px solid #fbbf24;border-radius:15px;display:inline-block;opacity:0;transition:opacity 0.2s; }
+            .ng-speed-chip.show { opacity:1; }
         `;
         document.head.appendChild(s);
     }
@@ -76,6 +97,11 @@ export class NumberGridGame {
         this.rounds  = 0;
         this.size    = mode === 'MAESTRO' ? 6 : 5;
         this.total   = this.size * this.size;
+        // Reset nuevas mecánicas
+        this.lives = 3; this.maxLives = 3;
+        this.lastTapTime = 0;
+        this.fastCombo = 0; this.maxFastCombo = 0;
+        this.highlightAvailable = 2;
         try { this.canvas.setMood('CYAN'); } catch(e) {}
         if(mode === 'BLITZ') {
             this.timeLeft = 60;
@@ -109,20 +135,53 @@ export class NumberGridGame {
                 'onclick="window.numberGrid.tap(' + n + ')">' + n + '</div>';
         }).join('');
 
+        const heartsHTML = Array.from({length:this.maxLives},(_,i)=>
+            `<i class="fa-solid fa-heart ng-heart${i>=this.lives?' lost':''}"></i>`
+        ).join('');
+
         this.uiContainer.innerHTML = `
         <div class="ng-root">
             <div class="ng-header">
                 <div class="ng-stat"><div class="ng-stat-val" id="ng-score">${this.score}</div><div class="ng-stat-lbl">PUNTOS</div></div>
                 <div class="ng-stat"><div class="ng-stat-val" style="color:#a855f7;">${this.next}</div><div class="ng-stat-lbl">SIGUIENTE</div></div>
                 ${timerHTML}
+                <div class="ng-stat"><div class="ng-lives" id="ng-lives">${heartsHTML}</div><div class="ng-stat-lbl">VIDAS</div></div>
                 <div class="ng-stat"><div class="ng-stat-val" style="color:#334155;">${this.rounds}</div><div class="ng-stat-lbl">RONDAS</div></div>
             </div>
             <div class="ng-grid" style="grid-template-columns:repeat(${this.size},1fr);">${cells}</div>
+            <div class="ng-speed-chip" id="ng-speed">RACHA RÁPIDA</div>
             <div class="ng-msg" id="ng-msg">Toca los números del 1 al ${this.total} en orden</div>
+            <button class="ng-pwr" id="ng-highlight">HIGHLIGHT <span class="cnt">·${this.highlightAvailable}</span> <span class="cnt">$15</span></button>
         </div>`;
+
+        const hb = document.getElementById('ng-highlight');
+        if (hb) hb.onclick = () => this.activateHighlight();
 
         window.numberGrid = this;
         if(this.mode !== 'BLITZ') this.startElapsed();
+    }
+
+    activateHighlight() {
+        if (this.highlightAvailable <= 0) return;
+        if (window.app.credits < 15) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Highlight cuesta $15', 'danger'); } catch(e){} return; }
+        window.app.credits -= 15;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e){}
+        this.highlightAvailable--;
+        // Resalta el número siguiente
+        const cells = document.querySelectorAll('.ng-cell');
+        cells.forEach(cell => {
+            if (parseInt(cell.textContent) === this.next) {
+                cell.classList.add('highlight');
+                setTimeout(() => cell.classList.remove('highlight'), 2000);
+            }
+        });
+        try { this.audio.playTone(1500, 'sine', 0.12); } catch(e){}
+        const btn = document.getElementById('ng-highlight');
+        if (btn) {
+            btn.innerHTML = `HIGHLIGHT <span class="cnt">·${this.highlightAvailable}</span> <span class="cnt">$15</span>`;
+            if (this.highlightAvailable <= 0) btn.classList.add('used');
+        }
     }
 
     startElapsed() {
@@ -136,6 +195,24 @@ export class NumberGridGame {
     tap(n) {
         if(this.done.has(n)) return;
         if(n === this.next) {
+            // Fast combo: tap en <0.8s del anterior
+            const now = Date.now();
+            const isFast = this.lastTapTime > 0 && (now - this.lastTapTime) < 800;
+            if (isFast) {
+                this.fastCombo++;
+                if (this.fastCombo > this.maxFastCombo) this.maxFastCombo = this.fastCombo;
+                this.score += this.fastCombo;
+                const chip = document.getElementById('ng-speed');
+                if (chip) {
+                    chip.textContent = `RACHA RÁPIDA ×${this.fastCombo}`;
+                    chip.classList.add('show');
+                }
+            } else {
+                this.fastCombo = 1;
+                const chip = document.getElementById('ng-speed');
+                if (chip) chip.classList.remove('show');
+            }
+            this.lastTapTime = now;
             this.done.add(n);
             this.next++;
             const el = document.querySelector('.ng-cell:not(.done)');
@@ -146,13 +223,29 @@ export class NumberGridGame {
                 else if(num === this.next) { cell.className = 'ng-cell next'; }
                 else { cell.className = 'ng-cell'; }
             });
-            try { this.audio.playTone(300 + n*20, 'sine', 0.06, 0.08); } catch(e) {}
+            // Update score display inline
+            const sc = document.getElementById('ng-score');
+            if (sc) sc.innerText = this.score;
+            try { this.audio.playTone(300 + n*20 + (this.fastCombo*30), 'sine', 0.06, 0.08); } catch(e) {}
             if(this.next > this.total) this.roundComplete();
         } else {
-            // Wrong number
+            // Wrong number → pierde vida
             const cells = document.querySelectorAll('.ng-cell');
             cells.forEach(c => { if(parseInt(c.textContent)===n) { c.classList.add('wrong'); setTimeout(()=>c.classList.remove('wrong'),300); } });
             try { this.audio.playTone(150,'square',0.05,0.1); } catch(e) {}
+            this.lives--;
+            this.fastCombo = 0;
+            const chip = document.getElementById('ng-speed');
+            if (chip) chip.classList.remove('show');
+            const livesEl = document.getElementById('ng-lives');
+            if (livesEl) {
+                livesEl.innerHTML = Array.from({length:this.maxLives},(_,i)=>
+                    `<i class="fa-solid fa-heart ng-heart${i>=this.lives?' lost':''}"></i>`
+                ).join('');
+            }
+            if (this.lives <= 0) {
+                setTimeout(() => this.endGame(), 400);
+            }
         }
     }
 
@@ -182,6 +275,16 @@ export class NumberGridGame {
         clearInterval(this.timerInt);
         clearInterval(this._elapsedInt);
         delete window.numberGrid;
+        // Bonus por max fast combo y rondas
+        let bonus = 0;
+        if (this.maxFastCombo >= 5) bonus += this.maxFastCombo * 2;
+        if (this.rounds >= 2) bonus += this.rounds * 5;
+        if (bonus > 0) {
+            window.app.credits += bonus;
+            try { window.app.showToast('BONUS FINAL', `+${bonus} CR · Racha ×${this.maxFastCombo}`, 'success'); } catch(e){}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            try { window.app.save(); } catch(e){}
+        }
         if(this.onGameOver) this.onGameOver(this.score);
     }
 

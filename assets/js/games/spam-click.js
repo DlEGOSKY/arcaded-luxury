@@ -8,6 +8,11 @@ export class SpamClickGame {
         this.timerInterval = null; this.mode = 'NORMAL';
         this.cpsHistory = []; this.lastClickTime = 0;
         this.heatLevel = 0; this.comboStreak = 0;
+        // NUEVAS MECÁNICAS
+        this.rawClicks = 0;      // total clicks real (para criticals cada 20)
+        this.criticalsHit = 0;   // criticals ejecutados
+        this.turboFrames = 0;    // frames consecutivos con CPS alto
+        this.turboUsedMax = 0;   // máximo de streak turbo alcanzado
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.injectStyles();
     }
@@ -55,7 +60,13 @@ export class SpamClickGame {
 
         /* Feedback de click */
         .sc-click-feedback { position:absolute;pointer-events:none;font-family:var(--font-display);font-size:0.7rem;color:#f97316;animation:scFbFly 0.6s ease both;z-index:10; }
+        .sc-click-feedback.crit { color:#fbbf24; font-size:1.2rem; text-shadow:0 0 12px #fbbf24; animation:scFbCrit 0.8s ease both; }
         @keyframes scFbFly { from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(-40px)} }
+        @keyframes scFbCrit { 0%{opacity:1;transform:translate(0,0) scale(1.4)} 100%{opacity:0;transform:translate(0,-60px) scale(0.9)} }
+
+        /* Multiplier chip */
+        .sc-multi-chip { position:absolute; top:-30px; left:50%; transform:translateX(-50%); padding:3px 10px; border-radius:20px; font-family:var(--font-display); font-size:0.7rem; letter-spacing:2px; background:rgba(251,191,36,0.2); border:1.5px solid #fbbf24; color:#fbbf24; text-shadow:0 0 8px #fbbf24; pointer-events:none; transition:opacity 0.2s; }
+        .sc-multi-chip.hot { background:rgba(239,68,68,0.2); border-color:#ef4444; color:#ef4444; text-shadow:0 0 8px #ef4444; }
         `;
         document.head.appendChild(s);
     }
@@ -104,6 +115,7 @@ export class SpamClickGame {
         this.timeLeft     = mode==='BLITZ'?3.0:5.0;
         this.isPlaying = true; this.isEnding = false;
         this.score = 0; this.heatLevel = 0; this.comboStreak = 0; this.cpsHistory = [];
+        this.rawClicks = 0; this.criticalsHit = 0; this.turboFrames = 0; this.turboUsedMax = 0;
         try{this.audio.playBuy();}catch(e){}
 
         const modeColor = mode==='TURBO'?'#ef4444':mode==='BLITZ'?'#a855f7':'#f97316';
@@ -152,16 +164,59 @@ export class SpamClickGame {
         </div>`;
 
         const reactor = document.getElementById('sc-reactor');
+        // Multiplier chip (nuevo)
+        const multiChip = document.createElement('div');
+        multiChip.className = 'sc-multi-chip';
+        multiChip.style.opacity = '0';
+        multiChip.textContent = '×1.0';
+        reactor.appendChild(multiChip);
+
         const handleClick = (e) => {
             if(!this.isPlaying||this.isEnding) return;
             if(e.cancelable) e.preventDefault();
-            this.score++;
+            this.rawClicks++;
             this.lastClickTime = Date.now();
             this.cpsHistory.push(this.lastClickTime);
             // CPS: clics en último segundo
             const now = Date.now();
             this.cpsHistory = this.cpsHistory.filter(t=>now-t<=1000);
             const cps = this.cpsHistory.length;
+
+            // CRITICAL CLICK (cada 20 clicks, uno vale 5)
+            const isCritical = this.rawClicks > 0 && (this.rawClicks % 20 === 0);
+
+            // Multiplier basado en CPS sostenido
+            let cpsMulti = 1;
+            if (cps >= 15) cpsMulti = 2;
+            else if (cps >= 12) cpsMulti = 1.5;
+            else if (cps >= 9) cpsMulti = 1.2;
+
+            // Aplicar score
+            if (isCritical) {
+                this.score += 5;
+                this.criticalsHit++;
+            } else {
+                // Multi solo aplica si CPS>9 (se redondea a entero para no inflar)
+                this.score += (cpsMulti >= 1.5 ? 2 : 1);
+            }
+
+            // Turbo frames tracking
+            if (cps >= 9) { this.turboFrames++; if (this.turboFrames > this.turboUsedMax) this.turboUsedMax = this.turboFrames; }
+            else { this.turboFrames = 0; }
+
+            // Actualizar chip multiplier visible
+            if (cpsMulti > 1 || isCritical) {
+                multiChip.style.opacity = '1';
+                if (isCritical) {
+                    multiChip.textContent = 'CRIT ×5';
+                    multiChip.classList.add('hot');
+                } else {
+                    multiChip.textContent = `×${cpsMulti.toFixed(1)}`;
+                    multiChip.classList.toggle('hot', cpsMulti >= 2);
+                }
+            } else {
+                multiChip.style.opacity = '0';
+            }
 
             // Actualizar contadores
             const countEl = document.getElementById('sc-big-count');
@@ -188,18 +243,22 @@ export class SpamClickGame {
 
             // Feedback flotante
             const fb = document.createElement('div');
-            fb.className = 'sc-click-feedback';
-            fb.textContent = cps>=10?'+2!':'+1';
+            fb.className = 'sc-click-feedback' + (isCritical ? ' crit' : '');
+            fb.textContent = isCritical ? '💥 CRIT +5!' : (cpsMulti>=1.5 ? `×${cpsMulti.toFixed(1)} +2` : '+1');
             fb.style.cssText = `left:${40+Math.random()*20}%;top:${30+Math.random()*20}%;`;
             reactor.appendChild(fb);
-            setTimeout(()=>fb.remove(),600);
+            setTimeout(()=>fb.remove(), isCritical ? 800 : 600);
 
             // Animación del botón
             reactor.style.transform = `scale(0.92) translate(${Math.random()*6-3}px,${Math.random()*6-3}px)`;
             setTimeout(()=>{ reactor.style.transform='scale(1)'; },60);
 
-            // Audio tonal
-            try{this.audio.playTone(180+(this.score*8),'square',0.04);}catch(e){}
+            // Audio tonal (critical sonido diferente)
+            if (isCritical) {
+                try { this.audio.playTone(1200, 'sine', 0.12); } catch(e){}
+            } else {
+                try{this.audio.playTone(180+(this.score*4),'square',0.04);}catch(e){}
+            }
         };
 
         reactor.addEventListener('mousedown', handleClick);
@@ -232,10 +291,17 @@ export class SpamClickGame {
         }
         if(passed){
             try{this.audio.playWin(3);}catch(e){}
-            const bonus = Math.max(0,(this.score-this.targetClicks)*2);
-            const prize = (this.mode==='TURBO'?100:this.mode==='BLITZ'?80:30)+bonus;
-            window.app.credits+=prize;
-            try{window.app.showToast('NÚCLEO SOBRECARGADO',`+${prize} CR`,'success');}catch(e){}
+            const overageBonus = Math.max(0,(this.score-this.targetClicks)*2);
+            const critBonus = this.criticalsHit * 10;                         // 10 CR por cada critical
+            const turboBonus = this.turboUsedMax >= 30 ? 150 : (this.turboUsedMax >= 15 ? 75 : 0);
+            const basePrize = this.mode==='TURBO'?100:this.mode==='BLITZ'?80:30;
+            const prize = basePrize + overageBonus + critBonus + turboBonus;
+            window.app.credits += prize;
+            const detailParts = [];
+            if (critBonus > 0) detailParts.push(`${this.criticalsHit} crit +${critBonus}`);
+            if (turboBonus > 0) detailParts.push(`turbo ${this.turboUsedMax}f +${turboBonus}`);
+            const detail = detailParts.length ? ` (${detailParts.join(', ')})` : '';
+            try{window.app.showToast('NÚCLEO SOBRECARGADO',`+${prize} CR${detail}`,'success');}catch(e){}
             if(this.canvas) try{this.canvas.explode(window.innerWidth/2,window.innerHeight/2,'#f97316');}catch(e){}
         } else {
             try{this.audio.playLose();}catch(e){}

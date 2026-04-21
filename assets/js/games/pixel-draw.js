@@ -43,6 +43,11 @@ export class PixelDrawGame {
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.score       = 0;
         this.mode        = 'NORMAL';
+        // NUEVAS MECÁNICAS
+        this.streak = 0;           // sprites consecutivos con accuracy >=80
+        this.maxStreak = 0;
+        this.spritesCompleted = 0;
+        this.colorHintAvailable = 2;
         this.injectStyles();
     }
 
@@ -72,6 +77,12 @@ export class PixelDrawGame {
             .pd-btn { padding:7px 16px;border-radius:8px;font-family:var(--font-display);font-size:0.65rem;letter-spacing:2px;cursor:pointer;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:#94a3b8;transition:all 0.15s; }
             .pd-btn:hover { background:rgba(255,255,255,0.1);color:white; }
             .pd-btn.primary { border-color:rgba(59,130,246,0.5);background:rgba(59,130,246,0.12);color:#60a5fa; }
+            .pd-btn.pwr { border-color:rgba(168,85,247,0.5);background:rgba(168,85,247,0.12);color:#a855f7; }
+            .pd-btn.pwr.used { opacity:0.3;pointer-events:none;filter:grayscale(1); }
+            .pd-btn.pwr .cnt { color:#94a3b8;font-size:0.55rem;margin-left:4px; }
+            .pd-color.hint { animation:pdHint 0.5s ease-in-out 3; box-shadow:0 0 18px currentColor; }
+            @keyframes pdHint { 0%,100%{transform:scale(1.2)} 50%{transform:scale(1.4)} }
+            .pd-streak { font-family:var(--font-display);font-size:0.65rem;color:#fbbf24;letter-spacing:2px;padding:3px 10px;background:rgba(251,191,36,0.15);border:1px solid #fbbf24;border-radius:15px; }
         `;
         document.head.appendChild(s);
     }
@@ -121,6 +132,10 @@ export class PixelDrawGame {
         this.drawing = Array.from({length:8}, ()=>Array(8).fill('#0a0e1a'));
         this.selectedColor = '#ef4444';
         this.isDrawing = false;
+        // Reset nuevas mecánicas
+        this.streak = 0; this.maxStreak = 0;
+        this.spritesCompleted = 0;
+        this.colorHintAvailable = 2;
 
         this.target = mode === 'FREE' ? null : SPRITES[Math.floor(Math.random() * SPRITES.length)];
         try { this.canvas.setMood('CYAN'); } catch(e) {}
@@ -182,6 +197,13 @@ export class PixelDrawGame {
             : `<button class="pd-btn primary" onclick="window.pixelDraw.endGame()">
                 <i class="fa-solid fa-save"></i> GUARDAR</button>`;
 
+        const hintHTML = this.target
+            ? `<button class="pd-btn pwr${this.colorHintAvailable<=0?' used':''}" onclick="window.pixelDraw.activateColorHint()">
+                HINT <span class="cnt">·${this.colorHintAvailable}</span> <span class="cnt">$10</span></button>`
+            : '';
+
+        const streakHTML = this.streak >= 2 ? `<div class="pd-streak">RACHA ×${this.streak}</div>` : '';
+
         this.uiContainer.innerHTML = `
         <div class="pd-root">
             <div class="pd-header">
@@ -191,9 +213,11 @@ export class PixelDrawGame {
             </div>
             <div class="pd-boards">${refHTML}${drawHTML}</div>
             <div class="pd-palette">${paletteHTML}</div>
+            ${streakHTML}
             <div class="pd-msg" id="pd-msg">${this.mode==='FREE'?'Dibuja libremente — elige colores y pinta':'Copia el sprite de la izquierda con exactitud'}</div>
             <div class="pd-actions">
                 <button class="pd-btn" onclick="window.pixelDraw.clearCanvas()"><i class="fa-solid fa-eraser"></i> LIMPIAR</button>
+                ${hintHTML}
                 ${scoreHTML}
                 <button class="pd-btn" onclick="window.pixelDraw.quit()"><i class="fa-solid fa-arrow-left"></i> SALIR</button>
             </div>
@@ -228,26 +252,67 @@ export class PixelDrawGame {
         window.pixelDraw = this;
     }
 
+    activateColorHint() {
+        if (this.colorHintAvailable <= 0 || !this.target) return;
+        if (window.app.credits < 10) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Hint cuesta $10', 'danger'); } catch(e){} return; }
+        window.app.credits -= 10;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e){}
+        this.colorHintAvailable--;
+        // Auto-selecciona el color del sprite objetivo y lo resalta
+        this.selectedColor = this.target.color;
+        document.querySelectorAll('.pd-color').forEach(el => {
+            const bg = el.style.background || el.style.backgroundColor;
+            if (bg === this.target.color) {
+                el.classList.add('hint', 'active');
+            } else {
+                el.classList.remove('active');
+            }
+        });
+        try { this.audio.playTone(1500, 'sine', 0.12); } catch(e){}
+        setTimeout(() => {
+            document.querySelectorAll('.pd-color').forEach(el => el.classList.remove('hint'));
+        }, 1500);
+    }
+
     checkResult(timeout) {
         if(!this.target) { this.endGame(); return; }
         clearInterval(this.timerInt);
 
         let correct = 0;
         let total   = 0;
+        let perfectColor = 0;
         this.target.grid.forEach((row, ri) => {
             row.forEach((cell, ci) => {
                 if(cell) {
                     total++;
                     const drawn = this.drawing[ri][ci];
                     // Aceptar el color del sprite o blanco como correcto
-                    if(drawn !== '#0a0e1a' && drawn !== '#1e293b') correct++;
+                    if(drawn !== '#0a0e1a' && drawn !== '#1e293b') {
+                        correct++;
+                        if (drawn === this.target.color) perfectColor++;
+                    }
                 }
             });
         });
 
         const accuracy = total > 0 ? Math.round((correct/total)*100) : 0;
+        const colorAccuracy = total > 0 ? Math.round((perfectColor/total)*100) : 0;
         const timeBonus = this.mode === 'SPEED' ? this.timeLeft * 2 : 0;
-        const pts = Math.round(accuracy * 0.8) + timeBonus;
+        // Streak bonus si accuracy >=80%
+        if (accuracy >= 80) {
+            this.streak++;
+            if (this.streak > this.maxStreak) this.maxStreak = this.streak;
+            this.spritesCompleted++;
+        } else {
+            this.streak = 0;
+        }
+        let streakMulti = 1;
+        if (this.streak >= 5) streakMulti = 3;
+        else if (this.streak >= 3) streakMulti = 2;
+        else if (this.streak >= 2) streakMulti = 1.5;
+        const colorBonus = Math.round(colorAccuracy * 0.3);
+        const pts = Math.floor((Math.round(accuracy * 0.8) + timeBonus + colorBonus) * streakMulti);
         this.score += pts;
 
         const el = document.getElementById('pd-msg');
@@ -278,6 +343,16 @@ export class PixelDrawGame {
         clearInterval(this.timerInt);
         window.removeEventListener('mouseup', this._stopDraw);
         delete window.pixelDraw;
+        // Bonus por sprites completados y racha
+        let bonus = 0;
+        if (this.spritesCompleted >= 3) bonus += this.spritesCompleted * 4;
+        if (this.maxStreak >= 3) bonus += this.maxStreak * 3;
+        if (bonus > 0) {
+            window.app.credits += bonus;
+            try { window.app.showToast('BONUS FINAL', `+${bonus} CR · Racha ×${this.maxStreak}`, 'success'); } catch(e){}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            try { window.app.save(); } catch(e){}
+        }
         if(this.onGameOver) this.onGameOver(this.score);
     }
 

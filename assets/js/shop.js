@@ -184,7 +184,9 @@ export class ShopSystem {
                         default:'#3b82f6', bsod:'#0078d7', matrix:'#00ff41',
                         fallout:'#95b800', vcity:'#ff6ec7', doom:'#ef4444',
                         minecraft:'#4aab2a', tron:'#00f5ff', discord:'#5865f2',
-                        hacker:'#00ff88', retro:'#ff00ff', gold:'#ffd700'
+                        hacker:'#00ff88', retro:'#ff00ff', gold:'#ffd700',
+                        // V3
+                        dos622:'#55ff55', ipod:'#1d6fff', n64:'#ff6b35'
                     };
                     ic = ccMap[item.val] || '#3b82f6';
                 }
@@ -249,6 +251,11 @@ export class ShopSystem {
                     <div class="scv2-desc">${item.desc}</div>
                     ${item.lore ? '<div style="font-size:0.52rem;color:#1e293b;font-family:monospace;margin:2px 0 4px;font-style:italic;">' + item.lore + '</div>' : ''}
                     <div class="scv2-action">${actionHTML}</div>`;
+
+                // Hover preview silencioso de TEMAS (solo si no esta equipado)
+                if(type === 'THEME' && !isEquipped) {
+                    this._bindThemeHoverPreview(card, item.id);
+                }
 
                 grid.appendChild(card);
             });
@@ -425,5 +432,45 @@ export class ShopSystem {
         this.render();
         // Re-aplicar filtros tras re-render (mantener búsqueda/categoría activa)
         if(this.filters) this._applyFilters();
+    }
+
+    // ---- HOVER PREVIEW de temas -------------------------------------
+    // Al hover: guarda el tema actual y aplica el nuevo momentaneamente.
+    // Al mouseleave: restaura el anterior. Silencioso, sin modal ni timers.
+    _bindThemeHoverPreview(cardEl, themeId) {
+        let restoreTo = null;
+        let previewing = false;
+        // Pequeno delay para evitar flicker si el mouse pasa rapido
+        let enterTimer = null;
+
+        const enter = () => {
+            if(previewing) return;
+            // No preview si estamos sobre un boton del card (evita conflicto con click)
+            clearTimeout(enterTimer);
+            enterTimer = setTimeout(() => {
+                try {
+                    restoreTo = window.app.shop.equipped.theme || 't_default';
+                    if(restoreTo === themeId) return;
+                    window.app.applyTheme(themeId);
+                    cardEl.classList.add('theme-previewing');
+                    previewing = true;
+                } catch(e) {}
+            }, 180);
+        };
+        const leave = () => {
+            clearTimeout(enterTimer);
+            if(!previewing) return;
+            try {
+                window.app.applyTheme(restoreTo || 't_default');
+                cardEl.classList.remove('theme-previewing');
+            } catch(e) {}
+            previewing = false;
+            restoreTo  = null;
+        };
+
+        cardEl.addEventListener('mouseenter', enter);
+        cardEl.addEventListener('mouseleave', leave);
+        // Si el user se va con teclado/scroll, restaurar
+        cardEl.addEventListener('focusout', leave);
     }
 }

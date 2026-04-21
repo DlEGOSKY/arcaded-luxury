@@ -206,7 +206,7 @@ export class HigherLowerGame {
         document.getElementById('ui-score').innerText = this.score;
         document.getElementById('val-credits').innerText = window.app.credits;
         const sBadge = document.getElementById('ui-streak');
-        if(this.streak > 1) { sBadge.innerText = `🔥 x${this.streak}`; sBadge.classList.add('active'); }
+        if(this.streak > 1) { sBadge.innerText = `STREAK x${this.streak}`; sBadge.classList.add('active'); }
         else { sBadge.classList.remove('active'); }
     }
 }

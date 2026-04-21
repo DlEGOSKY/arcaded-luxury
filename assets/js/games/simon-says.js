@@ -16,6 +16,13 @@ export class SimonSaysGame {
         this.TONES       = [523, 659, 784, 392]; // Do Mi Sol Sol bajo
         this.COLORS      = ['#ef4444','#3b82f6','#fbbf24','#10b981'];
         this.NAMES       = ['ROJO','AZUL','AMARILLO','VERDE'];
+        // NUEVAS MECÁNICAS
+        this.lives       = 3;
+        this.maxLives    = 3;
+        this.streak      = 0;
+        this.maxStreak   = 0;
+        this.maxRound    = 0;
+        this.replayAvailable = 1;
         this.injectStyles();
     }
 
@@ -35,6 +42,18 @@ export class SimonSaysGame {
             .sm-btn.dim { filter:brightness(0.3); }
             .sm-msg { font-family:var(--font-display);font-size:0.75rem;letter-spacing:2px;color:#94a3b8;min-height:20px;text-align:center; }
             .sm-phase { font-size:0.55rem;color:#334155;font-family:monospace;letter-spacing:3px;text-align:center; }
+            /* Vidas */
+            .sm-lives { display:flex;gap:4px;align-items:center;justify-content:center; }
+            .sm-heart { font-size:0.85rem;color:#ef4444;transition:all 0.2s; }
+            .sm-heart.lost { color:#334155;transform:scale(0.7); }
+            /* Streak chip */
+            .sm-streak-chip { font-family:var(--font-display);font-size:0.62rem;color:#fbbf24;letter-spacing:2px;padding:3px 10px;background:rgba(251,191,36,0.15);border:1px solid #fbbf24;border-radius:15px;display:inline-block;opacity:0;transition:opacity 0.2s; }
+            .sm-streak-chip.show { opacity:1; }
+            /* Power-up */
+            .sm-pwr { padding:7px 14px;background:rgba(10,16,30,0.9);border:1.5px solid #a855f7;border-radius:8px;color:#a855f7;font-family:var(--font-display);font-size:0.62rem;letter-spacing:2px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:6px; }
+            .sm-pwr:hover:not(.used) { background:rgba(168,85,247,0.15);transform:translateY(-2px); }
+            .sm-pwr.used { opacity:0.3;pointer-events:none;filter:grayscale(1); }
+            .sm-pwr .cnt { color:#94a3b8;font-size:0.55rem; }
         `;
         document.head.appendChild(s);
     }
@@ -85,6 +104,11 @@ export class SimonSaysGame {
         this.sequence = [];
         this.speed    = mode === 'SPEED' ? 700 : 900;
         this.active   = false;
+        // Reset nuevas mecánicas
+        this.lives = mode === 'RANDOM' ? 1 : 3;
+        this.maxLives = this.lives;
+        this.streak = 0; this.maxStreak = 0; this.maxRound = 0;
+        this.replayAvailable = 1;
         try { this.canvas.setMood('CYAN'); } catch(e) {}
         this.render();
         this._schedule(() => this.nextRound(), 600);
@@ -108,18 +132,58 @@ export class SimonSaysGame {
                 ${this.NAMES[i]}
             </div>`).join('');
 
+        const heartsHTML = Array.from({length:this.maxLives},(_,i)=>
+            `<i class="fa-solid fa-heart sm-heart${i>=this.lives?' lost':''}"></i>`
+        ).join('');
+
+        const streakMulti = this.getStreakMulti();
+        const streakChip = this.streak >= 2
+            ? `<div class="sm-streak-chip show">RACHA ×${this.streak} · BONUS ×${streakMulti}</div>`
+            : '<div class="sm-streak-chip"></div>';
+
         this.uiContainer.innerHTML = `
         <div class="sm-root">
             <div class="sm-header">
                 <div class="sm-stat"><div class="sm-stat-val" id="sm-score">${this.score}</div><div class="sm-stat-lbl">PUNTOS</div></div>
                 <div class="sm-stat"><div class="sm-stat-val" style="color:#10b981;">${this.round}</div><div class="sm-stat-lbl">RONDA</div></div>
+                <div class="sm-stat"><div class="sm-lives" id="sm-lives">${heartsHTML}</div><div class="sm-stat-lbl">VIDAS</div></div>
                 <div class="sm-stat"><div class="sm-stat-val" style="color:#334155;">${this.sequence.length}</div><div class="sm-stat-lbl">SECUENCIA</div></div>
             </div>
             <div class="sm-phase" id="sm-phase">${phase}</div>
             <div class="sm-board">${cells}</div>
+            ${streakChip}
             <div class="sm-msg" id="sm-msg">Memoriza la secuencia y repítela</div>
+            <button class="sm-pwr${this.replayAvailable<=0?' used':''}" id="sm-replay">REPLAY <span class="cnt">·${this.replayAvailable}</span> <span class="cnt">$20</span></button>
         </div>`;
+        const rb = document.getElementById('sm-replay');
+        if (rb) rb.onclick = () => this.activateReplay();
         window.simonGame = this;
+    }
+
+    getStreakMulti() {
+        if (this.streak >= 8) return 3;
+        if (this.streak >= 5) return 2;
+        if (this.streak >= 2) return 1.5;
+        return 1;
+    }
+
+    activateReplay() {
+        if (!this.active || this.replayAvailable <= 0 || this.inputIdx > 0) {
+            try { window.app.showToast('REPLAY', 'Sólo antes de empezar a repetir', 'danger'); } catch(e){}
+            return;
+        }
+        if (window.app.credits < 20) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Replay cuesta $20', 'danger'); } catch(e){} return; }
+        window.app.credits -= 20;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e){}
+        this.replayAvailable--;
+        this.active = false;
+        const phaseEl = document.getElementById('sm-phase');
+        if (phaseEl) { phaseEl.textContent = 'REPLAY'; phaseEl.style.color = '#a855f7'; }
+        this.dimAll();
+        this._schedule(() => this.playSequence(), 400);
+        const btn = document.getElementById('sm-replay');
+        if (btn) { btn.classList.add('used'); btn.innerHTML = 'REPLAY <span class="cnt">USADO</span>'; }
     }
 
     nextRound() {
@@ -174,11 +238,25 @@ export class SimonSaysGame {
         if(idx !== this.sequence[this.inputIdx]) {
             // Error
             this.active = false;
-            const msg = document.getElementById('sm-msg');
-            if(msg) { msg.style.color = '#ef4444'; msg.textContent = 'ERROR · Secuencia: ' + this.sequence.map(i => this.NAMES[i]).join(' → '); }
+            this.lives--;
+            this.streak = 0;
             try { this.audio.playLose(); } catch(e) {}
-            try { this.audio.setTension(false); } catch(e) {}
-            this._schedule(() => this.endGame(), 2000);
+            // Update hearts
+            const livesEl = document.getElementById('sm-lives');
+            if (livesEl) {
+                livesEl.innerHTML = Array.from({length:this.maxLives},(_,i)=>
+                    `<i class="fa-solid fa-heart sm-heart${i>=this.lives?' lost':''}"></i>`
+                ).join('');
+            }
+            const msg = document.getElementById('sm-msg');
+            if (this.lives <= 0) {
+                if(msg) { msg.style.color = '#ef4444'; msg.textContent = 'GAME OVER · Era: ' + this.sequence.map(i => this.NAMES[i]).join(' → '); }
+                try { this.audio.setTension(false); } catch(e) {}
+                this._schedule(() => this.endGame(), 2000);
+            } else {
+                if(msg) { msg.style.color = '#ef4444'; msg.textContent = `FALLO · ${this.lives} vida${this.lives===1?'':'s'} restantes`; }
+                this._schedule(() => this.retryRound(), 1500);
+            }
             return;
         }
 
@@ -186,12 +264,18 @@ export class SimonSaysGame {
         if(this.inputIdx >= this.sequence.length) {
             // Ronda completada
             this.active = false;
-            const pts = this.sequence.length * 10;
+            this.streak++;
+            if (this.streak > this.maxStreak) this.maxStreak = this.streak;
+            if (this.round > this.maxRound) this.maxRound = this.round;
+            const streakMulti = this.getStreakMulti();
+            const basePts = this.sequence.length * 10;
+            const pts = Math.floor(basePts * streakMulti);
             this.score += pts;
             const sc = document.getElementById('sm-score');
             if(sc) sc.innerText = this.score;
             const msg = document.getElementById('sm-msg');
-            if(msg) { msg.style.color = '#10b981'; msg.textContent = '¡CORRECTO! +' + pts; }
+            const streakTxt = streakMulti > 1 ? ` ×${streakMulti}` : '';
+            if(msg) { msg.style.color = '#10b981'; msg.textContent = `¡CORRECTO! +${pts}${streakTxt}`; }
             try { this.audio.playWin(3); } catch(e) {}
             // Tensión a partir de secuencia larga
             if(this.sequence.length >= 8) { try { this.audio.setTension(true); } catch(e) {} }
@@ -199,11 +283,31 @@ export class SimonSaysGame {
         }
     }
 
+    retryRound() {
+        // No agrega nueva nota, solo vuelve a reproducir la secuencia actual
+        this.active = false;
+        this.inputIdx = 0;
+        const phaseEl = document.getElementById('sm-phase');
+        if(phaseEl) { phaseEl.textContent = 'REINTENTO'; phaseEl.style.color = '#f97316'; }
+        this.dimAll();
+        this._schedule(() => this.playSequence(), 600);
+    }
+
     endGame() {
         this._alive = false;
         this._timers.forEach(id => clearTimeout(id));
         this._timers = [];
         try { this.audio.setTension(false); } catch(e) {}
+        // Bonus por maxRound y maxStreak
+        let bonus = 0;
+        if (this.maxRound >= 5) bonus += this.maxRound * 3;
+        if (this.maxStreak >= 3) bonus += this.maxStreak * 4;
+        if (bonus > 0) {
+            window.app.credits += bonus;
+            try { window.app.showToast('BONUS FINAL', `+${bonus} CR · Racha ×${this.maxStreak}`, 'success'); } catch(e){}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            try { window.app.save(); } catch(e){}
+        }
         delete window.simonGame;
         if(this.onGameOver) this.onGameOver(this.score);
     }

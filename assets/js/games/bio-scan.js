@@ -1,19 +1,34 @@
 import { CONFIG } from '../config.js';
+import { icon } from '../systems/icons.js';
+
+const LIVES_START = 3;
+const TARGET_ROUNDS = 10;
 
 export class BioScanGame {
-    // NOTA: Cambié el nombre del argumento 'onQuit' a 'onGameOver' para que tenga sentido semántico
     constructor(canvas, audio, onGameOver) {
         this.canvas = canvas;
         this.audio = audio;
-        this.onGameOver = onGameOver; // Esta es la función inteligente del main
+        this.onGameOver = onGameOver;
         this.breeds = [];
         this.currentBreed = null;
         this.timerInterval = null;
         this.score = 0;
+        this.questionsAnswered = 0;
+        this.lives = LIVES_START;
+        this.winStreak = 0;
+        this.creditsEarned = 0;
         this.isProcessing = false;
+        this.hintShown = false;
         this._quitTimers = [];
         this.uiContainer = document.getElementById('game-ui-overlay');
-        
+
+        // Power-ups por partida (1 uso cada)
+        this.powerups = {
+            fifty: { used:false, cost:15, name:'50/50',  ic:'scaleBalanced' },
+            hint:  { used:false, cost:10, name:'PISTA',  ic:'eye' },
+            skip:  { used:false, cost:25, name:'SALTAR', ic:'forward' }
+        };
+
         this.injectStyles();
     }
 
@@ -33,6 +48,27 @@ export class BioScanGame {
             .bio-option-btn:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.8); }
             .bio-option-btn.correct { background: #10b981 !important; color: black !important; border-color: #fff !important; box-shadow: 0 0 20px #10b981; }
             .bio-option-btn.wrong { background: #ef4444 !important; color: white !important; animation: shake 0.3s; }
+            .bio-option-btn.eliminated { opacity: 0.18; pointer-events: none; filter: grayscale(1); }
+            .bio-option-btn.hinted { border-color: #fbbf24 !important; box-shadow: 0 0 14px rgba(251,191,36,0.45); }
+
+            .bio-hud { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; width:100%; max-width:500px; margin-bottom:10px; }
+            .bio-hud-cell { background:rgba(5,10,20,0.9); border:1px solid rgba(132,204,22,0.2); border-radius:10px; padding:6px 10px; position:relative; overflow:hidden; }
+            .bio-hud-cell::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg, transparent, rgba(132,204,22,0.5), transparent); }
+            .bio-hud-cell-lbl { font-size:0.5rem; color:rgba(132,204,22,0.75); letter-spacing:2px; font-family:monospace; text-transform:uppercase; }
+            .bio-hud-cell-val { font-family:var(--font-display); font-size:1rem; color:white; line-height:1.1; margin-top:2px; }
+            .bio-lives { display:flex; gap:4px; }
+            .bio-life { font-size:0.85rem; color:#ef4444; filter:drop-shadow(0 0 5px #ef4444); transition:all 0.3s; }
+            .bio-life.lost { color:#334155; filter:none; opacity:0.3; transform:scale(0.85); }
+
+            .bio-powerups { display:flex; gap:8px; justify-content:center; margin-bottom:12px; width:100%; max-width:500px; }
+            .bio-pu { flex:1; max-width:130px; padding:6px; background:rgba(10,16,30,0.85); border:1.5px solid rgba(255,255,255,0.1); border-radius:10px; display:flex; flex-direction:column; align-items:center; gap:2px; cursor:pointer; transition:all 0.15s; }
+            .bio-pu:hover:not(.used) { transform:translateY(-2px); border-color:rgba(132,204,22,0.5); }
+            .bio-pu.used { opacity:0.25; filter:grayscale(1); pointer-events:none; }
+            .bio-pu-icon { font-size:0.95rem; color:#84cc16; }
+            .bio-pu-name { font-family:var(--font-display); font-size:0.6rem; letter-spacing:1.5px; color:white; }
+            .bio-pu-cost { font-size:0.5rem; color:#fbbf24; font-family:monospace; }
+
+            .bio-hint-banner { font-size:0.68rem; color:#fbbf24; letter-spacing:1.3px; font-family:monospace; background:rgba(251,191,36,0.1); border:1px solid rgba(251,191,36,0.4); border-radius:8px; padding:5px 10px; text-align:center; margin-bottom:8px; }
         `;
         document.head.appendChild(style);
     }
@@ -109,12 +145,19 @@ export class BioScanGame {
         this.audio.playBuy();
         try{ this.canvas.setMood('BIO'); }catch(e){}
         this.score = 0;
+        this.questionsAnswered = 0;
+        this.lives = LIVES_START;
+        this.winStreak = 0;
+        this.creditsEarned = 0;
+        Object.values(this.powerups).forEach(p => p.used = false);
         this.nextRound();
     }
 
     // ... (nextRound, formatBreed, render, startTimer SON IGUALES, COPIALOS DE TU CÓDIGO ANTERIOR) ...
     async nextRound() {
         this.isProcessing = false;
+        this.hintShown = false;
+        this.questionStartTime = performance.now();
         clearInterval(this.timerInterval);
         this.uiContainer.innerHTML = '<div class="loader"></div><p style="margin-top:10px; color:var(--bio)">ANALIZANDO ADN...</p>';
         try {
@@ -151,27 +194,46 @@ export class BioScanGame {
     formatBreed(str) { return str.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '); }
 
     render(imgUrl, options) {
+        const livesHtml = Array.from({length: LIVES_START}).map((_, i) =>
+            `<span class="bio-life ${i < LIVES_START - this.lives ? 'lost' : ''}">${icon('heart')}</span>`
+        ).join('');
+        const puHtml = Object.entries(this.powerups).map(([key, p]) => `
+            <div class="bio-pu ${p.used?'used':''}" data-pu="${key}">
+                <div class="bio-pu-icon">${icon(p.ic)}</div>
+                <div class="bio-pu-name">${p.name}</div>
+                <div class="bio-pu-cost">-${p.cost} CR</div>
+            </div>`).join('');
+
         this.uiContainer.innerHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center; width:100%; max-width:500px;">
-                <div style="display:flex; justify-content:space-between; width:100%; margin-bottom:10px;">
-                    <div style="font-size:0.8rem; color:var(--bio); letter-spacing:2px;">OBJETIVO #${this.score + 1}</div>
-                    <div style="font-size:0.8rem; color:#94a3b8;">TIEMPO DE ANÁLISIS</div>
+            <div style="display:flex; flex-direction:column; align-items:center; width:100%; max-width:500px; margin:0 auto; padding:0 16px;">
+                <div class="bio-hud">
+                    <div class="bio-hud-cell"><div class="bio-hud-cell-lbl">MUESTRA</div><div class="bio-hud-cell-val">${this.questionsAnswered + 1}<span style="font-size:0.6rem;color:#64748b;margin-left:2px;">/${TARGET_ROUNDS}</span></div></div>
+                    <div class="bio-hud-cell"><div class="bio-hud-cell-lbl">RACHA</div><div class="bio-hud-cell-val" style="color:${this.winStreak>=3?'#f97316':'#84cc16'};">${this.winStreak}</div></div>
+                    <div class="bio-hud-cell"><div class="bio-hud-cell-lbl">VIDAS</div><div class="bio-hud-cell-val"><span class="bio-lives">${livesHtml}</span></div></div>
+                    <div class="bio-hud-cell"><div class="bio-hud-cell-lbl">MODO</div><div class="bio-hud-cell-val" style="color:#84cc16;font-size:0.72rem;">${this.mode}</div></div>
                 </div>
                 <div class="bio-scanner-frame">
                     <div class="bio-hud-overlay"></div>
                     <div class="bio-laser"></div>
                     <img src="${imgUrl}" class="bio-image" id="bio-img">
                 </div>
-                <div class="timer-bar-bg" style="margin-bottom:20px;">
+                <div class="timer-bar-bg" style="margin-bottom:12px;">
                     <div class="timer-bar-fill" id="b-timer" style="background:var(--bio); width:100%;"></div>
                 </div>
+                <div class="bio-powerups">${puHtml}</div>
                 <div class="trivia-answers">
-                    ${options.map(opt => `<button class="bio-option-btn" data-val="${opt}">${this.formatBreed(opt)}</button>`).join('')}
+                    ${options.map(opt => `<button class="bio-option-btn" data-val="${opt}" data-correct="${opt===this.currentBreed?'1':'0'}">${this.formatBreed(opt)}</button>`).join('')}
                 </div>
             </div>`;
         this.startTimer();
         document.querySelectorAll('.bio-option-btn').forEach(btn => {
             btn.onclick = () => this.check(btn.dataset.val === this.currentBreed, btn);
+        });
+        document.querySelectorAll('[data-pu]').forEach(pu => {
+            pu.onclick = () => {
+                if (this.isProcessing || this.powerups[pu.dataset.pu]?.used) return;
+                this.usePowerup(pu.dataset.pu);
+            };
         });
     }
 
@@ -196,7 +258,6 @@ export class BioScanGame {
         }, 50);
     }
 
-    // --- AQUÍ ESTÁ EL CAMBIO CLAVE ---
     timeOut() {
         clearInterval(this.timerInterval);
         if (this.isProcessing) return;
@@ -209,12 +270,8 @@ export class BioScanGame {
         });
 
         this.audio.playLose();
-        window.app.showToast("SUJETO PERDIDO", "Tiempo agotado", "danger");
-        
-        // Esperamos 2 segundos para ver el error y llamamos al MAIN
-        this._quitTimers.push(setTimeout(() => {
-            if(this.onGameOver) this.onGameOver(this.score);
-        }, 2000));
+        try { window.app.showToast("TIEMPO AGOTADO", `Muestra perdida · ${this.lives-1} vidas`, "danger"); } catch(e) {}
+        this.loseLife();
     }
 
     check(isCorrect, clickedBtn) {
@@ -224,7 +281,7 @@ export class BioScanGame {
 
         const img = document.getElementById('bio-img');
         if(img) img.style.filter = 'none';
-        
+
         const btns = document.querySelectorAll('.bio-option-btn');
         btns.forEach(b => {
             b.disabled = true;
@@ -239,20 +296,123 @@ export class BioScanGame {
         });
 
         if(isCorrect) {
-            this.audio.playWin(1);
+            // Speed bonus: tiempo desde questionStartTime
+            const elapsed = (performance.now() - (this.questionStartTime||performance.now())) / 1000;
+            let speedMulti = 1;
+            if (elapsed < 3) speedMulti = 2;
+            else if (elapsed < 6) speedMulti = 1.5;
+            else if (elapsed < 10) speedMulti = 1.2;
+
+            this.winStreak++;
+            let streakMulti = 1;
+            if (this.winStreak >= 10) streakMulti = 5;
+            else if (this.winStreak >= 5) streakMulti = 3;
+            else if (this.winStreak >= 3) streakMulti = 2;
+
+            const modeMulti = this.mode === 'EXPERT' ? 2 : (this.mode === 'SPEED' ? 1.5 : 1);
+            const baseReward = 40;
+            const gained = Math.floor(baseReward * speedMulti * streakMulti * modeMulti);
+
+            this.audio.playWin(streakMulti >= 3 ? 10 : 1);
             this.score++;
-            window.app.credits += 40; 
-            window.app.showToast("ADN CONFIRMADO", "+$40", "success");
+            this.questionsAnswered++;
+            this.creditsEarned += gained;
+            window.app.credits += gained;
+            const speedLabel = speedMulti >= 2 ? ' ¡RELÁMPAGO!' : (speedMulti >= 1.5 ? ' ¡RÁPIDO!' : '');
+            const streakLabel = streakMulti > 1 ? ` RACHA ×${streakMulti}` : '';
+            try { window.app.showToast("ADN CONFIRMADO" + speedLabel, `+$${gained}${streakLabel}`, 'success'); } catch(e) {}
             window.app.save();
             document.getElementById('val-credits').innerText = window.app.credits;
             if(window.app.canvas) window.app.canvas.explode(null, null, CONFIG.COLORS.BIO);
-            setTimeout(() => this.nextRound(), 1500); 
+
+            if (this.questionsAnswered >= TARGET_ROUNDS) {
+                this._quitTimers.push(setTimeout(() => this.finishRun(true), 1500));
+            } else {
+                this._quitTimers.push(setTimeout(() => this.nextRound(), 1500));
+            }
         } else {
             this.audio.playLose();
-            // Esperamos 1.5s y llamamos al MAIN
-            this._quitTimers.push(setTimeout(() => {
-                if(this.onGameOver) this.onGameOver(this.score);
-            }, 1500));
+            try { window.app.showToast("ADN INCORRECTO", `${this.lives-1} vidas restantes`, 'danger'); } catch(e) {}
+            this.loseLife();
         }
+    }
+
+    loseLife() {
+        this.lives--;
+        this.winStreak = 0;
+        if (this.lives <= 0) {
+            this._quitTimers.push(setTimeout(() => this.finishRun(false), 1500));
+        } else {
+            this.questionsAnswered++;
+            if (this.questionsAnswered >= TARGET_ROUNDS) {
+                this._quitTimers.push(setTimeout(() => this.finishRun(true), 1500));
+            } else {
+                this._quitTimers.push(setTimeout(() => this.nextRound(), 1500));
+            }
+        }
+    }
+
+    finishRun(completed) {
+        if (completed && this.lives > 0) {
+            const perfectBonus = this.lives === LIVES_START ? 300 : 150;
+            this.creditsEarned += perfectBonus;
+            window.app.credits += perfectBonus;
+            try { window.app.showToast("RUN COMPLETADA", `+${perfectBonus} CR BONUS`, 'success'); } catch(e) {}
+            window.app.save();
+        }
+        if (this.onGameOver) this.onGameOver(this.score);
+    }
+
+    usePowerup(key) {
+        const p = this.powerups[key];
+        if (!p || p.used) return;
+        if (window.app.credits < p.cost) {
+            try { window.app.showToast('SIN CRÉDITOS', `Necesitas ${p.cost} CR`, 'danger'); } catch(e) {}
+            return;
+        }
+        window.app.credits -= p.cost;
+        document.getElementById('val-credits').innerText = window.app.credits;
+        try { this.audio.playClick(); } catch(e) {}
+        p.used = true;
+        if (key === 'fifty') this.applyFifty();
+        else if (key === 'hint') this.applyHint();
+        else if (key === 'skip') this.applySkip();
+        const puEl = this.uiContainer.querySelector(`[data-pu="${key}"]`);
+        if (puEl) puEl.classList.add('used');
+    }
+
+    applyFifty() {
+        const wrong = Array.from(this.uiContainer.querySelectorAll('.bio-option-btn[data-correct="0"]'));
+        wrong.sort(() => Math.random() - 0.5);
+        wrong.slice(0, 2).forEach(b => b.classList.add('eliminated'));
+        try { window.app.showToast('50/50', '2 razas eliminadas', 'info'); } catch(e) {}
+    }
+
+    applyHint() {
+        const correctBtn = this.uiContainer.querySelector('.bio-option-btn[data-correct="1"]');
+        if (correctBtn) correctBtn.classList.add('hinted');
+        // Desenfocar imagen menos (foco extra)
+        const img = document.getElementById('bio-img');
+        if (img) {
+            const prev = img.style.filter;
+            img.style.filter = 'none';
+            setTimeout(() => { if (img && this.timerInterval) img.style.filter = prev; }, 1500);
+        }
+        // Banner con primera letra
+        const frame = this.uiContainer.querySelector('.bio-scanner-frame');
+        if (frame) {
+            const banner = document.createElement('div');
+            banner.className = 'bio-hint-banner';
+            banner.style.cssText += 'margin-top:10px;';
+            banner.innerHTML = `${icon('eye')} PISTA: empieza con "${this.currentBreed.charAt(0).toUpperCase()}" · foco 1.5s`;
+            frame.parentNode.insertBefore(banner, frame.nextSibling);
+        }
+        try { window.app.showToast('PISTA', 'Foco momentáneo · primera letra', 'info'); } catch(e) {}
+    }
+
+    applySkip() {
+        try { window.app.showToast('SALTAR', 'Muestra nueva', 'info'); } catch(e) {}
+        clearInterval(this.timerInterval);
+        this.nextRound();
     }
 }

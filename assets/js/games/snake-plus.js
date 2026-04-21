@@ -9,6 +9,14 @@ export class SnakePlusGame {
         this.onGameOver = onGameOver;
         this.animId     = null;
         this.mode       = 'NORMAL';
+        // NUEVAS MECÁNICAS
+        this.lastFoodTime = 0;
+        this.foodCombo = 0;
+        this.maxFoodCombo = 0;
+        this.ghostAvailable = 1;
+        this.ghostActive = false;
+        this.ghostTimer = null;
+        this.maxLength = 3;
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.pixiApp    = null;
         this._pGfx      = null;
@@ -25,6 +33,13 @@ export class SnakePlusGame {
             .sp-hud-item { text-align:center; }
             .sp-hud-val { font-family:var(--font-display);font-size:1.4rem;color:white; }
             .sp-hud-lbl { font-size:0.5rem;color:#334155;font-family:monospace;letter-spacing:2px; }
+            .sp-combo-chip { position:absolute; top:130px; left:50%; transform:translateX(-50%); padding:4px 12px; background:rgba(251,191,36,0.15); border:1.5px solid #fbbf24; border-radius:20px; color:#fbbf24; font-family:var(--font-display); font-size:0.65rem; letter-spacing:2px; pointer-events:none; opacity:0; transition:opacity 0.3s; z-index:21; }
+            .sp-combo-chip.show { opacity:1; }
+            .sp-combo-chip.hot { background:rgba(239,68,68,0.2); border-color:#ef4444; color:#ef4444; }
+            .sp-pwr { position:absolute; bottom:22px; right:22px; padding:8px 14px; background:rgba(10,16,30,0.9); border:1.5px solid #a855f7; border-radius:8px; color:#a855f7; font-family:var(--font-display); font-size:0.62rem; letter-spacing:2px; cursor:pointer; transition:all 0.15s; display:flex; align-items:center; gap:6px; z-index:30; pointer-events:auto; }
+            .sp-pwr:hover:not(.used) { background:rgba(168,85,247,0.15); transform:translateY(-2px); }
+            .sp-pwr.used { opacity:0.3; pointer-events:none; filter:grayscale(1); }
+            .sp-pwr .cnt { color:#94a3b8; font-size:0.55rem; }
         `;
         document.head.appendChild(s);
     }
@@ -71,12 +86,20 @@ export class SnakePlusGame {
     async startWithMode(mode) {
         this.mode = mode;
         try { this.canvas.setMood('BIO'); } catch(e) {}
+        // Reset nuevas mecánicas
+        this.lastFoodTime = 0; this.foodCombo = 0; this.maxFoodCombo = 0;
+        this.ghostAvailable = 1; this.ghostActive = false; this.maxLength = 3;
+
         this.uiContainer.innerHTML = `
             <div class="sp-hud">
                 <div class="sp-hud-item"><div class="sp-hud-val" id="sp-score">0</div><div class="sp-hud-lbl">PUNTOS</div></div>
                 <div class="sp-hud-item"><div class="sp-hud-val" id="sp-length" style="color:#10b981;">1</div><div class="sp-hud-lbl">LONGITUD</div></div>
                 <div class="sp-hud-item"><div class="sp-hud-val" id="sp-level" style="color:#f97316;">1</div><div class="sp-hud-lbl">NIVEL</div></div>
-            </div>`;
+            </div>
+            <div class="sp-combo-chip" id="sp-combo">COMBO ×0</div>
+            <button class="sp-pwr" id="sp-ghost">GHOST <span class="cnt">$25</span></button>`;
+        const gb = document.getElementById('sp-ghost');
+        if (gb) gb.onclick = () => this.activateGhost();
 
         const W = this.canvas.canvas.width;
         const H = this.canvas.canvas.height;
@@ -203,8 +226,8 @@ export class SnakePlusGame {
             }
         }
 
-        // Self collision
-        if(this.snake.some(s => s.x===head.x && s.y===head.y)) { this.die(); return; }
+        // Self collision (ignorado si ghost activo)
+        if(!this.ghostActive && this.snake.some(s => s.x===head.x && s.y===head.y)) { this.die(); return; }
 
         this.snake.unshift(head);
         let grew = false;
@@ -213,11 +236,28 @@ export class SnakePlusGame {
         const fi = this.food.findIndex(f => f.x===head.x && f.y===head.y);
         if(fi !== -1) {
             this.food.splice(fi, 1);
-            const pts = this.mode==='TURBO' ? this.level*2 : this.level;
+            // Fast food combo: comer en <3s del anterior
+            const now = Date.now();
+            const isFast = this.lastFoodTime > 0 && (now - this.lastFoodTime) < 3000;
+            if (isFast) {
+                this.foodCombo++;
+                if (this.foodCombo > this.maxFoodCombo) this.maxFoodCombo = this.foodCombo;
+            } else {
+                this.foodCombo = 1;
+            }
+            this.lastFoodTime = now;
+            this.updateComboChip();
+            // Combo multiplier
+            let comboMulti = 1;
+            if (this.foodCombo >= 8) comboMulti = 3;
+            else if (this.foodCombo >= 4) comboMulti = 2;
+            else if (this.foodCombo >= 2) comboMulti = 1.5;
+            const basePts = this.mode==='TURBO' ? this.level*2 : this.level;
+            const pts = Math.floor(basePts * comboMulti);
             this.score += pts;
             grew = true;
-            this.addParticles(head.x*this.CELL+this.CELL/2, head.y*this.CELL+this.CELL/2, '#10b981');
-            try { this.audio.playTone(440+this.score*2,'sine',0.1); } catch(e) {}
+            this.addParticles(head.x*this.CELL+this.CELL/2, head.y*this.CELL+this.CELL/2, comboMulti>1 ? '#fbbf24' : '#10b981');
+            try { this.audio.playTone(440+this.score*2+(this.foodCombo*20),'sine',0.1); } catch(e) {}
             this.spawnFood();
             if(this.food.length === 0) this.spawnFood(); // safety
 
@@ -244,6 +284,7 @@ export class SnakePlusGame {
         }
 
         if(!grew) this.snake.pop();
+        if (this.snake.length > this.maxLength) this.maxLength = this.snake.length;
 
         // Powerup decay
         for(let i=this.powerups.length-1;i>=0;i--){ this.powerups[i].life--; if(this.powerups[i].life<=0) this.powerups.splice(i,1); }
@@ -338,14 +379,59 @@ export class SnakePlusGame {
         this.animId = requestAnimationFrame(t => this.loop(t));
     }
 
+    updateComboChip() {
+        const chip = document.getElementById('sp-combo');
+        if (!chip) return;
+        if (this.foodCombo >= 2) {
+            let m = 1;
+            if (this.foodCombo >= 8) m = 3;
+            else if (this.foodCombo >= 4) m = 2;
+            else if (this.foodCombo >= 2) m = 1.5;
+            chip.textContent = `COMBO ×${this.foodCombo} · BONUS ×${m}`;
+            chip.classList.add('show');
+            chip.classList.toggle('hot', this.foodCombo >= 4);
+        } else {
+            chip.classList.remove('show', 'hot');
+        }
+    }
+
+    activateGhost() {
+        if (!this.alive || this.ghostAvailable <= 0 || this.ghostActive) return;
+        if (window.app.credits < 25) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Ghost cuesta $25', 'danger'); } catch(e){} return; }
+        window.app.credits -= 25;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e) {}
+        this.ghostAvailable--;
+        this.ghostActive = true;
+        try { this.audio.playTone(1500, 'sine', 0.15); } catch(e){}
+        const btn = document.getElementById('sp-ghost');
+        if (btn) { btn.classList.add('used'); btn.innerHTML = 'GHOST <span class="cnt">ACTIVO</span>'; }
+        if (this.ghostTimer) clearTimeout(this.ghostTimer);
+        this.ghostTimer = setTimeout(() => {
+            this.ghostActive = false;
+            if (btn) btn.innerHTML = 'GHOST <span class="cnt">AGOTADO</span>';
+        }, 4000);
+    }
+
     die() {
         this.alive = false;
         if(this.animId) cancelAnimationFrame(this.animId);
+        if(this.ghostTimer) { clearTimeout(this.ghostTimer); this.ghostTimer = null; }
         window.removeEventListener('keydown', this.keyHandler);
         try { this.audio.playLose(); } catch(e) {}
         try { this.canvas.explode(
             this.snake[0].x*this.CELL+this.CELL/2,
             this.snake[0].y*this.CELL+this.CELL/2, '#10b981'); } catch(e) {}
+        // Bonus por longitud y combo
+        let bonus = 0;
+        if (this.maxLength >= 10) bonus += (this.maxLength - 3) * 2;
+        if (this.maxFoodCombo >= 4) bonus += this.maxFoodCombo * 3;
+        if (bonus > 0) {
+            window.app.credits += bonus;
+            try { window.app.showToast('BONUS FINAL', `+${bonus} CR · Combo ×${this.maxFoodCombo}`, 'success'); } catch(e){}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            try { window.app.save(); } catch(e){}
+        }
         this._quitTimer = setTimeout(() => { if(this.onGameOver) this.onGameOver(this.score); }, 800);
     }
 
@@ -363,6 +449,7 @@ export class SnakePlusGame {
         this.alive = false;
         if(this.animId) { cancelAnimationFrame(this.animId); this.animId = null; }
         if(this._quitTimer) { clearTimeout(this._quitTimer); this._quitTimer = null; }
+        if(this.ghostTimer) { clearTimeout(this.ghostTimer); this.ghostTimer = null; }
         window.removeEventListener('keydown', this.keyHandler);
         window.removeEventListener('touchstart', this._touchStartHandler);
         window.removeEventListener('touchend', this._touchHandler);

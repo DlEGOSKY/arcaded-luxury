@@ -16,7 +16,11 @@ export class VaultCrackerGame {
         
         this.keyStatus = {}; 
         this.revealedIndices = [];
-        this.score = 0; // Añadido para rastrear score final
+        this.score = 0;
+        // NUEVAS MECÁNICAS
+        this.peekAvailable = 1;      // 1 peek por partida (cuesta $45)
+        this.peekedDigits = [];       // índices que ya se han peek-eado
+        this.startTimestamp = 0;
         
         this.isRunning = false;
         this.uiContainer = document.getElementById('game-ui-overlay');
@@ -40,6 +44,12 @@ export class VaultCrackerGame {
             .mode-vc-easy { border-color: #10b981; color: #10b981; }
             .mode-vc-norm { border-color: #3b82f6; color: #3b82f6; }
             .mode-vc-hard { border-color: #ef4444; color: #ef4444; }
+            .mode-vc-timed{ border-color: #f97316; color: #f97316; }
+            /* Timer por intento (TIMED mode) */
+            .vault-attempt-timer { width:100%; max-width:350px; height:4px; background:rgba(255,255,255,0.06); border-radius:2px; overflow:hidden; margin-bottom:10px; }
+            .vault-attempt-timer-fill { height:100%; background:#f97316; border-radius:2px; transition:width 0.1s linear; box-shadow:0 0 8px #f97316; }
+            .vault-attempt-timer-fill.warn { background:#ef4444; box-shadow:0 0 12px #ef4444; animation:vcPulseRed 0.4s infinite alternate; }
+            @keyframes vcPulseRed { from{opacity:0.7} to{opacity:1} }
             .vault-display { background: #000; border: 2px solid #334155; border-radius: 8px; padding: 15px; width: 100%; max-width: 350px; margin-bottom: 10px; font-family: monospace; font-size: 2.5rem; text-align: center; color: white; letter-spacing: 10px; min-height: 70px; display: flex; align-items: center; justify-content: center; text-shadow: 0 0 10px rgba(255,255,255,0.3); }
             .vault-display.error { animation: shake 0.3s; border-color: #ef4444; color:#ef4444; text-shadow:0 0 10px #ef4444; }
             .vault-display.success { border-color: #10b981; color:#10b981; text-shadow: 0 0 20px #10b981; }
@@ -58,10 +68,14 @@ export class VaultCrackerGame {
             .digit-box.yellow { background: #fbbf24; color: black; border-color: #fbbf24; }
             .digit-box.grey { background: rgba(255,255,255,0.05); color: #555; border-color: #333; }
             .skill-dock { display: flex; gap: 20px; margin-bottom: 20px; padding: 10px; justify-content: center; }
-            .skill-btn { width: 140px; height: 50px; border: 1px solid; background: rgba(15, 23, 42, 0.9); color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; cursor: pointer; transition: 0.2s; position: relative; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); font-family: var(--font-display); letter-spacing: 1px; font-size: 0.9rem; }
+            .skill-btn { width: 130px; height: 50px; border: 1px solid; background: rgba(15, 23, 42, 0.9); color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; cursor: pointer; transition: 0.2s; position: relative; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); font-family: var(--font-display); letter-spacing: 1px; font-size: 0.8rem; }
             .skill-btn::after { content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 2px; background: currentColor; opacity: 0.5; }
             .skill-btn:hover:not(.disabled) { transform: scale(1.05); box-shadow: 0 0 15px currentColor; background: rgba(255,255,255,0.1); }
             .skill-btn.disabled { opacity: 0.3; cursor: not-allowed; filter: grayscale(1); border-color: #555 !important; color: #555 !important; box-shadow: none !important; }
+            .skill-btn.used { opacity: 0.3; pointer-events: none; filter: grayscale(1); }
+            .skill-cost { font-size:0.7rem; }
+            .vc-speed-chip { position:absolute; top:70px; left:50%; transform:translateX(-50%); padding:4px 12px; background:rgba(10,16,30,0.9); border:1.5px solid #fbbf24; border-radius:20px; color:#fbbf24; font-family:var(--font-display); font-size:0.62rem; letter-spacing:2px; pointer-events:none; opacity:0; transition:opacity 0.3s; }
+            .vc-speed-chip.show { opacity:1; }
             .info-modal { position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.95); backdrop-filter: blur(5px); z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
             .info-modal.active { display: flex; }
             .btn-info { position: absolute; top: 20px; right: 20px; background: transparent; border: 1px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); border-radius: 50%; width: 30px; height: 30px; cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; }
@@ -93,6 +107,7 @@ export class VaultCrackerGame {
                     <div class="cyber-mode-card mode-vc-easy" id="mode-easy"><i class="fa-solid fa-unlock"></i><span>LOCAL</span><small>3 Dígitos</small></div>
                     <div class="cyber-mode-card mode-vc-norm" id="mode-normal"><i class="fa-solid fa-building-columns"></i><span>BANCO</span><small>4 Dígitos</small></div>
                     <div class="cyber-mode-card mode-vc-hard" id="mode-hard"><i class="fa-solid fa-dungeon"></i><span>FEDERAL</span><small>5 Dígitos</small></div>
+                    <div class="cyber-mode-card mode-vc-timed" id="mode-timed"><i class="fa-solid fa-stopwatch"></i><span>TIMED</span><small>30s por intento</small></div>
                 </div>
                 <button class="btn btn-secondary" id="btn-vc-back" style="margin-top:30px; width: 200px;">VOLVER AL LOBBY</button>
             </div>
@@ -112,6 +127,7 @@ export class VaultCrackerGame {
         document.getElementById('mode-easy').onclick = () => this.payAndStart(3, 'EASY');
         document.getElementById('mode-normal').onclick = () => this.payAndStart(4, 'NORMAL');
         document.getElementById('mode-hard').onclick = () => this.payAndStart(5, 'HARD');
+        document.getElementById('mode-timed').onclick = () => this.payAndStart(4, 'TIMED');
         // Salida segura
         document.getElementById('btn-vc-back').onclick = () => { if(this.onQuit) this.onQuit(0); };
 
@@ -126,7 +142,8 @@ export class VaultCrackerGame {
         try { this.audio.playBuy(); } catch(e) {}
         this.codeLength = digits;
         this.difficulty = difficulty;
-        this.maxAttempts = (digits * 2) + 2; 
+        // TIMED: menos intentos (7) pero más speed bonus si wins
+        this.maxAttempts = difficulty === 'TIMED' ? 7 : (digits * 2) + 2;
         this.start();
     }
 
@@ -138,14 +155,75 @@ export class VaultCrackerGame {
         this.currentGuess = [];
         this.keyStatus = {}; 
         this.revealedIndices = []; 
+        this.peekAvailable = 1;
+        this.peekedDigits = [];
+        this.startTimestamp = Date.now();
         this.secretCode = this.generateCode(this.codeLength);
+        this.timedOutAttempts = 0;
         this.renderGame();
+        if (this.difficulty === 'TIMED') this._startAttemptTimer();
+    }
+
+    _startAttemptTimer() {
+        this._attemptTimeLeft = 30;
+        if (this._attemptInt) clearInterval(this._attemptInt);
+        this._attemptInt = setInterval(() => {
+            this._attemptTimeLeft -= 0.1;
+            const fill = document.getElementById('vc-attempt-fill');
+            if (fill) {
+                const pct = Math.max(0, (this._attemptTimeLeft / 30) * 100);
+                fill.style.width = pct + '%';
+                if (this._attemptTimeLeft < 8) fill.classList.add('warn');
+                else fill.classList.remove('warn');
+            }
+            if (this._attemptTimeLeft <= 0) {
+                clearInterval(this._attemptInt);
+                this._attemptInt = null;
+                this._onAttemptTimeout();
+            }
+        }, 100);
+    }
+
+    _onAttemptTimeout() {
+        if (!this.isRunning || this.difficulty !== 'TIMED') return;
+        // Auto-fail: cuenta como intento perdido
+        this.attempts++;
+        this.timedOutAttempts++;
+        this.currentGuess = [];
+        try { this.audio.playLose(); } catch(e) {}
+        try { window.app.showToast('TIEMPO AGOTADO', `Intento ${this.attempts} fallado`, 'danger'); } catch(e) {}
+        if (this.attempts >= this.maxAttempts) { this.loseGame(); return; }
+        this.renderGame();
+        this._startAttemptTimer();
     }
 
     // ... (generateCode, activateSkill, renderGame, renderKeypad, getKeyHTML, input, updateDisplayOnly, submitGuess IGUALES) ...
     generateCode(length) { let nums = [0,1,2,3,4,5,6,7,8,9]; nums.sort(() => Math.random() - 0.5); return nums.slice(0, length); }
     activateSkill(type) {
         if (!this.isRunning) return;
+        if (type === 'PEEK') {
+            if (this.peekAvailable <= 0) return;
+            if(window.app.credits < 45) {
+                try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Peek cuesta $45', 'danger'); } catch(e) {}
+                return;
+            }
+            window.app.credits -= 45;
+            this.peekAvailable--;
+            // Revela 1 dígito (que no esté ya revelado) con posición exacta
+            let unknownIndices = [];
+            for (let i = 0; i < this.codeLength; i++) {
+                if (!this.revealedIndices.includes(i) && !this.peekedDigits.includes(i)) unknownIndices.push(i);
+            }
+            if (unknownIndices.length > 0) {
+                const idxToPeek = unknownIndices[Math.floor(Math.random() * unknownIndices.length)];
+                this.peekedDigits.push(idxToPeek);
+                try { this.audio.playTone(1600, 'sine', 0.15); } catch(e){}
+                try { window.app.showToast('PEEK', `Posición ${idxToPeek+1} = ${this.secretCode[idxToPeek]}`, 'gold'); } catch(e){}
+            }
+            document.getElementById('val-credits').innerText = window.app.credits;
+            this.renderGame();
+            return;
+        }
         if (type === 'FILTER') {
             if(window.app.credits < 30) return;
             window.app.credits -= 30;
@@ -175,9 +253,13 @@ export class VaultCrackerGame {
     }
 
     renderGame() {
+        const timerBarHTML = this.difficulty === 'TIMED'
+            ? '<div class="vault-attempt-timer"><div class="vault-attempt-timer-fill" id="vc-attempt-fill" style="width:100%;"></div></div>'
+            : '';
         let displayHTML = '';
         for(let i=0; i<this.codeLength; i++) {
             if (this.revealedIndices.includes(i)) { displayHTML += `<span style="margin:0 5px; color:#10b981; text-shadow:0 0 10px #10b981;">${this.secretCode[i]}</span>`; } 
+            else if (this.peekedDigits.includes(i)) { displayHTML += `<span style="margin:0 5px; color:#10b981; text-shadow:0 0 10px #10b981; opacity:0.7;">${this.secretCode[i]}</span>`; }
             else if (i < this.currentGuess.length) { displayHTML += `<span style="margin:0 5px;">${this.currentGuess[i]}</span>`; } 
             else { displayHTML += `<span style="color:#334155; margin:0 5px;">_</span>`; }
         }
@@ -196,10 +278,12 @@ export class VaultCrackerGame {
         const canBuyReveal = window.app.credits >= 75;
         this.uiContainer.innerHTML = `
             <div style="display:flex; flex-direction:column; align-items:center; height:100%; width:100%; padding: 20px 0;">
-                <div style="width:100%; text-align:center; color:#94a3b8; margin-bottom:5px; font-family:var(--font-display);">INTENTOS: <span style="color:white; font-size:1.2rem;">${this.maxAttempts - this.attempts}</span></div>
+                <div style="width:100%; text-align:center; color:#94a3b8; margin-bottom:5px; font-family:var(--font-display);">INTENTOS: <span style="color:white; font-size:1.2rem;">${this.maxAttempts - this.attempts}</span>${this.difficulty==='TIMED'?' · <span style="color:#f97316;font-size:0.75rem;letter-spacing:2px;">30s/intento</span>':''}</div>
+                ${timerBarHTML}
                 <div class="vault-history" id="vault-history">${historyHTML}<div style="text-align:center; font-size:0.7rem; color:#555; padding-top:10px;">HISTORIAL DE ACCESO</div></div>
                 <div class="skill-dock">
                     <div class="skill-btn ${canBuyFilter ? '' : 'disabled'}" onclick="window.app.game.activateSkill('FILTER')" style="color:#a855f7; border-color:#a855f7;"><i class="fa-solid fa-filter skill-icon"></i><span>FILTRAR</span><span class="skill-cost">$30</span></div>
+                    <div class="skill-btn ${this.peekAvailable>0 && window.app.credits>=45 ? '' : (this.peekAvailable<=0 ? 'used' : 'disabled')}" onclick="window.app.game.activateSkill('PEEK')" style="color:#10b981; border-color:#10b981;"><i class="fa-solid fa-eye skill-icon"></i><span>PEEK</span><span class="skill-cost">$45</span></div>
                     <div class="skill-btn ${canBuyReveal ? '' : 'disabled'}" onclick="window.app.game.activateSkill('REVEAL')" style="color:#fbbf24; border-color:#fbbf24;"><i class="fa-solid fa-key skill-icon"></i><span>REVELAR</span><span class="skill-cost">$75</span></div>
                 </div>
                 <div class="vault-display" id="main-display">${displayHTML}</div>
@@ -247,6 +331,7 @@ export class VaultCrackerGame {
         let displayHTML = '';
         for(let i=0; i<this.codeLength; i++) {
             if (this.revealedIndices.includes(i)) { displayHTML += `<span style="margin:0 5px; color:#10b981; text-shadow:0 0 10px #10b981;">${this.secretCode[i]}</span>`; } 
+            else if (this.peekedDigits.includes(i)) { displayHTML += `<span style="margin:0 5px; color:#10b981; text-shadow:0 0 10px #10b981; opacity:0.7;">${this.secretCode[i]}</span>`; }
             else if (i < this.currentGuess.length) { displayHTML += `<span style="margin:0 5px;">${this.currentGuess[i]}</span>`; } 
             else { displayHTML += `<span style="color:#334155; margin:0 5px;">_</span>`; }
         }
@@ -267,9 +352,14 @@ export class VaultCrackerGame {
         });
         this.history.push({ guess: [...this.currentGuess], result: result });
         this.currentGuess = [];
-        if (corrects === this.codeLength) { this.winGame(); } 
-        else if (this.attempts >= this.maxAttempts) { this.loseGame(); } 
-        else { try { this.audio.playClick(); } catch(e) {} this.renderGame(); }
+        if (corrects === this.codeLength) { this.winGame(); }
+        else if (this.attempts >= this.maxAttempts) { this.loseGame(); }
+        else {
+            try { this.audio.playClick(); } catch(e) {}
+            this.renderGame();
+            // TIMED: resetear timer tras cada intento válido
+            if (this.difficulty === 'TIMED') this._startAttemptTimer();
+        }
     }
 
     winGame() {
@@ -281,9 +371,32 @@ export class VaultCrackerGame {
         let basePoints = 100;
         if (this.difficulty === 'NORMAL') basePoints = 200;
         if (this.difficulty === 'HARD') basePoints = 400;
-        const bonus = (this.maxAttempts - this.attempts) * 20;
-        this.score = basePoints + bonus;
-        setTimeout(() => this.gameOver(), 1500);
+        if (this.difficulty === 'TIMED') basePoints = 350;  // TIMED entre BANCO y FEDERAL
+        const attemptsBonus = (this.maxAttempts - this.attempts) * 20;
+        // Speed bonus: resolver en menos de 30s (×2 en TIMED)
+        const elapsed = (Date.now() - this.startTimestamp) / 1000;
+        let speedBonus = 0;
+        if (elapsed < 15) speedBonus = 150;
+        else if (elapsed < 30) speedBonus = 75;
+        else if (elapsed < 60) speedBonus = 30;
+        if (this.difficulty === 'TIMED') speedBonus *= 2;
+        // Efficiency bonus: pocos intentos (sin usar reveals)
+        const efficiencyBonus = this.attempts <= this.codeLength ? 100 : 0;
+        // TIMED bonus extra: sin timeouts = +200
+        const zeroTimeoutBonus = (this.difficulty === 'TIMED' && this.timedOutAttempts === 0) ? 200 : 0;
+        this.score = basePoints + attemptsBonus + speedBonus + efficiencyBonus + zeroTimeoutBonus;
+        // Bonus créditos en cuenta + toast
+        const totalCreditBonus = Math.floor(speedBonus/2) + Math.floor(efficiencyBonus/2);
+        if (totalCreditBonus > 0) {
+            window.app.credits += totalCreditBonus;
+            const msgParts = [];
+            if (speedBonus > 0) msgParts.push(`VELOCIDAD ${speedBonus}`);
+            if (efficiencyBonus > 0) msgParts.push(`EFICIENCIA`);
+            try { window.app.showToast('BONUS', `${msgParts.join(' · ')} · +${totalCreditBonus} CR`, 'gold'); } catch(e) {}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            try { window.app.save(); } catch(e) {}
+        }
+        setTimeout(() => this.gameOver(), 1800);
     }
 
     loseGame() {
@@ -306,10 +419,12 @@ export class VaultCrackerGame {
     cleanup() {
         this.isRunning = false;
         this._paused = true;
+        if (this._attemptInt) { clearInterval(this._attemptInt); this._attemptInt = null; }
     }
     pause() {
         this._paused = true;
         this.isRunning = false;
+        if (this._attemptInt) { clearInterval(this._attemptInt); this._attemptInt = null; }
     }
     resume() {
         if(!this._paused) return;

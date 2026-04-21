@@ -22,8 +22,17 @@ export class VoidDodgerGame {
         this.startTime = 0;
         this.gameLoopId = null;
         this.mousePos = { x: 0, y: 0 };
+        // NUEVAS MECÁNICAS
+        this.invulCombo = 0;        // enemigos eliminados en una racha invul
+        this.maxInvulCombo = 0;
+        this.powerupsCollected = 0;
+        this.enemiesKilled = 0;
+        this.bossKills = 0;
+        this.bombAvailable = 1;
+        this.bombUsed = false;
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.handleMove = this.handleMove.bind(this);
+        this.handleClick = this.handleClick.bind(this);
         // Pixi
         this.pixiApp = null;
         this._pGfx = null;  // Graphics reutilizable
@@ -39,6 +48,12 @@ export class VoidDodgerGame {
             .vd-hud { position:absolute;top:70px;width:100%;text-align:center;pointer-events:none;z-index:20; }
             .vd-timer { font-family:var(--font-display);font-size:2.8rem;color:#fff;text-shadow:0 0 15px white; }
             .vd-wave-badge { font-family:var(--font-display);font-size:0.7rem;letter-spacing:3px;color:#a855f7;margin-top:4px; }
+            .vd-combo-chip { position:absolute; top:145px; left:50%; transform:translateX(-50%); padding:4px 14px; background:rgba(0,255,255,0.15); border:1.5px solid #00ffff; border-radius:20px; color:#00ffff; font-family:var(--font-display); font-size:0.65rem; letter-spacing:2px; pointer-events:none; z-index:21; opacity:0; transition:opacity 0.2s; }
+            .vd-combo-chip.show { opacity:1; }
+            .vd-bomb-btn { position:absolute; bottom:24px; right:24px; padding:10px 18px; background:rgba(10,16,30,0.9); border:1.5px solid #f97316; border-radius:10px; color:#f97316; font-family:var(--font-display); font-size:0.68rem; letter-spacing:2px; cursor:pointer; transition:all 0.15s; z-index:25; display:flex; align-items:center; gap:8px; pointer-events:auto; }
+            .vd-bomb-btn:hover:not(.used) { background:rgba(249,115,22,0.2); transform:translateY(-2px); box-shadow:0 4px 16px rgba(249,115,22,0.4); }
+            .vd-bomb-btn.used { opacity:0.3; pointer-events:none; filter:grayscale(1); }
+            .vd-bomb-btn .cost { font-size:0.55rem; color:#94a3b8; }
             .vd-msg { position:absolute;top:38%;width:100%;text-align:center;font-family:var(--font-display);font-size:1.8rem;color:#fbbf24;opacity:0;pointer-events:none;transition:opacity 0.3s;text-shadow:0 0 20px #fbbf24; }
             .vd-msg.show { opacity:1;animation:vdFloat 1.2s forwards; }
             .vd-boss-bar { position:absolute;top:50px;left:50%;transform:translateX(-50%);width:60%;display:none; }
@@ -119,18 +134,33 @@ export class VoidDodgerGame {
         const h = this.canvas.canvas.height;
         this.player = { x: w/2, y: h/2, r: 8, invulnerable: false, invTimer: 0 };
         this.mousePos = { x: w/2, y: h/2 };
+        // Reset nuevas mecánicas
+        this.invulCombo = 0; this.maxInvulCombo = 0;
+        this.powerupsCollected = 0; this.enemiesKilled = 0; this.bossKills = 0;
+        this.bombAvailable = this.mode === 'HARDCORE' ? 0 : 1;
+        this.bombUsed = false;
+
+        const bombBtn = this.bombAvailable > 0
+            ? `<button class="vd-bomb-btn" id="vd-bomb"><i class="fa-solid fa-bomb"></i> BOMBA <span class="cost">$35</span></button>`
+            : '';
+
         this.uiContainer.innerHTML = `
             <div class="vd-hud">
                 <div class="vd-timer" id="vd-score">0.0</div>
                 <div class="vd-wave-badge" id="vd-wave">OLEADA 1</div>
             </div>
+            <div class="vd-combo-chip" id="vd-combo">COMBO ×0</div>
             <div class="vd-boss-bar" id="vd-boss-bar">
                 <div class="vd-boss-lbl" id="vd-boss-lbl">JEFE</div>
                 <div class="vd-boss-track"><div class="vd-boss-fill" id="vd-boss-fill" style="width:100%;"></div></div>
             </div>
-            <div class="vd-msg" id="vd-msg"></div>`;
+            <div class="vd-msg" id="vd-msg"></div>
+            ${bombBtn}`;
         window.addEventListener('mousemove', this.handleMove);
         window.addEventListener('touchmove', this.handleMove, { passive: false });
+        window.addEventListener('keydown', this.handleClick);
+        const bb = document.getElementById('vd-bomb');
+        if (bb) bb.onclick = (e) => { e.stopPropagation(); this.activateBomb(); };
 
         // Pixi overlay
         let _loader = null;
@@ -296,7 +326,9 @@ export class VoidDodgerGame {
         this.addParticles(this.boss.x, this.boss.y, this.boss.color, 20);
         try { this.canvas.explode(this.boss.x, this.boss.y, this.boss.color); } catch(e) {}
         try { this.audio.playWin(8); } catch(e) {}
-        const reward = 50 + this.wave * 20;
+        this.bossKills++;
+        // Recompensa escalada + bonus por cada kill de jefe
+        const reward = 50 + this.wave * 20 + (this.bossKills - 1) * 25;
         window.app.credits += reward;
         window.app.save();
         this.showMsg(`JEFE ELIMINADO +${reward}CR`, '#fbbf24');
@@ -316,7 +348,13 @@ export class VoidDodgerGame {
         if(this.player.invulnerable) {
             ctx.strokeStyle = '#00ffff'; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(0, 0, this.player.r+5+Math.sin(Date.now()/100)*2, 0, Math.PI*2); ctx.stroke();
-            this.player.invTimer--; if(this.player.invTimer<=0) this.player.invulnerable = false;
+            this.player.invTimer--;
+            if(this.player.invTimer<=0) {
+                this.player.invulnerable = false;
+                // Reset combo al perder invul
+                this.invulCombo = 0;
+                this.updateComboChip();
+            }
         }
         ctx.fillStyle = '#fff'; ctx.shadowBlur = 15; ctx.shadowColor = '#fff';
         ctx.beginPath(); ctx.arc(0, 0, this.player.r, 0, Math.PI*2); ctx.fill();
@@ -345,9 +383,13 @@ export class VoidDodgerGame {
             ctx.fillText(p.type[0], 0, 0);
             ctx.restore();
             if(Math.hypot(p.x-this.player.x, p.y-this.player.y) < p.r+this.player.r) {
-                if(p.type==='SHIELD') { this.player.invulnerable=true; this.player.invTimer=200; this.showMsg('¡ESCUDO!','#00ffff'); }
-                else if(p.type==='SLOW') { this.enemies.forEach(e=>{e.vx*=0.45;e.vy*=0.45;}); this.showMsg('¡RALENTIZADO!','#10b981'); }
-                else if(p.type==='CLEAR') { this.addParticles(w/2,h/2,'#f97316',16); this.enemies=this.enemies.slice(0,Math.floor(this.enemies.length/2)); this.showMsg('¡CAMPO LIMPIADO!','#f97316'); }
+                this.powerupsCollected++;
+                // Combo de pickups: cada 3 da invul extra
+                const streakBonus = (this.powerupsCollected % 3 === 0) ? 60 : 0;
+                if(p.type==='SHIELD') { this.player.invulnerable=true; this.player.invTimer=200+streakBonus; this.showMsg(streakBonus?'¡ESCUDO+!':'¡ESCUDO!','#00ffff'); }
+                else if(p.type==='SLOW') { this.enemies.forEach(e=>{e.vx*=0.45;e.vy*=0.45;}); this.showMsg('¡RALENTIZADO!','#10b981'); if (streakBonus) { this.player.invulnerable=true; this.player.invTimer=streakBonus; } }
+                else if(p.type==='CLEAR') { this.addParticles(w/2,h/2,'#f97316',16); this.enemies=this.enemies.slice(0,Math.floor(this.enemies.length/2)); this.showMsg('¡CAMPO LIMPIADO!','#f97316'); if (streakBonus) { this.player.invulnerable=true; this.player.invTimer=streakBonus; } }
+                if (streakBonus) { try { window.app.showToast('TRIPLE PICKUP', '+1s invul', 'gold'); } catch(e){} }
                 try{this.audio.playWin(1);}catch(e){}
                 this.powerups.splice(i,1); continue;
             }
@@ -369,13 +411,66 @@ export class VoidDodgerGame {
                     this.addParticles(e.x, e.y, e.color, 5);
                     this.enemies.splice(i,1);
                     this.waveKills++;
+                    this.enemiesKilled++;
+                    this.invulCombo++;
+                    if (this.invulCombo > this.maxInvulCombo) this.maxInvulCombo = this.invulCombo;
+                    this.updateComboChip();
                     this.checkWaveProgress();
-                    try{this.audio.playTone(200,'square',0.05);}catch(e){}
+                    try{this.audio.playTone(200 + Math.min(800, this.invulCombo*30),'square',0.05);}catch(e){}
                 } else { this.gameOver(); return; }
                 continue;
             }
             if(e.x<-60||e.x>w+60||e.y<-60||e.y>h+60) { this.enemies.splice(i,1); }
         }
+    }
+
+    updateComboChip() {
+        const chip = document.getElementById('vd-combo');
+        if (!chip) return;
+        if (this.invulCombo >= 3) {
+            chip.textContent = `COMBO ×${this.invulCombo}`;
+            chip.classList.add('show');
+            chip.style.color = this.invulCombo >= 10 ? '#ef4444' : this.invulCombo >= 5 ? '#fbbf24' : '#00ffff';
+            chip.style.borderColor = chip.style.color;
+        } else {
+            chip.classList.remove('show');
+        }
+    }
+
+    handleClick(e) {
+        if (!this.isRunning) return;
+        if (e.key === 'b' || e.key === 'B' || e.code === 'Space') {
+            this.activateBomb();
+        }
+    }
+
+    activateBomb() {
+        if (!this.isRunning || this.bombAvailable <= 0 || this.bombUsed) return;
+        if (window.app.credits < 35) {
+            try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Bomba cuesta $35', 'danger'); } catch(e){}
+            return;
+        }
+        window.app.credits -= 35;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e) {}
+        this.bombAvailable--;
+        this.bombUsed = true;
+        // Elimina todos los enemigos y da invul breve
+        const enemyCount = this.enemies.length;
+        this.enemies.forEach(e => {
+            this.addParticles(e.x, e.y, e.color, 8);
+        });
+        this.enemies = [];
+        this.enemiesKilled += enemyCount;
+        this.waveKills += enemyCount;
+        this.checkWaveProgress();
+        this.player.invulnerable = true;
+        this.player.invTimer = 120;
+        this.showMsg('BOMBA ACTIVADA', '#f97316');
+        try { this.audio.playWin(4); } catch(e){}
+        try { this.canvas.explode(this.player.x, this.player.y, '#f97316'); } catch(e){}
+        const btn = document.getElementById('vd-bomb');
+        if (btn) { btn.classList.add('used'); btn.innerHTML = '<i class="fa-solid fa-bomb"></i> USADA'; }
     }
 
     loop() {
@@ -487,7 +582,12 @@ export class VoidDodgerGame {
         p.y+=(this.mousePos.y-p.y)*0.2;
         if(p.invulnerable){
             g.circle(p.x,p.y,p.r+5+Math.sin(t/100)*2).stroke({color:0x00ffff,width:2,alpha:0.8});
-            p.invTimer--; if(p.invTimer<=0) p.invulnerable=false;
+            p.invTimer--;
+            if(p.invTimer<=0) {
+                p.invulnerable=false;
+                this.invulCombo = 0;
+                this.updateComboChip();
+            }
         }
         g.circle(p.x,p.y,p.r*2.5).fill({color:0xffffff,alpha:0.08});
         g.circle(p.x,p.y,p.r).fill({color:0xffffff});
@@ -509,6 +609,7 @@ export class VoidDodgerGame {
         if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId = null; }
         window.removeEventListener('mousemove', this.handleMove);
         window.removeEventListener('touchmove', this.handleMove);
+        window.removeEventListener('keydown', this.handleClick);
         if(this.pixiApp) {
             try {
                 const pc = this.pixiApp.canvas;
@@ -524,12 +625,19 @@ export class VoidDodgerGame {
         if(this.gameLoopId) cancelAnimationFrame(this.gameLoopId);
         window.removeEventListener('mousemove', this.handleMove);
         window.removeEventListener('touchmove', this.handleMove);
+        window.removeEventListener('keydown', this.handleClick);
         try { this.audio.playLose(); } catch(e) {}
         try { this.canvas.explode(this.player.x, this.player.y, '#fff'); } catch(e) {}
         const finalScore = Math.floor(this.score * 10) + (this.wave-1)*50;
-        const bonusCredits = Math.floor(this.score * 2) + (this.wave-1)*10;
+        let bonusCredits = Math.floor(this.score * 2) + (this.wave-1)*10;
+        // Bonus por combo invul máximo y kills
+        if (this.maxInvulCombo >= 5) bonusCredits += this.maxInvulCombo * 2;
+        if (this.enemiesKilled >= 20) bonusCredits += Math.floor(this.enemiesKilled / 10) * 5;
         window.app.credits += bonusCredits;
         window.app.save();
+        if (this.maxInvulCombo >= 5 || this.enemiesKilled >= 20) {
+            try { window.app.showToast('BONUS FINAL', `+${bonusCredits} CR · Combo ×${this.maxInvulCombo} · ${this.enemiesKilled} kills`, 'success'); } catch(e){}
+        }
         if(this.onQuit) this.onQuit(finalScore);
     }
 }

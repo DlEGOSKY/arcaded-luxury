@@ -22,6 +22,13 @@ export class ColorTrapGame {
         this.currentWord = null; this.inkColor = null;
         this.targetType = 'TEXT'; this.options = [];
         this.speedMult = 1.0;
+        // NUEVAS MECÁNICAS
+        this.fiftyAvailable = 2;
+        this.freezeAvailable = 1;
+        this.skipAvailable = 2;
+        this.freezeTimer = null;
+        this.maxStreak = 0;
+        this.perfectRounds = 0;
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.injectStyles();
     }
@@ -99,6 +106,16 @@ export class ColorTrapGame {
         .ct-lives { display:flex;gap:5px;align-items:center; }
         .ct-life { font-size:0.9rem;color:#ec4899;transition:all 0.2s; }
         .ct-life.lost { color:#334155;transform:scale(0.7); }
+        /* Power-ups */
+        .ct-pwrs { display:flex;gap:8px;justify-content:center;width:100%;max-width:520px;margin-top:4px; }
+        .ct-pwr { flex:1;padding:7px 10px;background:rgba(10,16,30,0.9);border:1.5px solid #3b82f6;border-radius:10px;color:#3b82f6;font-family:var(--font-display);font-size:0.6rem;letter-spacing:1.5px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;justify-content:center;gap:4px; }
+        .ct-pwr:hover:not(.used):not(.disabled) { background:rgba(59,130,246,0.15);transform:translateY(-2px); }
+        .ct-pwr.used { opacity:0.3;pointer-events:none;filter:grayscale(1); }
+        .ct-pwr.disabled { opacity:0.5;pointer-events:none; }
+        .ct-pwr .cnt { color:#94a3b8;font-size:0.55rem; }
+        .ct-btn.dimmed { opacity:0.2;pointer-events:none; }
+        body.ct-freeze .ct-time-fill { animation:ctFrz 0.4s infinite alternate; }
+        @keyframes ctFrz { from{filter:hue-rotate(0)} to{filter:hue-rotate(40deg)brightness(1.2)} }
         `;
         document.head.appendChild(s);
     }
@@ -157,6 +174,8 @@ export class ColorTrapGame {
 
     start() {
         this.isRunning = true; this.score = 0; this.streak = 0; this.lives = 3;
+        this.maxStreak = 0; this.perfectRounds = 0;
+        this.fiftyAvailable = 2; this.freezeAvailable = 1; this.skipAvailable = 2;
         this.maxTime  = this.mode==='BLITZ' ? 2.0 : 4.0;
         this.timeLeft = this.maxTime;
         this.lastTime = performance.now();
@@ -234,12 +253,19 @@ export class ColorTrapGame {
             ${this.streak>=3?`<div class="ct-streak-badge show" id="ct-sb"><i class="fa-solid fa-fire"></i> RACHA ×${this.streak}</div>`:'<div id="ct-sb"></div>'}
 
             <!-- Opciones -->
-            <div class="ct-opts ${optCount===2?'grid-2':'grid-4'}">
+            <div class="ct-opts ${optCount===2?'grid-2':'grid-4'}" id="ct-opts">
                 ${this.options.map(opt=>`
                 <button class="ct-btn" data-name="${opt.name}" style="--btn-c:${opt.hex};">
                     <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${opt.hex};flex-shrink:0;box-shadow:0 0 6px ${opt.hex};"></span>
                     ${opt.name}
                 </button>`).join('')}
+            </div>
+
+            <!-- Power-ups -->
+            <div class="ct-pwrs">
+                <button class="ct-pwr" id="ct-pwr-5050">50/50 <span class="cnt">·${this.fiftyAvailable}</span> <span class="cnt">$15</span></button>
+                <button class="ct-pwr" id="ct-pwr-freeze">FREEZE <span class="cnt">$20</span></button>
+                <button class="ct-pwr" id="ct-pwr-skip">SKIP <span class="cnt">·${this.skipAvailable}</span> <span class="cnt">$10</span></button>
             </div>
         </div>`;
 
@@ -253,13 +279,81 @@ export class ColorTrapGame {
         document.querySelectorAll('.ct-btn').forEach(btn => {
             btn.onclick = (e) => this.handleInput(e.currentTarget.dataset.name, e.currentTarget);
         });
+        // Power-up binds
+        const p5 = document.getElementById('ct-pwr-5050');
+        if (p5) {
+            if (this.fiftyAvailable<=0 || this.options.length<=2) p5.classList.add('disabled');
+            p5.onclick = () => this.activateFifty();
+        }
+        const pf = document.getElementById('ct-pwr-freeze');
+        if (pf) {
+            if (this.freezeAvailable<=0) pf.classList.add('used');
+            pf.onclick = () => this.activateFreeze();
+        }
+        const ps = document.getElementById('ct-pwr-skip');
+        if (ps) {
+            if (this.skipAvailable<=0) ps.classList.add('used');
+            ps.onclick = () => this.activateSkip();
+        }
+    }
+
+    activateFifty() {
+        if (!this.isRunning || this.fiftyAvailable<=0 || this.options.length<=2) return;
+        if (window.app.credits < 15) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', '50/50 cuesta $15', 'danger'); } catch(e){} return; }
+        window.app.credits -= 15;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e) {}
+        this.fiftyAvailable--;
+        // Eliminar 2 respuestas incorrectas al azar
+        const correct = this.targetType==='TEXT' ? this.currentWord.name : this.inkColor.name;
+        const wrongBtns = Array.from(document.querySelectorAll('.ct-btn')).filter(b => b.dataset.name !== correct);
+        wrongBtns.sort(() => Math.random()-0.5).slice(0, Math.min(2, wrongBtns.length)).forEach(b => b.classList.add('dimmed'));
+        try { this.audio.playTone(1100, 'sine', 0.1); } catch(e){}
+        const btn = document.getElementById('ct-pwr-5050');
+        if (btn) btn.innerHTML = `50/50 <span class="cnt">·${this.fiftyAvailable}</span> <span class="cnt">$15</span>`;
+        if (this.fiftyAvailable<=0 && btn) btn.classList.add('used');
+    }
+
+    activateFreeze() {
+        if (!this.isRunning || this.freezeAvailable<=0) return;
+        if (window.app.credits < 20) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Freeze cuesta $20', 'danger'); } catch(e){} return; }
+        window.app.credits -= 20;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e) {}
+        this.freezeAvailable--;
+        // Da tiempo extra (+2s) sin superar el máximo
+        this.timeLeft = Math.min(this.maxTime + 1.5, this.timeLeft + 2);
+        this.maxTime = Math.max(this.maxTime, this.timeLeft);
+        document.body.classList.add('ct-freeze');
+        if (this.freezeTimer) clearTimeout(this.freezeTimer);
+        this.freezeTimer = setTimeout(() => document.body.classList.remove('ct-freeze'), 1500);
+        try { this.audio.playTone(1600, 'sine', 0.15); } catch(e){}
+        const btn = document.getElementById('ct-pwr-freeze');
+        if (btn) { btn.classList.add('used'); btn.innerHTML = 'AGOTADO'; }
+    }
+
+    activateSkip() {
+        if (!this.isRunning || this.skipAvailable<=0) return;
+        if (window.app.credits < 10) { try { window.app.showToast('CRÉDITOS INSUFICIENTES', 'Skip cuesta $10', 'danger'); } catch(e){} return; }
+        window.app.credits -= 10;
+        const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+        try { window.app.save(); } catch(e) {}
+        this.skipAvailable--;
+        this.score++;
+        try { this.audio.playTone(1200, 'sine', 0.1); } catch(e){}
+        this.nextRound();
     }
 
     handleInput(selectedName, btnEl) {
         if(!this.isRunning) return;
         const correct = this.targetType==='TEXT' ? this.currentWord.name : this.inkColor.name;
         if(selectedName === correct){
-            this.score++; this.streak++;
+            // Bonus por responder rápido (>70% del tiempo disponible)
+            const fastBonus = this.timeLeft > this.maxTime * 0.7 ? 1 : 0;
+            this.score += 1 + fastBonus;
+            this.streak++;
+            if (this.streak > this.maxStreak) this.maxStreak = this.streak;
+            if (fastBonus) this.perfectRounds++;
             if(btnEl) btnEl.classList.add('correct');
             try{ this.audio.playWin(this.streak>4?3:1); }catch(e){}
             const gs = document.getElementById('ui-score'); if(gs) gs.innerText = this.score;
@@ -310,13 +404,27 @@ export class ColorTrapGame {
     cleanup() {
         this.isRunning = false;
         if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId = null; }
+        if(this.freezeTimer) { clearTimeout(this.freezeTimer); this.freezeTimer = null; }
+        document.body.classList.remove('ct-freeze');
     }
 
     gameOver() {
         if(!this.isRunning) return;
         this.isRunning = false;
         if(this.gameLoopId) cancelAnimationFrame(this.gameLoopId);
+        if(this.freezeTimer) { clearTimeout(this.freezeTimer); this.freezeTimer = null; }
+        document.body.classList.remove('ct-freeze');
         try{ this.audio.playLose(); }catch(e){}
+        // Bonus final: racha máxima y rondas perfect
+        let bonus = 0;
+        if (this.maxStreak >= 10) bonus += this.maxStreak * 2;
+        if (this.perfectRounds >= 5) bonus += this.perfectRounds * 3;
+        if (bonus > 0) {
+            window.app.credits += bonus;
+            try { window.app.showToast('BONUS FINAL', `+${bonus} CR · ${this.perfectRounds} rápidas`, 'success'); } catch(e) {}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            try { window.app.save(); } catch(e) {}
+        }
         if(this.onGameOver) this.onGameOver(this.score);
     }
 }

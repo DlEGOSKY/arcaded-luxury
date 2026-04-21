@@ -182,6 +182,8 @@ function bindVisualToggles(app) {
 
     bind('chk-shake', (e) => { app.settings.shake = e.target.checked; });
 
+    bind('chk-countdown', (e) => { app.settings.countdown = e.target.checked; });
+
     bind('chk-reduce-motion', (e) => {
         app.settings.reduceMotion = e.target.checked;
         document.body.classList.toggle('reduce-motion', e.target.checked);
@@ -225,6 +227,7 @@ function syncVisualToggles(app) {
     setCheck('chk-performance',   app.settings.performance);
     setCheck('chk-scanlines',     app.settings.scanlines || false);
     setCheck('chk-shake',         app.settings.shake !== false);
+    setCheck('chk-countdown',     app.settings.countdown || false);
     setCheck('chk-reduce-motion', app.settings.reduceMotion || false);
     setCheck('chk-notifs',        app.settings.showNotifs !== false);
 }

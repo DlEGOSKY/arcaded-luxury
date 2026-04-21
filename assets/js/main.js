@@ -18,42 +18,52 @@ import * as Lootbox from './systems/lootbox.js';
 import * as DevConsole from './systems/dev-console.js';
 import * as Theme from './systems/theme.js';
 import * as Callcard from './systems/callcard.js';
+import * as FX from './systems/fx.js';
+import * as Shortcuts from './systems/shortcuts.js';
+import * as Combo from './systems/combo.js';
+import * as Onboarding from './systems/onboarding.js';
 import * as Persistence from './systems/persistence.js';
 import * as UI from './systems/ui.js';
+import * as Icons from './systems/icons.js';
 
 // --- JUEGOS (lazy import: se cargan solo al lanzar el juego) ---
 // Cada entrada es una factory async que retorna la clase.
 // Mejora dramáticamente el tiempo de boot inicial ya que no cargamos
 // los 28 módulos de juegos hasta que el usuario realmente los necesita.
+//
+// IMPORTANTE: cada import usa `?v=21` como cache buster. El numero debe
+// coincidir con el de index.html (main.js?v=N). Si cambias codigo de un
+// juego, bump este numero para que el browser recargue el modulo.
+const GV = '21';
 const GAME_LOADERS = {
-    'higher-lower':   () => import('./games/higher-lower.js').then(m => m.HigherLowerGame),
-    'guess-card':     () => import('./games/guess-card.js').then(m => m.GuessCardGame),
-    'trivia':         () => import('./games/trivia.js').then(m => m.TriviaGame),
-    'bio-scan':       () => import('./games/bio-scan.js').then(m => m.BioScanGame),
-    'geo-net':        () => import('./games/geo-net.js').then(m => m.GeoNetGame),
-    'hyper-reflex':   () => import('./games/hyper-reflex.js').then(m => m.GameReflex),
-    'spam-click':     () => import('./games/spam-click.js').then(m => m.SpamClickGame),
-    'neon-sniper':    () => import('./games/neon-sniper.js').then(m => m.NeonSniperGame),
-    'orbit-lock':     () => import('./games/orbit-lock.js').then(m => m.OrbitLockGame),
-    'memory-flash':   () => import('./games/memory-flash.js').then(m => m.MemoryFlashGame),
-    'vault-cracker':  () => import('./games/vault-cracker.js').then(m => m.VaultCrackerGame),
-    'phase-shifter':  () => import('./games/phase-shifter.js').then(m => m.PhaseShifterGame),
-    'math-rush':      () => import('./games/math-rush.js').then(m => m.MathRushGame),
-    'color-trap':     () => import('./games/color-trap.js').then(m => m.ColorTrapGame),
-    'holo-match':     () => import('./games/holo-match.js').then(m => m.HoloMatchGame),
-    'void-dodger':    () => import('./games/void-dodger.js').then(m => m.VoidDodgerGame),
-    'glitch-hunt':    () => import('./games/glitch-hunt.js').then(m => m.GlitchHuntGame),
-    'orbit-tracker':  () => import('./games/orbit-tracker.js').then(m => m.OrbitTrackerGame),
-    'cyber-typer':    () => import('./games/cyber-typer.js').then(m => m.CyberTyperGame),
-    'cyber-pong':     () => import('./games/cyber-pong.js').then(m => m.CyberPongGame),
-    'snake-plus':     () => import('./games/snake-plus.js').then(m => m.SnakePlusGame),
-    'cipher-decode':  () => import('./games/cipher-decode.js').then(m => m.CipherDecodeGame),
-    'pixel-draw':     () => import('./games/pixel-draw.js').then(m => m.PixelDrawGame),
-    'number-grid':    () => import('./games/number-grid.js').then(m => m.NumberGridGame),
-    'simon-says':     () => import('./games/simon-says.js').then(m => m.SimonSaysGame),
-    'pattern-rush':   () => import('./games/pattern-rush.js').then(m => m.PatternRushGame),
-    'reaction-chain': () => import('./games/reaction-chain.js').then(m => m.ReactionChainGame),
-    'word-rush':      () => import('./games/word-rush.js').then(m => m.WordRushGame),
+    'higher-lower':   () => import(`./games/higher-lower.js?v=${GV}`).then(m => m.HigherLowerGame),
+    'guess-card':     () => import(`./games/guess-card.js?v=${GV}`).then(m => m.GuessCardGame),
+    'trivia':         () => import(`./games/trivia.js?v=${GV}`).then(m => m.TriviaGame),
+    'bio-scan':       () => import(`./games/bio-scan.js?v=${GV}`).then(m => m.BioScanGame),
+    'geo-net':        () => import(`./games/geo-net.js?v=${GV}`).then(m => m.GeoNetGame),
+    'hyper-reflex':   () => import(`./games/hyper-reflex.js?v=${GV}`).then(m => m.GameReflex),
+    'spam-click':     () => import(`./games/spam-click.js?v=${GV}`).then(m => m.SpamClickGame),
+    'neon-sniper':    () => import(`./games/neon-sniper.js?v=${GV}`).then(m => m.NeonSniperGame),
+    'orbit-lock':     () => import(`./games/orbit-lock.js?v=${GV}`).then(m => m.OrbitLockGame),
+    'memory-flash':   () => import(`./games/memory-flash.js?v=${GV}`).then(m => m.MemoryFlashGame),
+    'vault-cracker':  () => import(`./games/vault-cracker.js?v=${GV}`).then(m => m.VaultCrackerGame),
+    'phase-shifter':  () => import(`./games/phase-shifter.js?v=${GV}`).then(m => m.PhaseShifterGame),
+    'math-rush':      () => import(`./games/math-rush.js?v=${GV}`).then(m => m.MathRushGame),
+    'color-trap':     () => import(`./games/color-trap.js?v=${GV}`).then(m => m.ColorTrapGame),
+    'holo-match':     () => import(`./games/holo-match.js?v=${GV}`).then(m => m.HoloMatchGame),
+    'void-dodger':    () => import(`./games/void-dodger.js?v=${GV}`).then(m => m.VoidDodgerGame),
+    'glitch-hunt':    () => import(`./games/glitch-hunt.js?v=${GV}`).then(m => m.GlitchHuntGame),
+    'orbit-tracker':  () => import(`./games/orbit-tracker.js?v=${GV}`).then(m => m.OrbitTrackerGame),
+    'cyber-typer':    () => import(`./games/cyber-typer.js?v=${GV}`).then(m => m.CyberTyperGame),
+    'cyber-pong':     () => import(`./games/cyber-pong.js?v=${GV}`).then(m => m.CyberPongGame),
+    'snake-plus':     () => import(`./games/snake-plus.js?v=${GV}`).then(m => m.SnakePlusGame),
+    'cipher-decode':  () => import(`./games/cipher-decode.js?v=${GV}`).then(m => m.CipherDecodeGame),
+    'pixel-draw':     () => import(`./games/pixel-draw.js?v=${GV}`).then(m => m.PixelDrawGame),
+    'number-grid':    () => import(`./games/number-grid.js?v=${GV}`).then(m => m.NumberGridGame),
+    'simon-says':     () => import(`./games/simon-says.js?v=${GV}`).then(m => m.SimonSaysGame),
+    'pattern-rush':   () => import(`./games/pattern-rush.js?v=${GV}`).then(m => m.PatternRushGame),
+    'reaction-chain': () => import(`./games/reaction-chain.js?v=${GV}`).then(m => m.ReactionChainGame),
+    'word-rush':      () => import(`./games/word-rush.js?v=${GV}`).then(m => m.WordRushGame),
 };
 
 const app = {
@@ -85,10 +95,17 @@ const app = {
         this.canvas = new CanvasManager();
         this.audio = new AudioController();
         this.shop = new ShopSystem();
-        window.app = this; 
+        this.fx = FX;
+        window.app = this;
+        window.FX  = FX;
+        window.Icons = Icons;
 
         // Inicializar audio con el primer clic del usuario
         document.addEventListener('click', () => { if(this.audio) this.audio.init(); }, { once: true });
+
+        // Polyfill FA → SVG custom: reemplaza <i class="fa-*"> por SVG inline
+        // con MutationObserver para cubrir nodos nuevos del DOM. Idempotente.
+        try { Icons.startFaAutoReplace(); } catch(e) { console.error('icons.startFaAutoReplace', e); }
 
         // Referencia al mapa de loaders — el consumo externo (vs-mode, daily-weekly)
         // sigue funcionando con Object.keys y la verificacion de existencia.
@@ -114,7 +131,7 @@ const app = {
                     const diff = Math.ceil((end - new Date()) / (1000*60*60*24));
                     if(diff <= 2 && diff >= 0) {
                         const game = CONFIG.GAMES_LIST.find(g=>g.id===t.gameId);
-                        this.addNotif('🏆', 'TORNEO TERMINA EN ' + diff + ' DÍA' + (diff===1?'':'S'),
+                        this.addNotif('TROPHY', 'TORNEO TERMINA EN ' + diff + ' DÍA' + (diff===1?'':'S'),
                             (game?.name||t.gameId) + ' · Tu mejor: ' + (t.best||0).toLocaleString(), 'gold');
                     }
                 }
@@ -125,8 +142,25 @@ const app = {
         
         // Pantalla de bienvenida — siempre se activa aunque haya errores arriba
         setTimeout(() => this.changeState(CONFIG.STATES.WELCOME), 100);
+
+        // Onboarding cinematico solo en primera vez (tras un delay para
+        // que cargue el welcome y las libs del CDN)
+        setTimeout(() => {
+            try {
+                if(Onboarding.shouldShow(this)) {
+                    Onboarding.show(this, () => {
+                        // Saltamos directo al menu tras terminar onboarding
+                        this.changeState(CONFIG.STATES.MENU);
+                    });
+                }
+            } catch(e) { console.error('onboarding', e); }
+        }, 1400);
         
         try { this.setupEventListeners(); } catch(e) { console.error('setupEventListeners', e); }
+        // Inicializar keyboard shortcuts overlay (tecla ? o H)
+        try { Shortcuts.init(this); } catch(e) { console.error('shortcuts.init', e); }
+        // Inicializar sistema de combos (opt-in para juegos)
+        try { Combo.init(this); } catch(e) { console.error('combo.init', e); }
     },
 
     // --- PERSISTENCIA (delegado a systems/persistence.js) ---
@@ -381,6 +415,16 @@ const app = {
             try { this.canvas.resumeBackground(); } catch(e) {}
         }
 
+        // FX: glitch sutil entre pantallas (excepto si venimos de welcome o game)
+        const isBigTransition = this._currentState &&
+            this._currentState !== CONFIG.STATES.WELCOME &&
+            newState !== CONFIG.STATES.WELCOME &&
+            this._currentState !== newState;
+        if(isBigTransition && this.fx) {
+            try { this.fx.screenGlitch(0.24); } catch(e) {}
+        }
+        this._currentState = newState;
+
         let nextScreenId = '';
         if(newState === CONFIG.STATES.WELCOME) nextScreenId = 'screen-welcome';
         if(newState === CONFIG.STATES.MENU)    nextScreenId = 'screen-menu';
@@ -426,6 +470,12 @@ const app = {
                     if(newState === CONFIG.STATES.MENU) {
                         this.renderMenu();
                         this.updateUI();
+                        // FX: cascada de aparicion de cards del lobby
+                        try {
+                            this.fx.cascadeIn('#main-menu-grid .game-card-v2', {
+                                y: 12, duration: 0.3, stagger: 0.025
+                            });
+                        } catch(e) {}
                         // Música generativa de lobby
                         try {
                             const theme = this.shop && this.shop.equipped && this.shop.equipped.theme;
@@ -437,18 +487,34 @@ const app = {
                                 const streakOverlay = document.createElement('div');
                                 streakOverlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9998;pointer-events:none;animation:wFadeIn 0.3s ease;';
                                 streakOverlay.innerHTML = '<div style="text-align:center;animation:luPop 0.5s cubic-bezier(0.2,0,0,1.5) both;">' +
-                                    '<div style="font-size:3rem;filter:drop-shadow(0 0 20px #fbbf24);">🔥</div>' +
+                                    '<div style="font-family:var(--font-display);font-size:2rem;color:#fbbf24;letter-spacing:4px;text-shadow:0 0 20px #fbbf24;margin-bottom:8px;">RACHA</div>' +
                                     '<div style="font-family:var(--font-display);font-size:1.2rem;color:#fbbf24;letter-spacing:3px;">' + this.streak.days + ' DÍAS</div>' +
                                     '</div>';
                                 document.body.appendChild(streakOverlay);
                                 setTimeout(() => streakOverlay.remove(), 2000);
                             }
                             setTimeout(() => {
-                                const fire = this.streak.days >= 7 ? '🔥🔥' : '🔥';
+                                const fire = this.streak.days >= 7 ? 'MEGA' : 'HOT';
                                 this.showToast(fire + ' RACHA: ' + this.streak.days + ' DÍAS', 'Bonus XP activo · +' + Math.min(50, this.streak.days*5) + ' XP por partida', 'gold');
                             }, 600);
                         }
                     }
+
+                    // FX: cascada en otras pantallas tras el render
+                    try {
+                        if(newState === CONFIG.STATES.SHOP) {
+                            this.fx.cascadeIn('#shop-grid .shop-card-v2', { y: 10, duration: 0.28, stagger: 0.015 });
+                        } else if(newState === CONFIG.STATES.DAILY) {
+                            this.fx.cascadeIn('#screen-daily .daily-task-v3', { y: 10, duration: 0.3, stagger: 0.06 });
+                        } else if(newState === CONFIG.STATES.WEEKLY) {
+                            this.fx.cascadeIn('#screen-weekly .daily-task-v3', { y: 10, duration: 0.3, stagger: 0.06 });
+                        } else if(newState === 'pass') {
+                            // El pass se renderiza con delay de 60ms desde el btn-pass
+                            setTimeout(() => {
+                                this.fx.cascadeIn('#np-track .np-node', { y: 18, duration: 0.35, stagger: 0.02 });
+                            }, 80);
+                        }
+                    } catch(e) {}
                 }, 50); 
             });
         }
@@ -567,7 +633,20 @@ const app = {
             }
         });
 
-        setTimeout(() => this.game.init(), 100);
+        // Countdown opcional 3-2-1-GO antes de init() si el setting esta activo
+        const doInit = () => { if(this.game && typeof this.game.init === 'function') this.game.init(); };
+        if(this.settings.countdown && this.fx) {
+            // Color del juego para el countdown
+            const gameMeta = CONFIG.GAMES_LIST.find(g => g.id === gameId);
+            const color    = gameMeta ? (CONFIG.COLORS[gameMeta.color] || '#3b82f6') : '#3b82f6';
+            setTimeout(() => {
+                this.fx.countdown({ duration: 0.55, color }).then(() => {
+                    if(this.game) doInit();
+                });
+            }, 100);
+        } else {
+            setTimeout(doInit, 100);
+        }
     },
 
     endGame() {
@@ -695,6 +774,8 @@ const app = {
 
         try { this.audio.playWin(10); } catch(e) {}
         try { this.canvas.explode(window.innerWidth/2, window.innerHeight/2, color); } catch(e) {}
+        // FX: celebracion con confetti desde las 4 esquinas + flash global
+        try { this.fx.levelUp(newLevel); } catch(e) {}
     },
 
     showGameOverScreen(score, gameId, onRetry, onQuit) {
@@ -806,7 +887,7 @@ const app = {
             <div class="cod-data-panel" id="cod-data">
 
                 <!-- Agente -->
-                <div class="cod-agent-row">
+                <div class="cod-agent-row fx-reveal">
                     <div class="cod-agent-avatar" style="border-color:${gameColor}50; background:${gameColor}10;">
                         <i class="fa-solid ${this.stats.avatar || 'fa-user-astronaut'}" style="color:${gameColor};"></i>
                     </div>
@@ -822,7 +903,7 @@ const app = {
                 </div>
 
                 <!-- Métricas -->
-                <div class="cod-metrics">
+                <div class="cod-metrics fx-reveal">
                     <div class="cod-metric" id="cod-score">
                         <div class="cod-m-label"><i class="fa-solid fa-crosshairs"></i> PUNTUACIÓN</div>
                         <div class="cod-m-val" data-target="${score}">0</div>
@@ -838,7 +919,7 @@ const app = {
                 </div>
 
                 <!-- Barra XP -->
-                <div class="cod-xp-section">
+                <div class="cod-xp-section fx-reveal">
                     <div class="cod-xp-label">
                         <span>PROGRESIÓN NEURAL</span>
                         <span id="cod-xp-nums">LVL ${prevLvl}</span>
@@ -871,7 +952,7 @@ const app = {
                 })()}
 
                 <!-- Acciones -->
-                <div class="cod-actions">
+                <div class="cod-actions fx-reveal">
                     <button class="cod-btn cod-btn-secondary" id="univ-quit" title="Salir al menú (ESC · Q)">
                         <i class="fa-solid fa-arrow-left"></i> SALIR
                     </button>
@@ -924,6 +1005,19 @@ const app = {
             const data   = document.getElementById('cod-data');
             if(stripe) stripe.classList.add('slide-in');
             if(data)   data.classList.add('slide-in');
+            // FX: revelado escalonado de metricas + brillo en victoria
+            try {
+                if(data) this.fx.gameOverReveal(data, isGood);
+            } catch(e) {}
+            // Confetti de celebracion segun rango
+            try {
+                if(rank === 'S') {
+                    setTimeout(() => this.fx.confettiBurst('legend'), 450);
+                    setTimeout(() => this.fx.confettiSides('legend'), 650);
+                } else if(rank === 'A') {
+                    setTimeout(() => this.fx.confettiBurst('victory'), 450);
+                }
+            } catch(e) {}
         }, 100);
 
         setTimeout(() => animateCounter(document.querySelector('#cod-score .cod-m-val'), score), 600);
@@ -967,28 +1061,60 @@ const app = {
         document.getElementById('univ-retry').onclick = doRetry;
         document.getElementById('univ-quit').onclick  = doQuit;
 
-        // Botón share — copia resumen del resultado al portapapeles
+        // Botón share — captura PNG del callcard via html2canvas (Web Share API si esta disponible, si no descarga)
+        // Click largo o shift+click = copiar texto al clipboard (modo rapido)
         const shareBtn = document.getElementById('univ-share');
         if(shareBtn) {
-            shareBtn.onclick = async () => {
+            const copyTextMode = async () => {
                 const name = gameMeta ? gameMeta.name : gameId;
                 const text = `ARCADED LUXURY · ${name}\nRango: ${rank} · ${rd.label}\nScore: ${score}${prize>0?` · +${prize}$`:''}\nAgente Nv.${this.stats.level}`;
                 try {
-                    if(navigator.clipboard && navigator.clipboard.writeText) {
-                        await navigator.clipboard.writeText(text);
-                    } else {
+                    if(navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+                    else {
                         const ta = document.createElement('textarea');
                         ta.value = text; ta.style.position='fixed'; ta.style.left='-9999px';
                         document.body.appendChild(ta); ta.select();
                         document.execCommand('copy'); ta.remove();
                     }
-                    this.showToast('RESULTADO COPIADO', 'Pegalo donde quieras', 'success');
-                    shareBtn.innerHTML = '<i class="fa-solid fa-check"></i>';
-                    setTimeout(() => { if(shareBtn.isConnected) shareBtn.innerHTML = '<i class="fa-solid fa-share-nodes"></i>'; }, 1400);
+                    this.showToast('TEXTO COPIADO', 'Pegalo donde quieras', 'success');
                 } catch(err) {
                     this.showToast('NO SE PUDO COPIAR', 'Intenta de nuevo', 'danger');
                 }
             };
+
+            shareBtn.onclick = async (e) => {
+                // Shift+click = modo texto rapido
+                if(e.shiftKey) { await copyTextMode(); return; }
+
+                const overlay = document.getElementById('cod-overlay');
+                const gameName = (gameMeta ? gameMeta.name : gameId).toLowerCase().replace(/\s+/g, '-');
+                const filename = `arcaded-${gameName}-${rank}-${score}`;
+
+                shareBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                shareBtn.disabled = true;
+                try {
+                    const result = await this.fx.shareCallcard(overlay, filename);
+                    if(result.ok) {
+                        const msg = result.method === 'share' ? 'COMPARTIDO' : 'DESCARGADO';
+                        this.showToast(msg, `arcaded-${rank}-${score}.png`, 'success');
+                        shareBtn.innerHTML = '<i class="fa-solid fa-check"></i>';
+                    } else {
+                        // Fallback a texto si la captura fallo
+                        await copyTextMode();
+                        shareBtn.innerHTML = '<i class="fa-solid fa-check"></i>';
+                    }
+                } catch(err) {
+                    console.error('share callcard', err);
+                    await copyTextMode();
+                    shareBtn.innerHTML = '<i class="fa-solid fa-check"></i>';
+                } finally {
+                    shareBtn.disabled = false;
+                    setTimeout(() => {
+                        if(shareBtn.isConnected) shareBtn.innerHTML = '<i class="fa-solid fa-share-nodes"></i>';
+                    }, 1600);
+                }
+            };
+            shareBtn.title = 'Compartir imagen (Shift+Click = copiar texto)';
         }
         this.updateUI();
     },
@@ -1182,7 +1308,23 @@ const app = {
         this.credits += cash; 
         if(this.canvas && this.settings.performance) this.canvas.explode(null, null, CONFIG.COLORS.GOLD); 
         this.updateUI(); 
-        this.save(); 
+        this.save();
+        // Popup flotante de ganancia (cerca del HUD de creditos)
+        try {
+            if(this.fx && cash > 0) {
+                const credEl = document.getElementById('val-credits') || document.getElementById('menu-credits');
+                if(credEl) {
+                    const r = credEl.getBoundingClientRect();
+                    this.fx.scorePopup({
+                        x: r.left + r.width / 2,
+                        y: r.top - 10,
+                        text: '+' + cash.toLocaleString(),
+                        color: '#fbbf24',
+                        size: cash >= 1000 ? 'large' : 'normal',
+                    });
+                }
+            }
+        } catch(e) {}
     },
 
     // --- CAJAS DE SUMINISTROS (delegado a systems/lootbox.js) ---

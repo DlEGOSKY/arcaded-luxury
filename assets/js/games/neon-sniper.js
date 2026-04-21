@@ -15,6 +15,12 @@ export class NeonSniperGame {
         this.isReloading = false; this.spawnRate = 1200; this.lastSpawn = 0;
         this.mode = 'NORMAL'; this.streak = 0; this.accuracy = 0;
         this.totalShots = 0; this.totalHits = 0;
+        // NUEVAS MECÁNICAS
+        this.zoomAvailable = 1;   // 1 uso por ronda
+        this.zoomActive = false;
+        this.zoomTimer = null;
+        this.bombsAvoided = 0;    // bombas que expiraron sin ser disparadas
+        this.bombsHit = 0;        // veces que el jugador disparó una bomba
         this.uiContainer = document.getElementById('game-ui-overlay');
         this.handleInput = this.handleInput.bind(this);
         this.handleMouseMove = this.handleMouseMove.bind(this);
@@ -43,6 +49,21 @@ export class NeonSniperGame {
         /* Objetivo especial — parpadea rápido y vale el doble */
         .sniper-target.bonus { animation:bonusBlink 0.3s ease-in-out infinite; }
         @keyframes bonusBlink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+        /* Objetivo bomba — gris amenazante, NO disparar */
+        .sniper-target.bomb { animation:bombShake 0.5s ease-in-out infinite; }
+        @keyframes bombShake { 0%,100%{transform:translate(-50%,-50%) rotate(0)} 25%{transform:translate(-52%,-50%) rotate(-2deg)} 75%{transform:translate(-48%,-50%) rotate(2deg)} }
+        .sniper-target.bomb .st-center { background:#fbbf24 !important; box-shadow:0 0 12px #fbbf24 !important; }
+
+        /* Combo chip en HUD */
+        .ns-combo-chip { position:fixed; top:70px; left:50%; transform:translateX(-50%); padding:4px 14px; border-radius:20px; background:rgba(239,68,68,0.2); border:1.5px solid #ef4444; color:#ef4444; font-family:var(--font-display); font-size:0.72rem; letter-spacing:2px; text-shadow:0 0 8px #ef4444; pointer-events:none; z-index:9101; transition:opacity 0.3s, transform 0.2s; }
+        .ns-combo-chip.hot { background:rgba(251,191,36,0.25); border-color:#fbbf24; color:#fbbf24; text-shadow:0 0 10px #fbbf24; transform:translateX(-50%) scale(1.05); }
+
+        /* Scope zoom state */
+        #sniper-scope.zoomed { width:120px; height:120px; box-shadow:0 0 0 100vmax rgba(0,0,0,0.85); border-color:#fbbf24; }
+        body.scope-slowmo #sniper-stage { filter:saturate(0.6) contrast(1.2); transition:filter 0.2s; }
+        .zoom-hud { position:fixed; bottom:80px; left:24px; padding:5px 10px; background:rgba(0,0,0,0.7); border:1px solid rgba(251,191,36,0.35); color:#fbbf24; font-family:monospace; font-size:0.6rem; letter-spacing:1.5px; border-radius:6px; z-index:9100; pointer-events:none; }
+        .zoom-hud.used { opacity:0.3; filter:grayscale(1); }
 
         /* Mira */
         #sniper-scope { position:fixed;width:72px;height:72px;border:1.5px solid rgba(239,68,68,0.9);border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);z-index:9999;display:none;box-shadow:0 0 0 100vmax rgba(0,0,0,0.55);transition:transform 0.04s; }
@@ -137,6 +158,8 @@ export class NeonSniperGame {
         this.bullets=5; this.spawnRate=cfg.spawnMs; this.lastSpawn=0;
         this.streak=0; this.totalShots=0; this.totalHits=0;
         this.maxLives = cfg.lives;
+        this.zoomAvailable = 1; this.zoomActive = false;
+        this.bombsAvoided = 0; this.bombsHit = 0;
 
         document.body.classList.add('sniper-cursor-active');
         this.uiContainer.innerHTML = `
@@ -150,6 +173,8 @@ export class NeonSniperGame {
                 <div class="ns-stat"><div class="ns-stat-lbl">VIDAS</div><div class="ns-stat-val" id="ns-lives" style="color:#ef4444;">${'●'.repeat(cfg.lives)}</div></div>
                 <div class="ns-stat"><div class="ns-stat-lbl">PUNTERÍA</div><div class="ns-stat-val" id="ns-acc">—</div></div>
             </div>
+            <div class="ns-combo-chip" id="ns-combo" style="opacity:0;">×1.0</div>
+            <div class="zoom-hud" id="ns-zoom-hud">[SHIFT] ZOOM · 1 USO</div>
             <div class="ammo-rack">
                 <div class="ammo-mode-badge">${this.mode}</div>
                 <div class="ammo-shells" id="ammo-container">${'<div class="ammo-shell"></div>'.repeat(5)}</div>
@@ -173,7 +198,35 @@ export class NeonSniperGame {
         else{if(e.target.tagName==='BUTTON')return;x=e.clientX;y=e.clientY;if(e.button===2)right=true;}
         if(right)this.reload();else this.shoot(x,y);
     }
-    handleKeyDown(e){ if(e.key.toLowerCase()==='r')this.reload(); }
+    handleKeyDown(e){
+        if(e.key.toLowerCase()==='r') this.reload();
+        else if(e.key === 'Shift' && !e.repeat) this.activateZoom();
+    }
+
+    activateZoom() {
+        if(!this.isRunning || this.zoomAvailable <= 0 || this.zoomActive) return;
+        this.zoomAvailable--;
+        this.zoomActive = true;
+        const scope = document.getElementById('sniper-scope');
+        if (scope) scope.classList.add('zoomed');
+        document.body.classList.add('scope-slowmo');
+        const zh = document.getElementById('ns-zoom-hud');
+        if (zh) { zh.textContent = 'ZOOM ACTIVO · 2s'; }
+        try { this.audio.playTone(1500, 'sine', 0.1); } catch(e) {}
+        // Slow-mo: aumentar spawnRate (menos spawns) y life de targets
+        const prevSpawn = this.spawnRate;
+        this.spawnRate = Math.floor(this.spawnRate * 2);
+        this.targets.forEach(t => { t.life = t.life * 1.8; });
+
+        this.zoomTimer = setTimeout(() => {
+            this.zoomActive = false;
+            this.spawnRate = prevSpawn;
+            if (scope) scope.classList.remove('zoomed');
+            document.body.classList.remove('scope-slowmo');
+            if (zh) { zh.textContent = 'ZOOM AGOTADO'; zh.classList.add('used'); }
+            try { this.audio.playTone(600, 'sine', 0.1); } catch(e) {}
+        }, 2000);
+    }
     handleContextMenu(e){ e.preventDefault(); return false; }
 
     shoot(x,y) {
@@ -202,24 +255,76 @@ export class NeonSniperGame {
         const t=this.targets[idx];
         if(t.el) t.el.remove();
         this.targets.splice(idx,1);
-        this.score++; this.totalHits++; this.streak++;
+
+        // === BOMBA → penaliza ===
+        if (t.isBomb) {
+            this.bombsHit++;
+            this.streak = 0;
+            const fbB = document.createElement('div');
+            fbB.className = 'hit-feedback';
+            fbB.style.cssText = `left:${x}px;top:${y}px;color:#fbbf24;font-size:1.3rem;`;
+            fbB.textContent = 'BOMBA!';
+            document.body.appendChild(fbB);
+            setTimeout(() => fbB.remove(), 900);
+            try { this.audio.playLose(); } catch(e) {}
+            try { this.canvas.explode(x, y, '#fbbf24'); } catch(e) {}
+            document.body.classList.add('shake-screen');
+            setTimeout(() => document.body.classList.remove('shake-screen'), 400);
+            // Pierde 1 vida
+            this.misses++;
+            this.updateLives();
+            this.updateComboChip();
+            const cfg = TARGET_TYPES[this.mode];
+            if (this.misses >= cfg.lives) this.gameOver();
+            return;
+        }
+
+        this.totalHits++; this.streak++;
         const isBonus=t.bonus;
-        const pts=isBonus?2:1;
-        this.score += pts-1;
+
+        // Combo multiplier: >=5 streak ×1.5, >=10 ×2, >=20 ×3
+        let comboMulti = 1;
+        if (this.streak >= 20) comboMulti = 3;
+        else if (this.streak >= 10) comboMulti = 2;
+        else if (this.streak >= 5) comboMulti = 1.5;
+
+        const basePts = isBonus ? 2 : 1;
+        const gained = Math.floor(basePts * comboMulti);
+        this.score += gained;
 
         // Hit feedback
         const fb=document.createElement('div');
         fb.className='hit-feedback';
         fb.style.cssText=`left:${x}px;top:${y}px;color:${t.color};`;
-        fb.textContent=isBonus?'×2!':'HIT';
+        let label = isBonus ? '×2!' : 'HIT';
+        if (comboMulti > 1) label = `${label} ×${comboMulti}`;
+        fb.textContent = label;
         document.body.appendChild(fb);
         setTimeout(()=>fb.remove(),700);
 
         document.getElementById('ns-score').innerText=this.score;
         document.getElementById('ns-streak').innerText=this.streak;
+        this.updateComboChip();
         try{this.canvas.explode(x,y,t.color);}catch(e){}
         try{this.audio.playWin(this.streak>4?5:1);}catch(e){}
         if(this.spawnRate>600) this.spawnRate-=15;
+    }
+
+    updateComboChip() {
+        const chip = document.getElementById('ns-combo');
+        if (!chip) return;
+        let comboMulti = 1;
+        if (this.streak >= 20) comboMulti = 3;
+        else if (this.streak >= 10) comboMulti = 2;
+        else if (this.streak >= 5) comboMulti = 1.5;
+
+        if (comboMulti > 1) {
+            chip.style.opacity = '1';
+            chip.textContent = `COMBO ×${comboMulti}`;
+            chip.classList.toggle('hot', comboMulti >= 2);
+        } else {
+            chip.style.opacity = '0';
+        }
     }
 
     spawnTarget() {
@@ -227,10 +332,14 @@ export class NeonSniperGame {
         const w=window.innerWidth,h=window.innerHeight,pad=120;
         const x=pad+Math.random()*(w-pad*2),y=70+Math.random()*(h-140);
         const size=cfg.sizes[Math.floor(Math.random()*cfg.sizes.length)];
-        const color=cfg.colors[Math.floor(Math.random()*cfg.colors.length)];
-        const isBonus=Math.random()<0.12; // 12% bonus
-        const life=Math.max(1200,3200-(this.score*40));
-        this.targets.push({id:Date.now()+Math.random(),x,y,size,color,isBonus,bonus:isBonus,birth:Date.now(),life,el:null});
+
+        // 12% BONUS (×2), 10% BOMBA después de ronda inicial
+        const rand = Math.random();
+        const isBomb = this.score >= 3 && rand < 0.12;  // bombas sólo tras warm-up
+        const isBonus = !isBomb && rand < 0.22;          // bonus ~10%
+        const color = isBomb ? '#64748b' : cfg.colors[Math.floor(Math.random()*cfg.colors.length)];
+        const life = Math.max(1200, 3200 - (this.score*40));
+        this.targets.push({id:Date.now()+Math.random(),x,y,size,color,isBonus,bonus:isBonus,isBomb,birth:Date.now(),life,el:null});
     }
 
     updateAmmoUI(){
@@ -280,13 +389,27 @@ export class NeonSniperGame {
             const age=now-t.birth, prog=age/t.life;
             if(!t.el){
                 const el=document.createElement('div');
-                el.className='sniper-target'+(t.isBonus?' bonus':'');
+                const extraClass = t.isBomb ? ' bomb' : (t.isBonus ? ' bonus' : '');
+                el.className='sniper-target'+extraClass;
                 el.dataset.id=t.id;
                 el.style.cssText=`left:${t.x}px;top:${t.y}px;width:${t.size}px;height:${t.size}px;color:${t.color};background:${t.color}22;border:2px solid ${t.color};box-shadow:0 0 20px ${t.color}60;`;
                 el.innerHTML=`<div class="st-ring" style="color:${t.color};border-color:${t.color};"></div><div class="st-center"></div><div class="st-cross-h"></div><div class="st-cross-v"></div>`;
                 stage.appendChild(el); t.el=el;
             }
-            if(prog>=1){if(t.el)t.el.remove();this.targets.splice(i,1);this.takeDamage();if(!this.isRunning)return;}
+            if(prog>=1){
+                if(t.el)t.el.remove();
+                this.targets.splice(i,1);
+                // Si expira una bomba sin dispararla: bonus (+2 score) y no daño
+                if (t.isBomb) {
+                    this.bombsAvoided++;
+                    this.score += 2;
+                    const sEl = document.getElementById('ns-score'); if (sEl) sEl.innerText = this.score;
+                    try { this.audio.playTone(900, 'sine', 0.08); } catch(e) {}
+                    continue;
+                }
+                this.takeDamage();
+                if(!this.isRunning)return;
+            }
             else{
                 // Reducir tamaño a medida que expira
                 const cur=t.size*(1-prog*0.75);
@@ -316,23 +439,35 @@ export class NeonSniperGame {
     cleanup() {
         this.isRunning = false;
         if(this.gameLoopRef) { cancelAnimationFrame(this.gameLoopRef); this.gameLoopRef = null; }
+        if(this.zoomTimer) { clearTimeout(this.zoomTimer); this.zoomTimer = null; }
         window.removeEventListener('mousemove',  this.handleMouseMove);
         window.removeEventListener('mousedown',  this.handleInput);
         window.removeEventListener('touchstart', this.handleInput);
         window.removeEventListener('keydown',    this.handleKeyDown);
         window.removeEventListener('contextmenu',this.handleContextMenu);
         document.body.classList.remove('sniper-cursor-active');
+        document.body.classList.remove('scope-slowmo');
     }
 
     gameOver(){
         this.isRunning=false;
         if(this.gameLoopRef)cancelAnimationFrame(this.gameLoopRef);
+        if(this.zoomTimer) { clearTimeout(this.zoomTimer); this.zoomTimer = null; }
         window.removeEventListener('mousemove',this.handleMouseMove);
         window.removeEventListener('mousedown',this.handleInput);
         window.removeEventListener('touchstart',this.handleInput);
         window.removeEventListener('keydown',this.handleKeyDown);
         window.removeEventListener('contextmenu',this.handleContextMenu);
         document.body.classList.remove('sniper-cursor-active');
+        document.body.classList.remove('scope-slowmo');
+        // Bonus por bombas evitadas
+        if (this.bombsAvoided > 0) {
+            const bonus = this.bombsAvoided * 15;
+            window.app.credits += bonus;
+            try { window.app.showToast('BOMBAS EVITADAS', `${this.bombsAvoided} × +15 = +${bonus} CR`, 'success'); } catch(e) {}
+            const vc = document.getElementById('val-credits'); if (vc) vc.innerText = window.app.credits;
+            window.app.save();
+        }
         if(this.onQuit) this.onQuit(this.score);
     }
 }
