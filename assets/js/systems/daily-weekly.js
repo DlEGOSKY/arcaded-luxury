@@ -25,6 +25,29 @@
 import { CONFIG } from '../config.js';
 import { SeededRandom } from '../utils.js';
 
+// -------------------------------------------------------------
+// CHALLENGE DIARIO ROTATIVO
+// Pool de desafíos: { gameId, mode, label, targetMultiplier, rewardCR, icon, color }
+// El mode es descriptivo (no lanza modo especial aún, solo label).
+// Rotan deterministamente según el día del año.
+// -------------------------------------------------------------
+const DAILY_CHALLENGES = [
+    { gameId:'cyber-pong',    mode:'TOURNAMENT', label:'Gana 1 set en Torneo de Pong',         targetMultiplier:1, rewardCR:350, icon:'fa-table-tennis-paddle-ball', color:'#3b82f6' },
+    { gameId:'orbit-lock',    mode:'REVERSE',    label:'30 locks en modo Reverse',              targetMultiplier:1, rewardCR:400, icon:'fa-rotate',                  color:'#a855f7' },
+    { gameId:'vault-cracker', mode:'TIMED',      label:'Descifra el vault en modo Timed',       targetMultiplier:1, rewardCR:450, icon:'fa-vault',                   color:'#f97316' },
+    { gameId:'hyper-reflex',  mode:'BLITZ',      label:'Supera 500 pts en Hyper Reflex',        targetMultiplier:1, rewardCR:300, icon:'fa-bolt',                    color:'#ef4444' },
+    { gameId:'math-rush',     mode:'HARD',       label:'Consigue 80 pts en Math Rush',          targetMultiplier:1, rewardCR:280, icon:'fa-square-root-variable',    color:'#10b981' },
+    { gameId:'snake-plus',    mode:'NORMAL',     label:'Llega a 50 puntos en Snake ++',         targetMultiplier:1, rewardCR:260, icon:'fa-worm',                    color:'#22c55e' },
+    { gameId:'neon-sniper',   mode:'PRECISION',  label:'10 headshots en Neon Sniper',           targetMultiplier:1, rewardCR:320, icon:'fa-crosshairs',              color:'#ec4899' },
+    { gameId:'color-trap',    mode:'SURVIVAL',   label:'Supera racha de 15 en Color Trap',      targetMultiplier:1, rewardCR:290, icon:'fa-palette',                 color:'#fbbf24' },
+    { gameId:'void-dodger',   mode:'HARD',       label:'Sobrevive 20 segundos en Void Dodger',  targetMultiplier:1, rewardCR:310, icon:'fa-circle-radiation',        color:'#06b6d4' },
+    { gameId:'cipher-decode', mode:'SPEED',      label:'Descifra 50 pts en Cipher Decode',      targetMultiplier:1, rewardCR:340, icon:'fa-key',                     color:'#8b5cf6' },
+    { gameId:'geo-net',       mode:'MARATHON',   label:'80 puntos en Geo-Net',                  targetMultiplier:1, rewardCR:380, icon:'fa-earth-americas',           color:'#0ea5e9' },
+    { gameId:'glitch-hunt',   mode:'ELITE',      label:'Caza 8 glitches sin error',             targetMultiplier:1, rewardCR:420, icon:'fa-bug-slash',               color:'#f43f5e' },
+    { gameId:'word-rush',     mode:'BLITZ',      label:'40 puntos en Word Rush bajo presión',   targetMultiplier:1, rewardCR:300, icon:'fa-spell-check',             color:'#84cc16' },
+    { gameId:'cyber-typer',   mode:'SPEED',      label:'400 puntos en Cyber Typer',             targetMultiplier:1, rewardCR:270, icon:'fa-keyboard',                color:'#14b8a6' },
+];
+
 const WEEKLY_MISSIONS = [
     { gameId: 'higher-lower',  target: 25,  label: 'Alcanza 25 aciertos en High/Low',     reward: 800  },
     { gameId: 'geo-net',       target: 50,  label: 'Consigue 50 puntos en Geo-Net',       reward: 1000 },
@@ -49,6 +72,7 @@ export function checkDailyReset(app) {
 
     app.daily.date = today;
     app.daily.claimed = false;
+    app.daily.challengeClaimed = false;
     app.daily.tasks = [];
 
     const seed    = parseInt(today.replace(/\D/g, '')) || Date.now();
@@ -65,6 +89,25 @@ export function checkDailyReset(app) {
             });
         }
     }
+
+    // Desafío especial del día (rota deterministamente por día del año)
+    const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+    app.daily.challenge = {
+        ...DAILY_CHALLENGES[dayOfYear % DAILY_CHALLENGES.length],
+        done: false,
+    };
+
+    // Racha diaria — mantener streak
+    if (!app.daily.streak) app.daily.streak = { count: 0, lastDate: null };
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (app.daily.streak.lastDate === yesterday.toDateString()) {
+        // Día consecutivo — no incrementar aún (se hace al reclamar)
+    } else if (app.daily.streak.lastDate !== today) {
+        // Racha rota si no jugó ayer
+        app.daily.streak.count = 0;
+    }
+
     app.save();
 }
 
@@ -100,10 +143,14 @@ export function renderDailyScreen(app) {
     const pct     = total > 0 ? Math.round((done / total) * 100) : 0;
     const allDone = total > 0 && done === total;
     const claimed = app.daily.claimed;
+    const streak  = app.daily.streak || { count: 0 };
+    const challenge = app.daily.challenge || null;
 
-    const timeStr   = buildDailyCountdown();
-    const tasksHTML = app.daily.tasks.map(task => renderDailyTask(app, task)).join('');
-    const claim     = buildDailyClaim(allDone, claimed);
+    const timeStr      = buildDailyCountdown();
+    const tasksHTML    = app.daily.tasks.map(task => renderDailyTask(app, task)).join('');
+    const claim        = buildDailyClaim(allDone, claimed);
+    const streakHTML   = buildStreakBar(streak);
+    const challengeHTML = challenge ? renderChallengeCard(app, challenge) : '';
 
     container.innerHTML = `
     <div class="daily-panel-v3">
@@ -117,15 +164,17 @@ export function renderDailyScreen(app) {
                 </div>
             </div>
             <div class="daily-reward-v3">
-                <div class="daily-reward-lbl">RECOMPENSA</div>
+                <div class="daily-reward-lbl">RECOMPENSA BASE</div>
                 <div class="daily-reward-val"><i class="fa-solid fa-coins"></i> 500 CR</div>
             </div>
         </div>
+        ${streakHTML}
         <div class="daily-progress-v3">
             <div class="dp-track"><div class="dp-fill" style="width:${pct}%;"></div></div>
             <div class="dp-label">${pct}% · ${claimed ? 'COMPLETADO HOY' : 'RENUEVA A MEDIANOCHE'}</div>
         </div>
         <div class="daily-tasks-v3">${tasksHTML}</div>
+        ${challengeHTML}
         ${app.renderSeasonPanel()}
         ${app.renderTournamentPanel()}
         ${app.renderInvestPanel()}
@@ -136,6 +185,85 @@ export function renderDailyScreen(app) {
             <button class="btn-claim-daily-v3 ${claim.state}" ${claim.fn}>
                 ${claim.label}
             </button>
+        </div>
+    </div>`;
+}
+
+// ── STREAK BAR ────────────────────────────────────────────────
+function buildStreakBar(streak) {
+    const count = streak.count || 0;
+    const milestones = [3, 7, 14, 30];
+    const nextMilestone = milestones.find(m => count < m) || 30;
+    const pct = Math.min(100, Math.round((count / nextMilestone) * 100));
+    const fireIcon = count >= 7
+        ? '<i class="fa-solid fa-fire-flame-curved" style="color:#ef4444;"></i>'
+        : count >= 3
+            ? '<i class="fa-solid fa-bolt" style="color:#fbbf24;"></i>'
+            : '<i class="fa-solid fa-circle-dot" style="color:#475569;"></i>';
+    const bonusPct = Math.min(100, count * 5);  // +5% por día, tope 100%
+    return `
+    <div class="daily-streak-bar" title="Racha consecutiva">
+        <div class="dsb-left">
+            <span class="dsb-fire">${fireIcon}</span>
+            <div>
+                <div class="dsb-label">RACHA DIARIA</div>
+                <div class="dsb-count">${count} días</div>
+            </div>
+        </div>
+        <div class="dsb-right">
+            <div class="dsb-bonus">+${bonusPct}% CR bonus</div>
+            <div class="dsb-track"><div class="dsb-fill" style="width:${pct}%;"></div></div>
+            <div class="dsb-next">Siguiente hito: ${nextMilestone} días</div>
+        </div>
+    </div>`;
+}
+
+// ── CHALLENGE CARD ────────────────────────────────────────────
+function renderChallengeCard(app, challenge) {
+    const isDone  = challenge.done;
+    const claimed = app.daily.challengeClaimed;
+    const col     = challenge.color || '#fbbf24';
+    const reward  = challenge.rewardCR || 300;
+    const gameId  = challenge.gameId;
+    const label   = challenge.label;
+    const modeLbl = challenge.mode || '';
+
+    let actionBtn = '';
+    if (claimed) {
+        actionBtn = `<span style="color:#10b981;font-size:0.62rem;font-family:monospace;letter-spacing:2px;"><i class="fa-solid fa-check-double"></i> RECLAMADO</span>`;
+    } else if (isDone) {
+        actionBtn = `<button onclick="window.app.claimDailyChallenge()" style="
+            background:${col};color:#000;border:none;border-radius:8px;padding:6px 16px;
+            font-family:var(--font-display);font-size:0.65rem;letter-spacing:2px;cursor:pointer;
+            font-weight:700;transition:all 0.15s;
+        "><i class="fa-solid fa-gift"></i> +${reward} CR</button>`;
+    } else {
+        actionBtn = `<button onclick="window.app.launch('${gameId}')" style="
+            background:transparent;color:${col};border:1px solid ${col}60;border-radius:8px;
+            padding:6px 16px;font-family:var(--font-display);font-size:0.65rem;
+            letter-spacing:2px;cursor:pointer;transition:all 0.15s;
+        "><i class="fa-solid fa-play"></i> JUGAR</button>`;
+    }
+
+    return `
+    <div class="dc-challenge-card ${isDone ? 'done' : ''}" style="--dcc:${col};">
+        <div class="dcc-header">
+            <div class="dcc-badge"><i class="fa-solid fa-fire"></i> DESAFÍO DEL DÍA</div>
+            <div class="dcc-reward">×2 · +${reward} CR</div>
+        </div>
+        <div class="dcc-body">
+            <div class="dcc-icon-wrap"><i class="fa-solid ${challenge.icon || 'fa-gamepad'}"></i></div>
+            <div class="dcc-info">
+                <div class="dcc-mode">${modeLbl}</div>
+                <div class="dcc-label">${label}</div>
+            </div>
+        </div>
+        <div class="dcc-footer">
+            ${isDone
+                ? `<div style="color:#10b981;font-size:0.62rem;font-family:monospace;"><i class="fa-solid fa-check"></i> OBJETIVO ALCANZADO</div>`
+                : `<div style="color:${col}60;font-size:0.58rem;font-family:monospace;letter-spacing:1px;">RECOMPENSA ×2 AL COMPLETAR</div>`
+            }
+            ${actionBtn}
         </div>
     </div>`;
 }
@@ -318,13 +446,47 @@ function buildWeeklyClaim(allDone, claimed, total, totalReward) {
 // -------------------------------------------------------------
 // CLAIMS
 // -------------------------------------------------------------
+export function claimDailyChallenge(app) {
+    const ch = app.daily.challenge;
+    if (!ch || !ch.done || app.daily.challengeClaimed) return;
+    app.daily.challengeClaimed = true;
+    const reward = ch.rewardCR || 300;
+    app.credits += reward;
+    app.stats.challengesCompleted = (app.stats.challengesCompleted || 0) + 1;
+    app.audio.playWin(8);
+    try { app.canvas.explode(window.innerWidth / 2, window.innerHeight * 0.4, ch.color || '#fbbf24'); } catch(e) {}
+    app.showToast('¡CHALLENGE COMPLETADO!', `+${reward} CR · ${ch.mode} · ${ch.gameId}`, 'gold');
+    const vc = document.getElementById('val-credits');
+    if (vc) vc.innerText = app.credits;
+    app.save();
+    renderDailyScreen(app);
+}
+
 export function claimDaily(app) {
     if(app.daily.claimed) return;
     app.daily.claimed = true;
     app.stats.dailyCompleted = (app.stats.dailyCompleted || 0) + 1;
-    app.addScore(0, 500);
+
+    // Bonus de racha
+    if (!app.daily.streak) app.daily.streak = { count: 0, lastDate: null };
+    const today = new Date().toDateString();
+    if (app.daily.streak.lastDate !== today) {
+        app.daily.streak.count += 1;
+        app.daily.streak.lastDate = today;
+    }
+    const streakBonus = Math.min(app.daily.streak.count * 5, 100);  // +5% por día, cap 100%
+    const base = 500;
+    const total = Math.round(base * (1 + streakBonus / 100));
+
+    app.addScore(0, total);
     app.audio.playWin(10);
-    app.showToast('¡RECOMPENSA RECLAMADA!', 'Has ganado 500 Créditos', 'gold');
+    try {
+        for(let i=0; i<3; i++)
+            setTimeout(() => app.canvas.explode(Math.random()*window.innerWidth, window.innerHeight*0.3, '#fbbf24'), i*200);
+    } catch(e) {}
+    app.showToast('¡PROTOCOLO COMPLETADO!',
+        streakBonus > 0 ? `+${total} CR · Racha ${app.daily.streak.count} días (+${streakBonus}%)` : `+${total} CR`,
+        'gold');
     renderDailyScreen(app);
     app.save();
 }

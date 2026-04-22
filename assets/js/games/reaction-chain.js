@@ -1,4 +1,8 @@
 import { CONFIG } from '../config.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
 
 export class ReactionChainGame {
     constructor(canvas, audio, onGameOver) {
@@ -90,11 +94,10 @@ export class ReactionChainGame {
         this.mode    = mode;
         this.score   = 0;
         this.round   = 0;
-        // 3 vidas en todos los modos (antes solo ENDLESS)
+        this._shellBuilt = false;
         this.lives   = 3;
         this.maxLives = 3;
         this.baseTime= mode === 'SPEED' ? 8000 : 12000;
-        // Reset mecánicas
         this.streak = 0; this.maxStreak = 0;
         this.fastChains = 0;
         this.timeBoostsAvailable = 2;
@@ -130,10 +133,33 @@ export class ReactionChainGame {
         }, 50);
     }
 
+    _buildShell() {
+        const modeColor = this.mode === 'SPEED' ? '#ef4444' : this.mode === 'ENDLESS' ? '#a855f7' : '#3b82f6';
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'REACTION', subtitle: 'CHAIN', titleColor: '#3b82f6', subColor: '#ec4899' })}
+                ${hudStat({ label: 'PUNTOS', id: 'rc-score', color: '#fbbf24', value: '0', minWidth: 70 })}
+                ${hudStat({ label: 'RONDA',  id: 'rc-round', color: '#a855f7', value: '0', minWidth: 60 })}
+                ${hudStat({ label: 'VIDAS',  id: 'rc-lives-num', color: '#ec4899', value: String(this.lives), minWidth: 60 })}
+            </div>
+            ${hudMode({ mode: this.mode, modeColor, hint: 'CHAIN PROTOCOL' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer, hudHTML,
+            frameColor: `${modeColor}88`, cornerColor: modeColor,
+            domOnly: true, maxWidth: 620,
+        });
+        this._frame = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
+    }
+
     render() {
-        const livesHTML = Array.from({length: this.maxLives}, (_, i) =>
-            `<i class="fa-solid fa-heart" style="color:${i>=this.lives?'#334155':'#ec4899'};font-size:0.75rem;margin:0 2px;transition:all 0.2s;${i>=this.lives?'transform:scale(0.7);':''}"></i>`
-        ).join('');
+        if(!this._shellBuilt) this._buildShell();
+        // HUD
+        const sEl = document.getElementById('rc-score'); if(sEl) sEl.textContent = this.score;
+        const rEl = document.getElementById('rc-round'); if(rEl) rEl.textContent = this.round;
+        const lEl = document.getElementById('rc-lives-num'); if(lEl) lEl.textContent = this.lives;
 
         const nodesHTML = this.chain.map(n => {
             const isNext   = n.id === this.current;
@@ -148,13 +174,7 @@ export class ReactionChainGame {
 
         const streakHTML = this.streak >= 2 ? `<div class="rc-streak">RACHA ×${this.streak}</div>` : '<div></div>';
 
-        this.uiContainer.innerHTML = `
-        <div class="rc-root">
-            <div class="rc-header">
-                <div class="rc-stat"><div class="rc-stat-val" id="rc-score">${this.score}</div><div class="rc-stat-lbl">PUNTOS</div></div>
-                <div class="rc-stat"><div class="rc-stat-val" style="color:#a855f7;">${this.round}</div><div class="rc-stat-lbl">RONDA</div></div>
-                <div class="rc-stat"><div style="display:flex;align-items:center;gap:2px;">${livesHTML}</div><div class="rc-stat-lbl">VIDAS</div></div>
-            </div>
+        this._content.innerHTML = `
             <div class="rc-chain-bar"><div class="rc-chain-fill" id="rc-bar-fill" style="width:100%;"></div></div>
             <div class="rc-arena">${nodesHTML}</div>
             <div class="rc-msg" id="rc-msg">Toca los nodos del 1 al ${this.chain.length} en orden</div>
@@ -162,7 +182,7 @@ export class ReactionChainGame {
                 ${streakHTML}
                 <button class="rc-pwr${this.timeBoostsAvailable<=0?' used':''}" id="rc-time">+3s <span class="cnt">·${this.timeBoostsAvailable}</span> <span class="cnt">$15</span></button>
             </div>
-        </div>`;
+        `;
         const tb = document.getElementById('rc-time');
         if (tb) tb.onclick = () => this.activateTimeBoost();
         window.reactionChain = this;
@@ -230,6 +250,10 @@ export class ReactionChainGame {
             const streakTxt = streakMulti > 1 ? ` ×${streakMulti}` : '';
             if(msg) { msg.style.color='#10b981'; msg.textContent = `¡CADENA! +${pts}${fastTxt}${streakTxt}`; }
             try { this.audio.playWin(3); } catch(e) {}
+            winFlash(this._frame, { color: isFast ? '#fbbf24' : '#10b981', duration: 300 });
+            if(this.streak === 5 || this.streak === 10) {
+                burstConfetti(this._frame, { count: this.streak >= 10 ? 60 : 40, colors: ['#3b82f6', '#fbbf24', '#10b981', '#ffffff'] });
+            }
 
             if(this.mode === 'NORMAL' && this.round >= 5) {
                 setTimeout(() => this.endGame(), 1500);
@@ -247,9 +271,13 @@ export class ReactionChainGame {
         const msg = document.getElementById('rc-msg');
         if(msg) { msg.style.color='#ef4444'; msg.textContent='¡TIEMPO AGOTADO!'; }
         try { this.audio.playLose(); } catch(e) {}
+        screenShake(this._frame, { strength: 8, count: 5 });
+        winFlash(this._frame, { color: '#ef4444', duration: 350 });
         // Timeout penaliza vida + rompe racha en todos los modos
         this.lives--;
         this.streak = 0;
+        const lEl = document.getElementById('rc-lives-num');
+        if(lEl) lEl.textContent = this.lives;
         if(this.lives > 0) { setTimeout(()=>this.newChain(),1000); }
         else setTimeout(()=>this.endGame(),1000);
     }

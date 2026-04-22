@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js';
 import { showGameLoader, hideGameLoader } from '../game-loader.js';
+import { mountGameFrame, unmountGameFrame } from '../systems/pixi-stage.js';
 
 export class OrbitTrackerGame {
     constructor(canvas, audio, onQuit) {
@@ -105,6 +106,10 @@ export class OrbitTrackerGame {
     }
 
     async start() {
+        try {
+            const c = this.mode === 'BLITZ' ? '#ef4444' : this.mode === 'CHAOS' ? '#a855f7' : '#3b82f6';
+            this._frame = mountGameFrame({ color: c });
+        } catch(e) {}
         this.isRunning = true; this.score = 0; this.energy = 60; this.level = 1; this.lockedCount = 0;
         this.startTime = Date.now();
         this.lockStreak = 0; this.maxLockStreak = 0;
@@ -365,6 +370,7 @@ export class OrbitTrackerGame {
 
     cleanup() {
         this.isRunning = false;
+        try { unmountGameFrame(); } catch(e) {}
         if(this.animationId) { cancelAnimationFrame(this.animationId); this.animationId = null; }
         window.removeEventListener('mousemove', this.handleMove);
         window.removeEventListener('touchmove', this.handleMove);

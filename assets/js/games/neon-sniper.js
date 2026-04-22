@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js';
+import { mountGameFrame, unmountGameFrame } from '../systems/pixi-stage.js';
 
 // Tipos de objetivo por modo
 const TARGET_TYPES = {
@@ -153,6 +154,10 @@ export class NeonSniperGame {
     }
 
     start() {
+        try {
+            const c = this.mode === 'PRECISION' ? '#3b82f6' : this.mode === 'SURVIVAL' ? '#f97316' : '#ef4444';
+            this._frame = mountGameFrame({ color: c });
+        } catch(e) {}
         const cfg = TARGET_TYPES[this.mode];
         this.isRunning=true; this.score=0; this.misses=0; this.targets=[];
         this.bullets=5; this.spawnRate=cfg.spawnMs; this.lastSpawn=0;
@@ -438,6 +443,7 @@ export class NeonSniperGame {
 
     cleanup() {
         this.isRunning = false;
+        try { unmountGameFrame(); } catch(e) {}
         if(this.gameLoopRef) { cancelAnimationFrame(this.gameLoopRef); this.gameLoopRef = null; }
         if(this.zoomTimer) { clearTimeout(this.zoomTimer); this.zoomTimer = null; }
         window.removeEventListener('mousemove',  this.handleMouseMove);

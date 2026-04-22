@@ -1,4 +1,8 @@
 import { CONFIG } from '../config.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
 
 // Grupos de símbolos — sin espacios en los nombres de clase FA
 const SYMBOL_GROUPS = [
@@ -136,8 +140,30 @@ export class GlitchHuntGame {
         this.mode = mode; this.start();
     }
 
+    _buildShell() {
+        const modeColor = this.mode === 'BLITZ' ? '#ef4444' : this.mode === 'MIRROR' ? '#06b6d4' : '#a855f7';
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'GLITCH', subtitle: 'HUNT', titleColor: '#a855f7', subColor: '#fbbf24' })}
+                ${hudStat({ label: 'NIVEL',   id: 'gh-level', color: '#fbbf24', value: '1', minWidth: 60 })}
+                ${hudStat({ label: 'ACIERTOS',id: 'gh-score', color: '#22c55e', value: '0', minWidth: 70 })}
+                ${hudStat({ label: 'VIDAS',   id: 'gh-lives-num', color: '#ec4899', value: '3', minWidth: 60 })}
+            </div>
+            ${hudMode({ mode: this.mode, modeColor, hint: 'ANOMALÍA PROTOCOL' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer, hudHTML,
+            frameColor: `${modeColor}88`, cornerColor: modeColor,
+            domOnly: true, maxWidth: 640,
+        });
+        this._frame = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
+    }
+
     start() {
         this.isRunning = true; this.score = 0; this.level = 1;
+        this._shellBuilt = false;
         this.gridSize = this.mode==='BLITZ' ? 5 : 3;
         this.timeLeft = this.mode==='BLITZ' ? 2.0 : 5.0;
         this.lastTime = performance.now();
@@ -145,16 +171,9 @@ export class GlitchHuntGame {
         this.streak = 0; this.maxStreak = 0;
         this.revealAvailable = 2;
 
-        const heartsHTML = Array.from({length:this.maxLives},(_,i)=>`<i class="fa-solid fa-heart gh-heart"></i>`).join('');
+        if(!this._shellBuilt) this._buildShell();
 
-        this.uiContainer.innerHTML = `
-        <div class="gh-root">
-            <div class="gh-hud">
-                <div class="gh-stat"><div class="gh-stat-lbl">NIVEL</div><div class="gh-stat-val" id="gh-level">1</div></div>
-                <div class="gh-stat"><div class="gh-stat-lbl">ACIERTOS</div><div class="gh-stat-val" id="gh-score">0</div></div>
-                <div class="gh-stat"><div class="gh-stat-lbl">VIDAS</div><div class="gh-lives" id="gh-lives">${heartsHTML}</div></div>
-                <div class="gh-stat"><div class="gh-stat-lbl">MODO</div><div class="gh-stat-val" style="font-size:0.7rem;color:#a855f7;">${this.mode}</div></div>
-            </div>
+        this._content.innerHTML = `
             <div class="gh-streak-chip" id="gh-streak">RACHA ×0</div>
             <div id="gh-grid-wrap" style="flex:1;display:flex;align-items:center;justify-content:center;width:100%;"></div>
             <div class="gh-time-wrap">
@@ -162,7 +181,7 @@ export class GlitchHuntGame {
                 <div class="gh-time-track"><div class="gh-time-fill" id="gh-time-fill" style="width:100%;background:#a855f7;"></div></div>
             </div>
             <button class="gh-pwr" id="gh-reveal">REVELAR <span class="cnt">·${this.revealAvailable}</span> <span class="cnt">$20</span></button>
-        </div>`;
+        `;
         const rv = document.getElementById('gh-reveal');
         if (rv) rv.onclick = () => this.activateReveal();
         this.buildGrid();
@@ -257,6 +276,14 @@ export class GlitchHuntGame {
             this.level++;
             this.timeLeft = this.mode==='BLITZ' ? 2.0 : Math.min(5.0, this.timeLeft + 0.5);
             try{ this.audio.playWin(streakMulti>1?3:1); }catch(e){}
+            winFlash(this._frame, { color: streakMulti >= 2 ? '#fbbf24' : '#a855f7', duration: 220 });
+            if(this.streak === 5 || this.streak === 10) {
+                burstConfetti(this._frame, { count: this.streak >= 10 ? 60 : 40, colors: ['#a855f7', '#fbbf24', '#22c55e', '#ffffff'] });
+            }
+            const levelEl = document.getElementById('gh-level');
+            if(levelEl) levelEl.textContent = this.level;
+            const scoreEl = document.getElementById('gh-score');
+            if(scoreEl) scoreEl.textContent = this.score;
             // Aumentar dificultad: cuadrícula más grande en niveles altos
             if(this.level > 5 && this.gridSize < 5 && this.mode!=='BLITZ') this.gridSize = 4;
             if(this.level > 9 && this.gridSize < 6 && this.mode!=='BLITZ') this.gridSize = 5;
@@ -271,7 +298,10 @@ export class GlitchHuntGame {
             this.updateStreakChip();
             this.timeLeft = Math.max(0, this.timeLeft - 0.5);
             try{ this.audio.playLose(); }catch(e){}
-            document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'),300);
+            screenShake(this._frame, { strength: 8, count: 5 });
+            winFlash(this._frame, { color: '#ef4444', duration: 300 });
+            const livesHudEl = document.getElementById('gh-lives-num');
+            if(livesHudEl) livesHudEl.textContent = this.lives;
             const livesEl = document.getElementById('gh-lives');
             if (livesEl) {
                 livesEl.innerHTML = Array.from({length:this.maxLives},(_,i)=>

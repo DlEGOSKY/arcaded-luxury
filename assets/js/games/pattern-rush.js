@@ -1,4 +1,8 @@
 import { CONFIG } from '../config.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
 
 export class PatternRushGame {
     constructor(canvas, audio, onGameOver) {
@@ -102,6 +106,7 @@ export class PatternRushGame {
         this.mode     = mode;
         this.score    = 0;
         this.round    = 0;
+        this._shellBuilt = false;
         this.gridSize = mode === 'HARD' ? 4 : 3;
         this.phase    = 'watching'; // 'watching' | 'input'
         this.lives    = 3;
@@ -148,6 +153,28 @@ export class PatternRushGame {
         this.playPattern();
     }
 
+    _buildShell() {
+        const modeColor = this.mode === 'HARD' ? '#ef4444' : this.mode === 'SPEED' ? '#f97316' : this.mode === 'MEMORY' ? '#06b6d4' : '#3b82f6';
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'PATTERN', subtitle: 'RUSH', titleColor: '#06b6d4', subColor: '#fbbf24' })}
+                ${hudStat({ label: 'PUNTOS', id: 'pr-score', color: '#fbbf24', value: '0', minWidth: 70 })}
+                ${hudStat({ label: 'RONDA', id: 'pr-round', color: '#a855f7', value: '0', minWidth: 60 })}
+                ${this.mode === 'SPEED' ? hudStat({ label: 'TIEMPO', id: 'pr-timer', color: '#f97316', value: (this.timeLeft||60)+'s', minWidth: 70 }) : ''}
+                ${hudStat({ label: 'VIDAS', id: 'pr-lives-num', color: '#ec4899', value: String(this.lives), minWidth: 60 })}
+            </div>
+            ${hudMode({ mode: this.mode, modeColor, hint: 'PATTERN PROTOCOL' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer, hudHTML,
+            frameColor: `${modeColor}88`, cornerColor: modeColor,
+            domOnly: true, maxWidth: 560,
+        });
+        this._frame = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
+    }
+
     render() {
         const N = this.gridSize;
         const timerHTML = this.mode === 'SPEED'
@@ -167,15 +194,13 @@ export class PatternRushGame {
             `<i class="fa-solid fa-heart pr-heart${i >= this.lives ? ' lost' : ''}"></i>`
         ).join('');
 
-        this.uiContainer.innerHTML = `
-        <div class="pr-root">
-            <div class="pr-header">
-                <div class="pr-stat"><div class="pr-stat-val" id="pr-score">${this.score}</div><div class="pr-stat-lbl">PUNTOS</div></div>
-                <div class="pr-stat"><div class="pr-stat-val" style="color:#a855f7;">${this.round}</div><div class="pr-stat-lbl">RONDA</div></div>
-                ${timerHTML}
-                <div class="pr-stat"><div class="pr-lives" id="pr-lives">${heartsHTML}</div><div class="pr-stat-lbl">VIDAS</div></div>
-                <div class="pr-stat"><div class="pr-stat-val" style="color:#334155;">${this.pattern?this.inputSeq.length+'/'+this.pattern.length:'0'}</div><div class="pr-stat-lbl">PROGRESO</div></div>
-            </div>
+        if(!this._shellBuilt) this._buildShell();
+        // HUD updates
+        const sEl = document.getElementById('pr-score'); if(sEl) sEl.textContent = this.score;
+        const rEl = document.getElementById('pr-round'); if(rEl) rEl.textContent = this.round;
+        const lEl = document.getElementById('pr-lives-num'); if(lEl) lEl.textContent = this.lives;
+
+        this._content.innerHTML = `
             <div class="pr-phase" id="pr-phase">${phaseLabel}</div>
             <div class="pr-grid" style="grid-template-columns:repeat(${N},1fr);">${cells}</div>
             <div class="pr-pwrs">
@@ -183,7 +208,7 @@ export class PatternRushGame {
                 <button class="pr-pwr" id="pr-slow">SLOW <span class="cnt">·${this.slowAvailable}</span> <span class="cnt">$25</span></button>
             </div>
             <div class="pr-msg" id="pr-msg"></div>
-        </div>`;
+        `;
         window.patternRush = this;
 
         // Power-up binds
@@ -356,6 +381,10 @@ export class PatternRushGame {
                 const memoryTxt = this.mode === 'MEMORY' ? ' MEM' : '';
                 if(msg) { msg.style.color = '#10b981'; msg.textContent = '¡CORRECTO! +' + pts + (multi > 1 ? ' x' + multi : '') + memoryTxt; }
                 try { this.audio.playWin(4); } catch(e) {}
+                winFlash(this._frame, { color: multi > 1 ? '#fbbf24' : '#10b981', duration: 320 });
+                if(this.maxRoundsCompleted === 5 || this.maxRoundsCompleted === 10) {
+                    burstConfetti(this._frame, { count: this.maxRoundsCompleted >= 10 ? 60 : 40, colors: ['#06b6d4', '#fbbf24', '#10b981', '#ffffff'] });
+                }
                 setTimeout(() => this.newRound(), 1000);
             }
         } else {
@@ -363,7 +392,11 @@ export class PatternRushGame {
             if(el) el.classList.add('wrong');
             try { this.audio.playTone(120, 'square', 0.1, 0.15); } catch(e) {}
             try { window.app.combo?.miss(); } catch(e){}
+            screenShake(this._frame, { strength: 8, count: 5 });
+            winFlash(this._frame, { color: '#ef4444', duration: 300 });
             this.lives--;
+            const livesNumEl = document.getElementById('pr-lives-num');
+            if(livesNumEl) livesNumEl.textContent = this.lives;
             const livesEl = document.getElementById('pr-lives');
             if (livesEl) {
                 livesEl.innerHTML = Array.from({length: this.maxLives}, (_, i) =>

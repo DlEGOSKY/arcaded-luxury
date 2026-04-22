@@ -1,4 +1,12 @@
 import { CONFIG } from '../config.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    initPixiApp, makeGlow, makeBloom,
+    winFlash, screenShake, burstConfetti,
+    spawnParticles, updateParticles,
+    spawnStarfield, updateStarfield,
+    computeRectSize,
+} from '../systems/pixi-stage.js';
 
 export class GameReflex {
     // NOTA: 'onQuit' ahora es la función inteligente 'onGameOverSmart' del main.js
@@ -67,6 +75,7 @@ export class GameReflex {
             { id:'mode-hardcore', mc:'#ef4444',               icon:'fa-skull-crossbones', name:'LETAL',     desc:'< 250ms o game over'                },
             { id:'mode-fakeout',  mc:'#fbbf24',               icon:'fa-eye',              name:'FAKE-OUT',  desc:'Fake signals agresivas · pagan ×2' },
             { id:'mode-endless',  mc:'#a855f7',               icon:'fa-infinity',         name:'ENDLESS',   desc:'Hasta que falles · sin límite'      },
+            { id:'mode-blitz',    mc:'#06b6d4',               icon:'fa-fire-flame-curved',name:'BLITZ',     desc:'30s · múltiples targets · velocidad máxima' },
         ];
 
         this.uiContainer.innerHTML = `
@@ -107,6 +116,7 @@ export class GameReflex {
         document.getElementById('mode-hardcore').onclick = () => this.startGame('HARDCORE');
         document.getElementById('mode-fakeout').onclick  = () => this.startGame('FAKEOUT');
         document.getElementById('mode-endless').onclick  = () => this.startGame('ENDLESS');
+        document.getElementById('mode-blitz').onclick    = () => this.startBlitz();
         document.getElementById('reflex-back').onclick   = () => { if(this.onQuit) this.onQuit(0); };
     }
 
@@ -124,6 +134,329 @@ export class GameReflex {
         this.canvas.setMood('REFLEX');
         try { window.app.combo?.start(); } catch(e){}
         this.prepareRound();
+    }
+
+    startBlitz() {
+        window.app.credits -= 15;
+        const valEl = document.getElementById('val-credits');
+        if(valEl) valEl.innerText = window.app.credits;
+        this.mode = 'BLITZ';
+        this._blitzScore  = 0;
+        this._blitzCombo  = 0;
+        this._blitzBestCombo = 0;
+        this._blitzMisses = 0;
+        this._blitzTime   = 30;
+        this._blitzActive = true;
+        this._blitzTargets = [];
+        this._blitzParticles = [];
+        this._blitzFloaters  = [];
+        this.canvas.setMood('REFLEX');
+
+        // HUD premium con shell reusable
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'HYPER', subtitle: 'BLITZ', titleColor: '#06b6d4', subColor: '#fbbf24' })}
+                ${hudStat({ label: 'PUNTOS', id: 'blitz-score', color: '#06b6d4', value: '0', minWidth: 80 })}
+                ${hudStat({ label: 'COMBO',  id: 'blitz-combo', color: '#10b981', value: '0', minWidth: 70 })}
+                ${hudStat({ label: 'TIEMPO', id: 'blitz-timer', color: '#fbbf24', value: '30', minWidth: 70 })}
+            </div>
+            ${hudMode({ mode: 'BLITZ', modeColor: '#06b6d4', hint: 'TAP FAST · MULTI TARGET' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer,
+            hudHTML,
+            frameColor: 'rgba(6,182,212,0.5)',
+            cornerColor: '#06b6d4',
+        });
+        this._blitzRoot     = shell.root;
+        this._blitzWrap     = shell.wrap;
+        this._blitzPixiHost = shell.pixiHost;
+        this._blitzFrame    = shell.pixiHost;
+
+        // Init Pixi + escena tras layout
+        requestAnimationFrame(async () => {
+            const { w, h } = computeRectSize(this._blitzWrap, { padding: 40, maxW: 1200, maxH: 720, minW: 400, minH: 360 });
+            this._blitzW = w; this._blitzH = h;
+            this._blitzPixiHost.style.width  = w + 'px';
+            this._blitzPixiHost.style.height = h + 'px';
+
+            this._blitzApp = await initPixiApp(this._blitzPixiHost, { width: w, height: h });
+            this._buildBlitzScene();
+            this._blitzApp.ticker.add((t) => this._blitzTick(t));
+
+            // Arrancar spawns + timer
+            this._blitzT0 = performance.now();
+            for(let i = 0; i < 3; i++) this._spawnBlitzTarget();
+
+            this._blitzInterval = setInterval(() => {
+                this._blitzTime--;
+                const el = document.getElementById('blitz-timer');
+                if(el) {
+                    el.textContent = this._blitzTime;
+                    if(this._blitzTime <= 5) {
+                        el.style.color = '#ef4444';
+                        el.style.textShadow = '0 0 18px #ef4444';
+                    }
+                }
+                if(this._blitzTime <= 0) this._endBlitz();
+            }, 1000);
+        });
+
+        this._blitzResizeFn = () => {
+            if(!this._blitzApp) return;
+            const { w, h } = computeRectSize(this._blitzWrap, { padding: 40, maxW: 1200, maxH: 720, minW: 400, minH: 360 });
+            this._blitzW = w; this._blitzH = h;
+            this._blitzPixiHost.style.width  = w + 'px';
+            this._blitzPixiHost.style.height = h + 'px';
+            this._blitzApp.renderer.resize(w, h);
+        };
+        window.addEventListener('resize', this._blitzResizeFn);
+    }
+
+    _buildBlitzScene() {
+        const stage = this._blitzApp.stage;
+        this._blitzBg       = new PIXI.Container();
+        this._blitzStars    = new PIXI.Container();
+        this._blitzTargetsL = new PIXI.Container();
+        this._blitzPartsL   = new PIXI.Container();
+        this._blitzFxL      = new PIXI.Container();
+        stage.addChild(this._blitzBg, this._blitzStars, this._blitzTargetsL, this._blitzPartsL, this._blitzFxL);
+
+        // Fondo radial cian
+        const bg = new PIXI.Graphics();
+        const W = this._blitzW, H = this._blitzH;
+        const cx = W/2, cy = H/2;
+        for(let i = 10; i >= 0; i--) {
+            const r = Math.max(W, H) * 0.8 * (i / 10);
+            const c = i === 10 ? 0x020a10 : i > 6 ? 0x051018 : 0x0a1824;
+            bg.circle(cx, cy, r).fill({ color: c, alpha: 1 });
+        }
+        this._blitzBg.addChild(bg);
+
+        // Grid cian tenue
+        const grid = new PIXI.Graphics();
+        const step = 50;
+        for(let x = 0; x <= W; x += step) {
+            grid.moveTo(x, 0).lineTo(x, H).stroke({ color: 0x06b6d4, width: 1, alpha: 0.05 });
+        }
+        for(let y = 0; y <= H; y += step) {
+            grid.moveTo(0, y).lineTo(W, y).stroke({ color: 0x06b6d4, width: 1, alpha: 0.05 });
+        }
+        this._blitzBg.addChild(grid);
+
+        // Estrellas
+        this._blitzStarArr = spawnStarfield(this._blitzStars, W, H, 7000, 0x67e8f9);
+
+        // Bloom
+        const bloom = makeBloom({ threshold: 0.5, bloomScale: 0.75, blur: 5 });
+        if(bloom) stage.filters = [bloom];
+    }
+
+    _spawnBlitzTarget() {
+        if(!this._blitzActive) return;
+        const margin = 50;
+        const W = this._blitzW, H = this._blitzH;
+        const size = 34 + Math.floor(Math.random() * 26);
+        const x = margin + Math.random() * (W - margin * 2);
+        const y = margin + Math.random() * (H - margin * 2);
+        const life = 900 + Math.random() * 600;
+        const color = 0x06b6d4;
+
+        const target = new PIXI.Container();
+        target.x = x; target.y = y;
+        target.eventMode = 'static';
+        target.cursor = 'pointer';
+
+        // Halo
+        const halo = new PIXI.Graphics();
+        halo.circle(0, 0, size * 0.95).fill({ color, alpha: 0.16 });
+        target.addChild(halo);
+
+        // Ring que se encoge
+        const ring = new PIXI.Graphics();
+        ring.circle(0, 0, size * 0.85).stroke({ color, width: 2, alpha: 0.55 });
+        target.addChild(ring);
+        target._ring = ring;
+
+        // Core oscuro con borde cian
+        const core = new PIXI.Graphics();
+        core.circle(0, 0, size * 0.5).fill({ color: 0x050810, alpha: 0.9 });
+        core.circle(0, 0, size * 0.5).stroke({ color, width: 2.5, alpha: 1 });
+        core.filters = [ makeGlow(color, 14, 3) ];
+        target.addChild(core);
+
+        // Punto central
+        const dot = new PIXI.Graphics();
+        dot.circle(0, 0, size * 0.14).fill({ color: 0xe0f7ff });
+        dot.filters = [ makeGlow(0xe0f7ff, 8, 1.5) ];
+        target.addChild(dot);
+
+        // Entrada con bounce
+        target.scale.set(0.2);
+        target.alpha = 0;
+        if(window.gsap) {
+            window.gsap.to(target.scale, { x: 1, y: 1, duration: 0.16, ease: 'back.out(2.2)' });
+            window.gsap.to(target, { alpha: 1, duration: 0.14 });
+        } else {
+            target.scale.set(1); target.alpha = 1;
+        }
+
+        target._born = performance.now();
+        target._lifespan = life;
+        target._size = size;
+        target._color = color;
+
+        target.on('pointerdown', (e) => {
+            e.stopPropagation?.();
+            this._hitBlitzTarget(target);
+        });
+
+        this._blitzTargetsL.addChild(target);
+        this._blitzTargets.push(target);
+    }
+
+    _hitBlitzTarget(target) {
+        if(!target.parent || !this._blitzActive) return;
+        const cx = target.x, cy = target.y;
+
+        spawnParticles(this._blitzPartsL, this._blitzParticles, cx, cy, 0x06b6d4, 14, {
+            maxSpeed: 4.5, minRadius: 2, maxRadius: 4.5, minDecay: 0.02, maxDecay: 0.05,
+        });
+        this._removeBlitzTarget(target);
+
+        this._blitzCombo++;
+        if(this._blitzCombo > this._blitzBestCombo) this._blitzBestCombo = this._blitzCombo;
+        const mult = this._blitzCombo >= 10 ? 3 : this._blitzCombo >= 5 ? 2 : 1;
+        const pts = 10 * mult;
+        this._blitzScore += pts;
+
+        this._spawnBlitzFloater(cx, cy, 0x06b6d4, `+${pts}`);
+        try { this.audio?.playTone(700 + Math.min(this._blitzCombo * 35, 600), 'square', 0.05); } catch(e){}
+
+        // Hitos de combo
+        if(this._blitzCombo === 5 || this._blitzCombo === 10 || this._blitzCombo % 15 === 0) {
+            this._spawnBlitzFloater(cx, cy - 32, 0xfbbf24, `${this._blitzCombo}X COMBO!`);
+            winFlash(this._blitzFrame, { color: '#fbbf24', duration: 300 });
+            if(this._blitzCombo >= 10) {
+                burstConfetti(this._blitzFrame, { count: 40, colors: ['#06b6d4', '#fbbf24', '#ffffff'] });
+            }
+        }
+
+        // Actualizar HUD
+        const scoreEl = document.getElementById('blitz-score');
+        const comboEl = document.getElementById('blitz-combo');
+        if(scoreEl) scoreEl.textContent = this._blitzScore;
+        if(comboEl) {
+            comboEl.textContent = this._blitzCombo;
+            comboEl.style.color = this._blitzCombo >= 10 ? '#ef4444' : this._blitzCombo >= 5 ? '#fbbf24' : '#10b981';
+            comboEl.style.textShadow = `0 0 14px ${comboEl.style.color}`;
+        }
+
+        // Spawnea otro para mantener siempre 3 activos (o más según combo)
+        const targetCount = Math.min(5, 3 + Math.floor(this._blitzCombo / 8));
+        while(this._blitzTargets.length < targetCount) {
+            setTimeout(() => this._spawnBlitzTarget(), 200 + Math.random() * 200);
+            break; // uno por cada hit
+        }
+    }
+
+    _spawnBlitzFloater(x, y, color, text) {
+        if(!this._blitzFxL) return;
+        const f = new PIXI.Text({
+            text,
+            style: {
+                fontFamily: 'Orbitron, monospace',
+                fontSize: 22,
+                fontWeight: '800',
+                fill: color,
+                stroke: { color: 0x000000, width: 3 },
+            },
+        });
+        f.anchor.set(0.5);
+        f.x = x; f.y = y;
+        f._born = performance.now();
+        f._ttl  = 800;
+        f.filters = [ makeGlow(color, 10, 2) ];
+        this._blitzFxL.addChild(f);
+        this._blitzFloaters.push(f);
+    }
+
+    _removeBlitzTarget(target) {
+        this._blitzTargets = this._blitzTargets.filter(t => t !== target);
+        if(target.parent) target.parent.removeChild(target);
+        try { target.destroy({ children: true }); } catch(e){}
+    }
+
+    _blitzTick(ticker) {
+        if(!this._blitzActive || !this._blitzApp) return;
+        const t = (performance.now() - this._blitzT0) * 0.001;
+        const now = performance.now();
+
+        updateStarfield(this._blitzStarArr, t);
+
+        // Targets: ring shrinking + expirar
+        for(let i = this._blitzTargets.length - 1; i >= 0; i--) {
+            const target = this._blitzTargets[i];
+            const elapsed = now - target._born;
+            const prog = Math.min(1, elapsed / target._lifespan);
+            if(prog >= 1) {
+                // Target expiró sin ser tocado = breaks combo
+                const cx = target.x, cy = target.y;
+                this._removeBlitzTarget(target);
+                if(this._blitzCombo > 0) {
+                    this._blitzCombo = 0;
+                    const comboEl = document.getElementById('blitz-combo');
+                    if(comboEl) { comboEl.textContent = '0'; comboEl.style.color = '#10b981'; }
+                    this._spawnBlitzFloater(cx, cy, 0xf97316, 'MISS');
+                }
+                // Respawn para mantener densidad
+                setTimeout(() => this._spawnBlitzTarget(), 150);
+                continue;
+            }
+            if(target._ring) {
+                target._ring.clear();
+                const r = target._size * 0.85 * (1 - prog * 0.75);
+                target._ring.circle(0, 0, r)
+                    .stroke({ color: target._color, width: 2, alpha: 0.4 + (1 - prog) * 0.5 });
+            }
+            // Pulso
+            const pulse = 1 + Math.sin(t * 6 + target._born * 0.001) * 0.05;
+            target.scale.set(pulse);
+        }
+
+        updateParticles(this._blitzParticles);
+
+        // Floaters
+        for(let i = this._blitzFloaters.length - 1; i >= 0; i--) {
+            const f = this._blitzFloaters[i];
+            const age = now - f._born;
+            const p = age / f._ttl;
+            if(p >= 1) {
+                f.destroy();
+                this._blitzFloaters.splice(i, 1);
+                continue;
+            }
+            f.y -= 0.6;
+            f.alpha = 1 - p;
+            f.scale.set(1 + p * 0.2);
+        }
+    }
+
+    _endBlitz() {
+        if(!this._blitzActive) return;
+        this._blitzActive = false;
+        clearInterval(this._blitzInterval);
+        if(this._blitzResizeFn) window.removeEventListener('resize', this._blitzResizeFn);
+        const score = this._blitzScore + this._blitzBestCombo * 20;
+
+        // Destruir app Pixi
+        if(this._blitzApp) {
+            try { this._blitzApp.destroy(true, { children: true, texture: true }); } catch(e){}
+            this._blitzApp = null;
+        }
+
+        try { window.app.addScore(score, Math.floor(score/10)); } catch(e){}
+        if(this.onQuit) this.onQuit(score);
     }
 
     // Probabilidad de fake signal antes del GO
@@ -307,6 +640,16 @@ export class GameReflex {
 
     cleanup() {
         if(this.timeoutId) { clearTimeout(this.timeoutId); this.timeoutId = null; }
+        if(this._blitzInterval) { clearInterval(this._blitzInterval); this._blitzInterval = null; }
+        this._blitzActive = false;
+        if(this._blitzResizeFn) window.removeEventListener('resize', this._blitzResizeFn);
+        if(this._blitzApp) {
+            try { this._blitzApp.destroy(true, { children: true, texture: true }); } catch(e){}
+            this._blitzApp = null;
+        }
+        this._blitzTargets = [];
+        this._blitzParticles = [];
+        this._blitzFloaters  = [];
         try { window.app.audio.setTension(false); } catch(e) {}
         try { window.app.combo?.end(); } catch(e) {}
         document.body.classList.remove('shake-screen');

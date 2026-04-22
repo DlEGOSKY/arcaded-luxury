@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js';
+import { mountGameFrame, unmountGameFrame } from '../systems/pixi-stage.js';
 
 export class VaultCrackerGame {
     // NOTA: onQuit es el Smart Callback
@@ -148,6 +149,10 @@ export class VaultCrackerGame {
     }
 
     start() {
+        try {
+            const c = this.difficulty === 'TIMED' ? '#ef4444' : this.digits >= 6 ? '#a855f7' : '#fbbf24';
+            this._frame = mountGameFrame({ color: c });
+        } catch(e) {}
         this.isRunning = true;
         this.score = 0;
         this.attempts = 0;
@@ -419,6 +424,7 @@ export class VaultCrackerGame {
     cleanup() {
         this.isRunning = false;
         this._paused = true;
+        try { unmountGameFrame(); } catch(e) {}
         if (this._attemptInt) { clearInterval(this._attemptInt); this._attemptInt = null; }
     }
     pause() {

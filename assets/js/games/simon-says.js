@@ -1,4 +1,8 @@
 import { CONFIG } from '../config.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
 
 // Juego #28 — Simon Says: secuencias de color en tiempo real
 // Distinto a Pattern Rush porque: secuencia se presenta en tiempo real (no simultánea),
@@ -104,7 +108,7 @@ export class SimonSaysGame {
         this.sequence = [];
         this.speed    = mode === 'SPEED' ? 700 : 900;
         this.active   = false;
-        // Reset nuevas mecánicas
+        this._shellBuilt = false;
         this.lives = mode === 'RANDOM' ? 1 : 3;
         this.maxLives = this.lives;
         this.streak = 0; this.maxStreak = 0; this.maxRound = 0;
@@ -112,6 +116,27 @@ export class SimonSaysGame {
         try { this.canvas.setMood('CYAN'); } catch(e) {}
         this.render();
         this._schedule(() => this.nextRound(), 600);
+    }
+
+    _buildShell() {
+        const modeColor = this.mode === 'SPEED' ? '#ef4444' : this.mode === 'RANDOM' ? '#a855f7' : '#06b6d4';
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'SIMON', subtitle: 'SAYS', titleColor: '#06b6d4', subColor: '#fbbf24' })}
+                ${hudStat({ label: 'PUNTOS', id: 'sm-score-hud', color: '#fbbf24', value: '0', minWidth: 70 })}
+                ${hudStat({ label: 'RONDA',  id: 'sm-round-hud', color: '#10b981', value: '0', minWidth: 60 })}
+                ${hudStat({ label: 'VIDAS',  id: 'sm-lives-hud', color: '#ec4899', value: String(this.maxLives), minWidth: 60 })}
+            </div>
+            ${hudMode({ mode: this.mode, modeColor, hint: 'NEURAL SEQUENCE' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer, hudHTML,
+            frameColor: `${modeColor}88`, cornerColor: modeColor,
+            domOnly: true, maxWidth: 560,
+        });
+        this._frame = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
     }
 
     _schedule(fn, ms) {
@@ -141,20 +166,19 @@ export class SimonSaysGame {
             ? `<div class="sm-streak-chip show">RACHA ×${this.streak} · BONUS ×${streakMulti}</div>`
             : '<div class="sm-streak-chip"></div>';
 
-        this.uiContainer.innerHTML = `
-        <div class="sm-root">
-            <div class="sm-header">
-                <div class="sm-stat"><div class="sm-stat-val" id="sm-score">${this.score}</div><div class="sm-stat-lbl">PUNTOS</div></div>
-                <div class="sm-stat"><div class="sm-stat-val" style="color:#10b981;">${this.round}</div><div class="sm-stat-lbl">RONDA</div></div>
-                <div class="sm-stat"><div class="sm-lives" id="sm-lives">${heartsHTML}</div><div class="sm-stat-lbl">VIDAS</div></div>
-                <div class="sm-stat"><div class="sm-stat-val" style="color:#334155;">${this.sequence.length}</div><div class="sm-stat-lbl">SECUENCIA</div></div>
-            </div>
+        if(!this._shellBuilt) this._buildShell();
+        // Actualizar HUD externos
+        const scoreEl = document.getElementById('sm-score-hud'); if(scoreEl) scoreEl.textContent = this.score;
+        const roundEl = document.getElementById('sm-round-hud'); if(roundEl) roundEl.textContent = this.round;
+        const livesHudEl = document.getElementById('sm-lives-hud'); if(livesHudEl) livesHudEl.textContent = this.lives;
+
+        this._content.innerHTML = `
             <div class="sm-phase" id="sm-phase">${phase}</div>
             <div class="sm-board">${cells}</div>
             ${streakChip}
             <div class="sm-msg" id="sm-msg">Memoriza la secuencia y repítela</div>
             <button class="sm-pwr${this.replayAvailable<=0?' used':''}" id="sm-replay">REPLAY <span class="cnt">·${this.replayAvailable}</span> <span class="cnt">$20</span></button>
-        </div>`;
+        `;
         const rb = document.getElementById('sm-replay');
         if (rb) rb.onclick = () => this.activateReplay();
         window.simonGame = this;
@@ -241,6 +265,10 @@ export class SimonSaysGame {
             this.lives--;
             this.streak = 0;
             try { this.audio.playLose(); } catch(e) {}
+            screenShake(this._frame, { strength: 10, count: 5 });
+            winFlash(this._frame, { color: '#ef4444', duration: 350 });
+            const livesHudEl = document.getElementById('sm-lives-hud');
+            if(livesHudEl) livesHudEl.textContent = this.lives;
             // Update hearts
             const livesEl = document.getElementById('sm-lives');
             if (livesEl) {
@@ -277,6 +305,15 @@ export class SimonSaysGame {
             const streakTxt = streakMulti > 1 ? ` ×${streakMulti}` : '';
             if(msg) { msg.style.color = '#10b981'; msg.textContent = `¡CORRECTO! +${pts}${streakTxt}`; }
             try { this.audio.playWin(3); } catch(e) {}
+            winFlash(this._frame, { color: streakMulti >= 2 ? '#fbbf24' : '#10b981', duration: 280 });
+            if(this.streak === 5 || this.streak === 10) {
+                burstConfetti(this._frame, { count: this.streak >= 10 ? 60 : 40, colors: ['#06b6d4', '#fbbf24', '#10b981', '#ffffff'] });
+            }
+            // Actualizar score HUD
+            const scoreHudEl = document.getElementById('sm-score-hud');
+            if(scoreHudEl) scoreHudEl.textContent = this.score;
+            const roundHudEl = document.getElementById('sm-round-hud');
+            if(roundHudEl) roundHudEl.textContent = this.round;
             // Tensión a partir de secuencia larga
             if(this.sequence.length >= 8) { try { this.audio.setTension(true); } catch(e) {} }
             this._schedule(() => this.nextRound(), 1000);

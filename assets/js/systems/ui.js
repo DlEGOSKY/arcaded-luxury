@@ -61,6 +61,26 @@ export function setLobbyFilter(app, cat, btn) {
     renderMenu(app);
 }
 
+export function setLobbySearch(app, query) {
+    app.lobbySearch = (query || '').trim().toLowerCase();
+    const clearBtn = document.getElementById('lsb-clear');
+    const kbdHint  = document.querySelector('.lsb-kbd');
+    if(clearBtn) clearBtn.style.opacity = app.lobbySearch ? '1' : '0';
+    if(kbdHint)  kbdHint.style.opacity  = app.lobbySearch ? '0' : '';
+    renderMenu(app);
+}
+
+export function clearLobbySearch(app) {
+    app.lobbySearch = '';
+    const input = document.getElementById('lobby-search');
+    if(input) input.value = '';
+    const clearBtn = document.getElementById('lsb-clear');
+    const kbdHint  = document.querySelector('.lsb-kbd');
+    if(clearBtn) clearBtn.style.opacity = '0';
+    if(kbdHint)  kbdHint.style.opacity  = '';
+    renderMenu(app);
+}
+
 // -------------------------------------------------------------
 // BANNER DE RECOMENDACION EN EL LOBBY
 // -------------------------------------------------------------
@@ -131,12 +151,37 @@ export function renderMenu(app) {
     renderRecommendation(app);
 
     const filter = app.activeFilter || 'ALL';
+    const search = (app.lobbySearch || '').toLowerCase();
 
-    container.innerHTML = CONFIG.GAMES_LIST.filter(g => {
-        if(!g.id || g.unlockLevel) return true; // Siempre incluir bloqueados visualmente
-        if(filter === 'FAVS') return (app.favorites || []).includes(g.id);
-        return filter === 'ALL' || g.cat === filter;
-    }).map(g => renderCard(app, g)).join('');
+    const filtered = CONFIG.GAMES_LIST.filter(g => {
+        if(!g.id || g.unlockLevel) return !search; // ocultar bloqueados en búsqueda
+        const catOk = filter === 'FAVS'
+            ? (app.favorites || []).includes(g.id)
+            : filter === 'ALL' || g.cat === filter;
+        if(!catOk) return false;
+        if(!search) return true;
+        return g.name.toLowerCase().includes(search)
+            || (g.desc || '').toLowerCase().includes(search)
+            || (g.cat || '').toLowerCase().includes(search);
+    });
+
+    container.innerHTML = filtered.map(g => renderCard(app, g)).join('');
+
+    // Nota: no animar aquí. El cascadeIn del changeState(MENU) se encarga
+    // de la entrada al lobby. Animar en cada renderMenu competía con él y
+    // dejaba cards en opacity:0.
+
+    // Actualizar contador
+    const countEl = document.getElementById('lobby-count');
+    if(countEl) {
+        if(search) {
+            countEl.textContent = `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''}`;
+            countEl.style.opacity = '1';
+        } else {
+            countEl.textContent = '';
+            countEl.style.opacity = '0';
+        }
+    }
 }
 
 function renderCard(app, g) {
@@ -164,10 +209,17 @@ function renderCard(app, g) {
     const isFav   = favs.includes(g.id);
     const favTip  = isFav ? 'Quitar de favoritos' : 'Añadir a favoritos';
 
+    const NEW_GAMES = ['speed-tap', 'neon-maze'];
+    const isNew  = NEW_GAMES.includes(g.id) && score === 0;
+    const dailyTask = (app.daily?.tasks || []).find(t => t.gameId === g.id && !t.done);
+    const isChallenge = app.daily?.challenge?.gameId === g.id && !app.daily?.challenge?.done;
+
     return `
-        <div class="game-card-v2" data-game-id="${g.id}" tabindex="0"
+        <div class="game-card-v2${isNew ? ' gcv2-new' : ''}" data-game-id="${g.id}" tabindex="0"
              role="button" aria-label="${g.name} · ${g.desc}"
              style="border-color:${color}25; --gc:${color};">
+            ${isNew ? `<span class="gcv2-new-badge">NUEVO</span>` : ''}
+            ${isChallenge ? `<span class="gcv2-challenge-badge"><i class="fa-solid fa-fire-flame-curved"></i> RETO</span>` : ''}
             <button class="gcv2-fav ${isFav ? 'active' : ''}" data-id="${g.id}"
                     onclick="event.stopPropagation(); window.app.toggleFavorite('${g.id}',event)"
                     title="${favTip}" aria-label="${favTip}">
@@ -186,7 +238,10 @@ function renderCard(app, g) {
             </div>
             <div class="gcv2-footer">
                 <div class="gcv2-score">REC <span>${score > 0 ? score.toLocaleString() : '—'}</span></div>
-                <div class="gcv2-rank" style="background:${rankColor}20; color:${rankColor};">${rank}</div>
+                <div style="display:flex;gap:4px;align-items:center;">
+                    ${dailyTask ? `<span style="font-size:0.5rem;color:#f97316;font-family:monospace;letter-spacing:1px;"><i class="fa-solid fa-calendar-check"></i> MISIÓN</span>` : ''}
+                    <div class="gcv2-rank" style="background:${rankColor}20; color:${rankColor};">${rank}</div>
+                </div>
             </div>
         </div>`;
 }
@@ -256,6 +311,31 @@ export function updateUI(app) {
             }
         } else if(existing) {
             existing.remove();
+        }
+    }
+
+    // Badge de challenge diario pendiente en btn-daily
+    const dBtn = get('btn-daily');
+    if(dBtn) {
+        const existingDot = dBtn.querySelector('.nav-daily-dot');
+        const allDone  = (app.daily?.tasks || []).filter(t => t.done).length === (app.daily?.tasks || []).length
+                      && (app.daily?.tasks || []).length > 0;
+        const hasClaim = (allDone && !app.daily?.claimed) || (app.daily?.challenge?.done && !app.daily?.challengeClaimed);
+        const hasStreak = (app.daily?.streak?.count || 0) > 0;
+        const dotColor = hasClaim ? '#f97316' : hasStreak ? '#fbbf24' : null;
+        if(dotColor) {
+            if(!existingDot) {
+                const dot = document.createElement('span');
+                dot.className = 'nav-daily-dot';
+                dot.style.cssText = `position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:${dotColor};box-shadow:0 0 6px ${dotColor};animation:pulse-dot 1.5s ease-in-out infinite;`;
+                dBtn.style.position = 'relative';
+                dBtn.appendChild(dot);
+            } else {
+                existingDot.style.background = dotColor;
+                existingDot.style.boxShadow = `0 0 6px ${dotColor}`;
+            }
+        } else if(existingDot) {
+            existingDot.remove();
         }
     }
 }

@@ -100,7 +100,9 @@ export const CONFIG = {
         { id: 'simon-says',    name:'Simon Says',    icon:'fa-solid fa-circle-play',  color:'MEMORY', desc:'Protocolo Cromático',   cat:'MEMORIA'  },
         { id: 'pattern-rush',  name:'Pattern Rush',  icon:'fa-solid fa-border-all',   color:'MEMORY', desc:'Protocolo Visual',      cat:'MEMORIA'  },
         { id: 'reaction-chain',name:'Reaction Chain', icon:'fa-solid fa-link',         color:'REFLEX', desc:'Protocolo de Cadena',   cat:'REFLEJOS' },
-        { id: 'cipher-decode',name: 'Cipher Decode',icon: 'fa-solid fa-lock',                    color: 'VAULT',  desc: 'Descifra el Mensaje',                       cat: 'MENTAL' }
+        { id: 'cipher-decode',name: 'Cipher Decode',icon: 'fa-solid fa-lock',                    color: 'VAULT',  desc: 'Descifra el Mensaje',                       cat: 'MENTAL' },
+        { id: 'speed-tap',    name: 'Speed Tap',    icon: 'fa-solid fa-hand-pointer',             color: 'REFLEX', desc: 'Tapping de Precisión',                      cat: 'REFLEJOS' },
+        { id: 'neon-maze',    name: 'Neon Maze',    icon: 'fa-solid fa-route',                    color: 'CYAN',   desc: 'Laberinto Procedural',                      cat: 'MENTAL' }
     ],
 
     GAME_INFO: {
@@ -131,7 +133,9 @@ export const CONFIG = {
         'simon-says':     { desc: 'Repite la secuencia de colores.', mech: 'Observa la secuencia que se ilumina y repítela en el mismo orden.', obj: 'Llegar lo más lejos posible.', diff: 'Memoria.' },
         'pattern-rush':   { desc: 'Memoriza y repite el patrón de colores.', mech: 'Observa qué celdas se iluminan y en qué orden, luego repite.', obj: 'Memoria visual y velocidad.', diff: 'Memoria.' },
         'reaction-chain': { desc: 'Toca los nodos en orden.', mech: 'Los nodos se numera 1-N, tócalos en ese orden antes de que se acabe el tiempo.', obj: 'Velocidad y memoria.', diff: 'Reflejos.' },
-        'cipher-decode': { desc: 'Descifra mensajes encriptados.', mech: 'Selecciona el carácter correcto para cada símbolo.', obj: 'Velocidad y precisión.', diff: 'Mental.' }
+        'cipher-decode': { desc: 'Descifra mensajes encriptados.', mech: 'Selecciona el carácter correcto para cada símbolo.', obj: 'Velocidad y precisión.', diff: 'Mental.' },
+        'speed-tap':  { desc: 'Reflejos de precisión.', mech: 'Toca targets verdes, ignora los rojos. Combos multiplican puntos.', obj: 'Máximo score en 30s.', diff: 'Velocidad.' },
+        'neon-maze':  { desc: 'Laberinto procedural.', mech: 'WASD o flechas para moverte. Llega a la salida dorada.', obj: 'Completar en mínimos movimientos.', diff: 'Orientación.' }
     },
 
     DAILY_TARGETS: {
@@ -139,7 +143,8 @@ export const CONFIG = {
         'hyper-reflex': 400, 'spam-click': 30, 'neon-sniper': 50, 'orbit-lock': 40, 'memory-flash': 45,
         'vault-cracker': 1, 'phase-shifter': 50, 'math-rush': 50, 'color-trap': 10, 'holo-match': 1,
         'void-dodger': 15.0, 'glitch-hunt': 5, 'orbit-tracker': 20.0, 'cyber-typer': 500, 'cyber-pong': 5,
-        'snake-plus': 30, 'cipher-decode': 50, 'word-rush': 40
+        'snake-plus': 30, 'cipher-decode': 50, 'word-rush': 40,
+        'speed-tap': 200, 'neon-maze': 500
     },
 
     SHOP: [
@@ -516,6 +521,12 @@ export const CONFIG = {
             const inv = s.inventory||[];
             return inv.includes('t_dos622') && inv.includes('t_ipod') && inv.includes('t_n64');
         }, icon: '<i class="fa-solid fa-clock-rotate-left"></i>' },
+
+        // ── Logros Daily Challenge System ──
+        { id: 'daily_challenger', name: 'Challenger',     desc: 'Completa tu primer Desafío del Día',  check: s => (s.challengesCompleted||0) >= 1,  icon: '<i class="fa-solid fa-fire"></i>' },
+        { id: 'streak_fire',      name: 'En Llamas',      desc: 'Mantén una racha de 7 días seguidos', check: (s, app) => (app?.daily?.streak?.count||0) >= 7, icon: '<i class="fa-solid fa-fire-flame-curved"></i>' },
+        { id: 'streak_legend',    name: 'Invicto',        desc: 'Racha de 30 días consecutivos',       check: (s, app) => (app?.daily?.streak?.count||0) >= 30, icon: '<i class="fa-solid fa-crown"></i>' },
+        { id: 'protocol_master',  name: 'Maestro del Protocolo', desc: 'Completa el protocolo diario 30 veces', check: s => (s.dailyCompleted||0) >= 30, icon: '<i class="fa-solid fa-calendar-check"></i>' },
     ],
 
     RANKS: [

@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js';
 import { showGameLoader, hideGameLoader } from '../game-loader.js';
+import { mountGameFrame, unmountGameFrame } from '../systems/pixi-stage.js';
 
 export class OrbitLockGame {
     constructor(canvas, audio, onQuit) {
@@ -115,6 +116,10 @@ export class OrbitLockGame {
     }
 
     async start() {
+        try {
+            const c = this.mode === 'BLITZ' ? '#ef4444' : this.mode === 'REVERSE' ? '#a855f7' : '#8b5cf6';
+            this._frame = mountGameFrame({ color: c });
+        } catch(e) {}
         this.isRunning = true;
         this.score = 0; this.level = 1; this.combo = 0;
         this.normalSpeed = this.mode==='BLITZ' ? 0.08 : 0.05;
@@ -203,6 +208,7 @@ export class OrbitLockGame {
 
     cleanup() {
         this.isRunning = false;
+        try { unmountGameFrame(); } catch(e) {}
         if(this.animationId){ cancelAnimationFrame(this.animationId); this.animationId=null; }
         if(this.slowMoTimer) { clearTimeout(this.slowMoTimer); this.slowMoTimer = null; }
         if(this._reverseFlipTimer) { clearTimeout(this._reverseFlipTimer); this._reverseFlipTimer = null; }

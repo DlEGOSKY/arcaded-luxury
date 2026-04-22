@@ -1,4 +1,8 @@
 import { CONFIG } from '../config.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
 
 export class MemoryFlashGame {
     // NOTA: onQuit es el Smart Callback
@@ -119,6 +123,7 @@ export class MemoryFlashGame {
         document.getElementById('val-credits').innerText = window.app.credits;
         try { this.audio.playBuy(); } catch(e) {}
         this.mode = mode;
+        this._shellBuilt = false;
         if (this.mode === 'EVOLUTION' || this.mode === 'NIGHTMARE') { this.gridSize = 2; } 
         else { this.gridSize = 3; }
         this.renderGame();
@@ -126,28 +131,47 @@ export class MemoryFlashGame {
     }
 
     // ... (renderGame, start, nextRound, playSequence, handleInput, playTone, setStatus, wait, SON IGUALES) ...
+    _buildShell() {
+        let modeColor = '#06b6d4';
+        if(this.mode === 'EVOLUTION') modeColor = '#fbbf24';
+        if(this.mode === 'NIGHTMARE') modeColor = '#ef4444';
+        if(this.mode === 'REVERSE')   modeColor = '#f43f5e';
+        if(this.mode === 'CHAOS')     modeColor = '#a855f7';
+
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'MEMORY', subtitle: 'FLASH', titleColor: '#06b6d4', subColor: '#fbbf24' })}
+                ${hudStat({ label: 'NIVEL', id: 'mem-lvl', color: modeColor, value: '1', minWidth: 60 })}
+                ${hudStat({ label: 'SCORE', id: 'mem-score', color: '#22c55e', value: '0', minWidth: 70 })}
+            </div>
+            ${hudMode({ mode: this.mode, modeColor, hint: 'NEURAL PATTERN' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer,
+            hudHTML,
+            frameColor: `${modeColor}88`,
+            cornerColor: modeColor,
+            domOnly: true,
+            maxWidth: 560,
+        });
+        this._frame = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
+    }
+
     renderGame() {
-        let label = this.mode;
-        let color = "#06b6d4";
-        let iconHtml = '<i class="fa-solid fa-microchip"></i>';
-        if(this.mode === 'EVOLUTION') { label = "EVOLUCIÓN"; color = "#fbbf24"; iconHtml = '<i class="fa-solid fa-dna"></i>'; }
-        if(this.mode === 'NIGHTMARE') { label = "NIGHTMARE"; color = "#ef4444"; iconHtml = '<i class="fa-solid fa-skull"></i>'; }
-        if(this.mode === 'REVERSE') { label = "BACKTRACE"; color = "#f43f5e"; iconHtml = '<i class="fa-solid fa-rotate-left"></i>'; }
-        if(this.mode === 'CHAOS') { label = "CAOS"; color = "#a855f7"; iconHtml = '<i class="fa-solid fa-shuffle"></i>'; }
+        if(!this._shellBuilt) this._buildShell();
+
         const cellSize = this.gridSize === 2 ? 100 : (this.gridSize === 3 ? 80 : 60);
-        
-        this.uiContainer.innerHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center; width:100%;">
-                <div style="display:flex; gap:10px; align-items:center; color:${color}; margin-bottom:10px; border:1px solid ${color}; padding:5px 15px; border-radius:20px; background:rgba(0,0,0,0.5);">
-                    ${iconHtml} <span style="font-family:var(--font-display); letter-spacing:2px;">${label}</span>
-                </div>
+
+        this._content.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; width:100%;gap:14px;">
                 <div class="turn-indicator" id="turn-msg">Iniciando...</div>
                 <div class="pattern-grid grid-upgrade-anim" id="p-grid" style="grid-template-columns: repeat(${this.gridSize}, 1fr); width: fit-content;">
                     ${Array(this.gridSize * this.gridSize).fill(0).map((_, i) => `<div class="pattern-cell" data-id="${i}" style="width:${cellSize}px; height:${cellSize}px;"></div>`).join('')}
                 </div>
-                <div style="margin-top:30px; font-family:monospace; color:#94a3b8;">NIVEL: <span id="mem-lvl" style="color:#fff; font-weight:bold;">1</span></div>
             </div>`;
-        const cells = document.querySelectorAll('.pattern-cell');
+        const cells = this._content.querySelectorAll('.pattern-cell');
         cells.forEach(cell => {
             cell.addEventListener('mousedown', (e) => this.handleInput(e));
             cell.addEventListener('touchstart', (e) => { e.preventDefault(); this.handleInput(e); });
@@ -223,10 +247,21 @@ export class MemoryFlashGame {
         if (id === expectedId) {
             this.playerInput.push(id);
             if (this.playerInput.length === this.sequence.length) {
-                this.isPlayerTurn = false; document.getElementById('p-grid').classList.remove('active'); this.setStatus("OK", "#10b981"); setTimeout(() => this.nextRound(), 800);
+                this.isPlayerTurn = false;
+                document.getElementById('p-grid').classList.remove('active');
+                this.setStatus("OK", "#10b981");
+                winFlash(this._frame, { color: '#10b981', duration: 280 });
+                if(this.level >= 5 && this.level % 3 === 0) {
+                    burstConfetti(this._frame, { count: 40, colors: ['#06b6d4', '#10b981', '#ffffff'] });
+                }
+                const lvlEl = document.getElementById('mem-lvl');
+                if(lvlEl) lvlEl.textContent = this.level;
+                setTimeout(() => this.nextRound(), 800);
             }
         } else {
             cell.classList.remove('lit'); cell.classList.add('wrong'); this.setStatus("ERROR DE DATOS", "#ef4444");
+            screenShake(this._frame, { strength: 10, count: 5 });
+            winFlash(this._frame, { color: '#ef4444', duration: 400 });
             this.gameOver();
         }
     }

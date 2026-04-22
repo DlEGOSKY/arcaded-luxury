@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js';
+import { mountGameFrame, unmountGameFrame } from '../systems/pixi-stage.js';
 
 const WORD_BANKS = {
     hacking: ["SYSTEM","HACK","ROOT","ADMIN","ACCESS","PROXY","SERVER","NODE","BREACH","VIRUS","WORM","TROJAN","FIREWALL","ENCRYPT","MALWARE","KERNEL","SHELL","SUDO","BASH","EXPLOIT","PAYLOAD","BYPASS","INJECT","TOKEN","CIPHER","RANSOM","BOTNET","SPOOF","PHISH","DDOS"],
@@ -148,6 +149,10 @@ export class CyberTyperGame {
     }
 
     start() {
+        try {
+            const c = this.mode === 'BLITZ' ? '#ef4444' : this.mode === 'BOSS' ? '#a855f7' : '#10b981';
+            this._frame = mountGameFrame({ color: c });
+        } catch(e) {}
         this.isRunning = true; this.score = 0; this.level = 1; this.combo = 0;
         this.activeWords = []; this.inputBuffer = '';
         this.spawnRate = this.mode==='BLITZ'?1200:this.mode==='BOSS'?3000:2000;
@@ -395,6 +400,7 @@ export class CyberTyperGame {
 
     cleanup() {
         this.isRunning = false;
+        try { unmountGameFrame(); } catch(e) {}
         if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId = null; }
         if(this.slowTimer) { clearTimeout(this.slowTimer); this.slowTimer = null; }
         document.body.classList.remove('ct2-slow');

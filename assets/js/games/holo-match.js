@@ -1,4 +1,8 @@
 import { CONFIG } from '../config.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
 
 export class HoloMatchGame {
     // NOTA: 'onQuit' ahora es inteligente
@@ -126,6 +130,7 @@ export class HoloMatchGame {
 
     start() {
         this.isRunning = true;
+        this._shellBuilt = false;
         this.matchesFound = 0;
         this.score = 0;
         this.combo = 0;
@@ -163,14 +168,38 @@ export class HoloMatchGame {
         this.cards = deck.map((val, i) => ({ id: i, val: val, isFlipped: false, isMatched: false, isVirus: val === 'VIRUS' }));
     }
 
-    renderGame() {
-        // Colores únicos por icono para distinguirlos visualmente
-        const iconColors = ['#3b82f6','#fbbf24','#22c55e','#a855f7','#ef4444','#06b6d4','#f97316','#10b981','#ec4899','#84cc16','#f59e0b','#6366f1','#e11d48','#0ea5e9','#8b5cf6'];
-        const timeColor = this.mode === 'RUSH' ? '#eab308' : '#3b82f6';
-        const cardSize = (this.cols === 4 && this.rows <= 3) ? '90px' : '78px';
+    _buildShell() {
+        const modeColor = this.mode === 'VIRUS' ? '#ef4444' : this.mode === 'RUSH' ? '#eab308' : '#3b82f6';
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'HOLO', subtitle: 'MATCH', titleColor: '#3b82f6', subColor: '#fbbf24' })}
+                ${hudStat({ label: 'TIEMPO', id: 'hm-time', color: modeColor, value: this.timeLeft.toFixed(1), minWidth: 80 })}
+                ${hudStat({ label: 'COMBO',  id: 'hm-combo', color: '#fbbf24', value: '×1', minWidth: 70 })}
+                ${hudStat({ label: 'SCORE',  id: 'hm-score', color: '#22c55e', value: '0', minWidth: 70 })}
+            </div>
+            ${hudMode({ mode: this.mode, modeColor, hint: 'MATCH PAIRS' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer,
+            hudHTML,
+            frameColor: `${modeColor}88`,
+            cornerColor: modeColor,
+            domOnly: true,
+            maxWidth: 680,
+        });
+        this._frame   = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
+    }
 
-        let gridHTML = `<div class="holo-grid" style="grid-template-columns:repeat(${this.cols},${cardSize});gap:10px;">`;
-        this.cards.forEach((card, idx) => {
+    renderGame() {
+        if(!this._shellBuilt) this._buildShell();
+
+        const iconColors = ['#3b82f6','#fbbf24','#22c55e','#a855f7','#ef4444','#06b6d4','#f97316','#10b981','#ec4899','#84cc16','#f59e0b','#6366f1','#e11d48','#0ea5e9','#8b5cf6'];
+        const cardSize = (this.cols === 4 && this.rows <= 3) ? '92px' : '78px';
+
+        let gridHTML = `<div class="holo-grid" style="grid-template-columns:repeat(${this.cols},${cardSize});gap:12px;margin-top:0;">`;
+        this.cards.forEach((card) => {
             const iconIdx = this.emojis.indexOf(card.val);
             const color = card.isVirus ? '#ef4444' : (iconColors[iconIdx % iconColors.length] || '#3b82f6');
             const icon = card.isVirus ? 'fa-biohazard' : card.val;
@@ -187,28 +216,19 @@ export class HoloMatchGame {
         });
         gridHTML += '</div>';
 
-        this.uiContainer.innerHTML = `
-        <div style="display:flex;flex-direction:column;align-items:center;width:100%;height:100%;justify-content:center;gap:16px;padding:16px;box-sizing:border-box;">
-            <div class="hm-hud-container">
-                <div class="hm-stat-capsule" style="border-color:${timeColor}">
-                    <span class="hm-label">TIEMPO</span>
-                    <span class="hm-value" id="hm-time" style="color:${timeColor}">${this.timeLeft.toFixed(1)}</span>
-                </div>
-                <div class="hm-stat-capsule" style="border-color:#fbbf24">
-                    <span class="hm-label">COMBO</span>
-                    <span class="hm-value" id="hm-combo" style="color:#fbbf24">×1</span>
+        this._content.innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;">
+                ${gridHTML}
+                <div class="hm-pwrs" style="position:static;transform:none;margin-top:4px;">
+                    <button class="hm-pwr" id="hm-peek">PEEK <span class="cnt">·${this.peekAvailable}</span> <span class="cnt">$25</span></button>
+                    <button class="hm-pwr" id="hm-freeze">FREEZE <span class="cnt">$20</span></button>
                 </div>
             </div>
-            ${gridHTML}
-            <div class="hm-pwrs">
-                <button class="hm-pwr" id="hm-peek">PEEK <span class="cnt">·${this.peekAvailable}</span> <span class="cnt">$25</span></button>
-                <button class="hm-pwr" id="hm-freeze">FREEZE <span class="cnt">$20</span></button>
-            </div>
-        </div>`;
+        `;
         const pk = document.getElementById('hm-peek');
-        if (pk) pk.onclick = () => this.activatePeek();
+        if(pk) pk.onclick = () => this.activatePeek();
         const fz = document.getElementById('hm-freeze');
-        if (fz) fz.onclick = () => this.activateFreeze();
+        if(fz) fz.onclick = () => this.activateFreeze();
     }
 
     activatePeek() {
@@ -309,7 +329,6 @@ export class HoloMatchGame {
             this.audio.playWin(1);
             this.combo++;
             if (this.combo > this.maxCombo) this.maxCombo = this.combo;
-            // Fast match bonus: si el match es <2s después del anterior
             const now = Date.now();
             const isFast = this.lastMatchTime > 0 && (now - this.lastMatchTime) < 2000;
             if (isFast) this.fastMatches++;
@@ -320,6 +339,16 @@ export class HoloMatchGame {
             this.score += points;
             const globalScore = document.getElementById('ui-score');
             if(globalScore) globalScore.innerText = this.score;
+            const hmScoreEl = document.getElementById('hm-score');
+            if(hmScoreEl) hmScoreEl.textContent = this.score;
+            // FX: flash en combo, confetti en combos altos
+            if(this.combo >= 3) winFlash(this._frame, { color: '#fbbf24', duration: 250 });
+            if(this.combo === 5 || this.combo === 10) {
+                burstConfetti(this._frame, {
+                    count: this.combo >= 10 ? 60 : 35,
+                    colors: ['#fbbf24', '#3b82f6', '#22c55e', '#ffffff'],
+                });
+            }
             if (this.mode === 'RUSH') { this.timeLeft += 3; window.app.showToast("+3s", "Time Extension", "success"); }
             if (isFast) { try { window.app.showToast('FAST MATCH', `+${fastBonus} bonus`, 'success'); } catch(e){} }
             await new Promise(r => setTimeout(r, 300));
@@ -331,8 +360,9 @@ export class HoloMatchGame {
             if (this.matchesFound === this.totalPairs) this.win();
         } else {
             this.audio.playTone(150, 'sawtooth', 0.1);
-            this.combo = 0; 
+            this.combo = 0;
             this.updateComboUI();
+            screenShake(this._frame, { strength: 6, count: 4 });
             await new Promise(r => setTimeout(r, 800));
             card1.data.isFlipped = false;
             card2.data.isFlipped = false;

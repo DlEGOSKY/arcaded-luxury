@@ -1,4 +1,8 @@
 import { CONFIG } from '../config.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
 
 // Paleta de 6 colores — nombres y hex
 const PALETTE = [
@@ -179,6 +183,7 @@ export class ColorTrapGame {
         this.maxTime  = this.mode==='BLITZ' ? 2.0 : 4.0;
         this.timeLeft = this.maxTime;
         this.lastTime = performance.now();
+        this._shellBuilt = false;  // reconstruir shell al cambiar de partida
         const gs = document.getElementById('ui-score'); if(gs) gs.innerText='0';
         this.nextRound();
         this.loop(performance.now());
@@ -222,7 +227,37 @@ export class ColorTrapGame {
         this.renderUI();
     }
 
+    _buildShell() {
+        const modeColor = this.mode === 'STROOP' ? '#a855f7'
+                        : this.mode === 'SURVIVAL' ? '#ef4444'
+                        : this.mode === 'BLITZ' ? '#22c55e'
+                        : '#fbbf24';
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'COLOR', subtitle: 'TRAP', titleColor: '#fbbf24', subColor: '#a855f7' })}
+                ${hudStat({ label: 'SCORE', id: 'ct-score', color: '#fbbf24', value: '0', minWidth: 70 })}
+                ${hudStat({ label: 'RACHA', id: 'ct-streak', color: '#fb923c', value: '0', minWidth: 60 })}
+                ${this.mode === 'SURVIVAL' ? hudStat({ label: 'VIDAS', id: 'ct-lives-num', color: '#ef4444', value: '3', minWidth: 60 }) : ''}
+            </div>
+            ${hudMode({ mode: this.mode, modeColor, hint: 'STROOP PROTOCOL' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer,
+            hudHTML,
+            frameColor: `${modeColor}88`,
+            cornerColor: modeColor,
+            domOnly: true,
+            maxWidth: 640,
+        });
+        this._root    = shell.root;
+        this._frame   = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
+    }
+
     renderUI() {
+        if(!this._shellBuilt) this._buildShell();
+
         const isColorTarget = this.targetType==='COLOR';
         const instrText = isColorTarget
             ? `SELECCIONA EL COLOR DE <span class="highlight">TINTA</span>`
@@ -230,16 +265,7 @@ export class ColorTrapGame {
         const optCount = this.options.length;
         const cardAccent = isColorTarget ? this.inkColor.hex : this.currentWord.hex;
 
-        this.uiContainer.innerHTML = `
-        <div class="ct-root">
-            <!-- HUD -->
-            <div class="ct-hud">
-                <div class="ct-stat"><div class="ct-stat-lbl">SCORE</div><div class="ct-stat-val" id="ct-score">0</div></div>
-                <div class="ct-stat"><div class="ct-stat-lbl">RACHA</div><div class="ct-stat-val" id="ct-streak" style="color:#fbbf24;">0</div></div>
-                ${this.mode==='SURVIVAL'?`<div class="ct-stat"><div class="ct-stat-lbl">VIDAS</div><div class="ct-lives" id="ct-lives">${'<i class="fa-solid fa-heart ct-life"></i>'.repeat(3)}</div></div>`:``}
-                <div class="ct-stat"><div class="ct-stat-lbl">MODO</div><div class="ct-stat-val" style="font-size:0.68rem;color:#334155;">${this.mode}</div></div>
-            </div>
-
+        this._content.innerHTML = `
             <!-- Carta -->
             <div class="ct-card" style="--ctt:${cardAccent};">
                 <div class="ct-instruction">${instrText}</div>
@@ -249,7 +275,6 @@ export class ColorTrapGame {
                 </div>
             </div>
 
-            <!-- Streak badge — FUERA de la carta -->
             ${this.streak>=3?`<div class="ct-streak-badge show" id="ct-sb"><i class="fa-solid fa-fire"></i> RACHA ×${this.streak}</div>`:'<div id="ct-sb"></div>'}
 
             <!-- Opciones -->
@@ -267,32 +292,39 @@ export class ColorTrapGame {
                 <button class="ct-pwr" id="ct-pwr-freeze">FREEZE <span class="cnt">$20</span></button>
                 <button class="ct-pwr" id="ct-pwr-skip">SKIP <span class="cnt">·${this.skipAvailable}</span> <span class="cnt">$10</span></button>
             </div>
-        </div>`;
+        `;
 
         // Actualizar contadores
         const scoreEl = document.getElementById('ct-score');
-        if(scoreEl) scoreEl.innerText = this.score;
+        if(scoreEl) scoreEl.textContent = this.score;
         const streakEl = document.getElementById('ct-streak');
-        if(streakEl){ streakEl.innerText = this.streak; streakEl.style.color = this.streak>=5?'#ef4444':this.streak>=3?'#f97316':'#fbbf24'; }
+        if(streakEl){
+            streakEl.textContent = this.streak;
+            const col = this.streak>=5 ? '#ef4444' : this.streak>=3 ? '#f97316' : '#fbbf24';
+            streakEl.style.color = col;
+            streakEl.style.textShadow = `0 0 14px ${col}`;
+        }
+        const livesEl = document.getElementById('ct-lives-num');
+        if(livesEl) livesEl.textContent = this.lives;
 
-        // Binds
-        document.querySelectorAll('.ct-btn').forEach(btn => {
+        // Binds opciones
+        this._content.querySelectorAll('.ct-btn').forEach(btn => {
             btn.onclick = (e) => this.handleInput(e.currentTarget.dataset.name, e.currentTarget);
         });
-        // Power-up binds
+        // Power-ups
         const p5 = document.getElementById('ct-pwr-5050');
-        if (p5) {
-            if (this.fiftyAvailable<=0 || this.options.length<=2) p5.classList.add('disabled');
+        if(p5){
+            if(this.fiftyAvailable<=0 || this.options.length<=2) p5.classList.add('disabled');
             p5.onclick = () => this.activateFifty();
         }
         const pf = document.getElementById('ct-pwr-freeze');
-        if (pf) {
-            if (this.freezeAvailable<=0) pf.classList.add('used');
+        if(pf){
+            if(this.freezeAvailable<=0) pf.classList.add('used');
             pf.onclick = () => this.activateFreeze();
         }
         const ps = document.getElementById('ct-pwr-skip');
-        if (ps) {
-            if (this.skipAvailable<=0) ps.classList.add('used');
+        if(ps){
+            if(this.skipAvailable<=0) ps.classList.add('used');
             ps.onclick = () => this.activateSkip();
         }
     }
@@ -348,7 +380,6 @@ export class ColorTrapGame {
         if(!this.isRunning) return;
         const correct = this.targetType==='TEXT' ? this.currentWord.name : this.inkColor.name;
         if(selectedName === correct){
-            // Bonus por responder rápido (>70% del tiempo disponible)
             const fastBonus = this.timeLeft > this.maxTime * 0.7 ? 1 : 0;
             this.score += 1 + fastBonus;
             this.streak++;
@@ -357,6 +388,17 @@ export class ColorTrapGame {
             if(btnEl) btnEl.classList.add('correct');
             try{ this.audio.playWin(this.streak>4?3:1); }catch(e){}
             const gs = document.getElementById('ui-score'); if(gs) gs.innerText = this.score;
+
+            // FX por milestones de racha
+            if(this.streak === 5 || this.streak === 10 || (this.streak > 0 && this.streak % 15 === 0)) {
+                winFlash(this._frame, { color: '#fbbf24', duration: 350 });
+                burstConfetti(this._frame, {
+                    count: this.streak >= 10 ? 60 : 35,
+                    colors: ['#fbbf24', '#a855f7', '#22c55e', '#ffffff'],
+                });
+            } else if(fastBonus) {
+                winFlash(this._frame, { color: '#22c55e', duration: 200 });
+            }
             // Bonus de velocidad por racha
             if(this.streak >= 5) this.maxTime = Math.max(this.mode==='BLITZ'?1.0:1.5, this.maxTime - 0.1);
             setTimeout(()=>this.nextRound(), 120);
@@ -364,11 +406,12 @@ export class ColorTrapGame {
             this.streak = 0;
             if(btnEl) btnEl.classList.add('wrong');
             try{ this.audio.playLose(); }catch(e){}
-            document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'),300);
+            screenShake(this._frame, { strength: 10, count: 5 });
+            winFlash(this._frame, { color: '#ef4444', duration: 300 });
             if(this.mode==='SURVIVAL'){
                 this.lives--;
-                const hearts = document.querySelectorAll('.ct-life');
-                if(hearts[this.lives]) hearts[this.lives].classList.add('lost');
+                const livesEl = document.getElementById('ct-lives-num');
+                if(livesEl) livesEl.textContent = this.lives;
                 if(this.lives<=0){ setTimeout(()=>this.gameOver(),300); return; }
                 setTimeout(()=>this.nextRound(), 300);
             } else {

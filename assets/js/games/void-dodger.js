@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js';
 import { showGameLoader, hideGameLoader } from '../game-loader.js';
+import { mountGameFrame, unmountGameFrame } from '../systems/pixi-stage.js';
 
 export class VoidDodgerGame {
     constructor(canvas, audio, onQuit) {
@@ -111,6 +112,10 @@ export class VoidDodgerGame {
 
     payAndStart(mode) {
         this.mode = mode;
+        try {
+            const c = mode === 'HARDCORE' ? '#ef4444' : mode === 'BOSS' ? '#a855f7' : '#06b6d4';
+            this._frame = mountGameFrame({ color: c });
+        } catch(e) {}
         window.app.credits -= 10;
         document.getElementById('val-credits').innerText = window.app.credits;
         try { this.audio.playBuy(); } catch(e) {}
@@ -606,6 +611,7 @@ export class VoidDodgerGame {
 
     cleanup() {
         this.isRunning = false;
+        try { unmountGameFrame(); } catch(e) {}
         if(this.gameLoopId) { cancelAnimationFrame(this.gameLoopId); this.gameLoopId = null; }
         window.removeEventListener('mousemove', this.handleMove);
         window.removeEventListener('touchmove', this.handleMove);

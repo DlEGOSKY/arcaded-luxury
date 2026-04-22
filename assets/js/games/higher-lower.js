@@ -2,6 +2,10 @@ import { CONFIG } from '../config.js';
 import * as GFX from '../systems/game-fx.js';
 import * as Backdrop from '../systems/game-backdrop.js';
 import { icon } from '../systems/icons.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
 
 // Mapeo de palos a SVG custom (sin Font Awesome, sin Unicode char)
 const SUIT_ICONS = {
@@ -641,10 +645,32 @@ export class HigherLowerGame {
         document.getElementById('val-credits').innerText=window.app.credits;
         try{this.audio.playBuy();}catch(e){}
         this.difficulty=mode;
+        this._shellBuilt = false;
         // Mount backdrop con color segun modo
         const color = mode === 'HARDCORE' ? '#ef4444' : mode === 'BLITZ' ? '#fbbf24' : '#3b82f6';
         try { Backdrop.mount({ color, particles: 'cards', intensity: 1 }); } catch(e) {}
         this.startGameLoop();
+    }
+
+    _buildShell() {
+        const modeColor = this.difficulty === 'HARDCORE' ? '#ef4444' : this.difficulty === 'BLITZ' ? '#fbbf24' : '#3b82f6';
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'HIGH', subtitle: 'LOW', titleColor: '#3b82f6', subColor: '#fbbf24' })}
+                ${hudStat({ label: 'SCORE', id: 'hl-score-hud', color: '#fbbf24', value: '0', minWidth: 90 })}
+                ${hudStat({ label: 'RACHA', id: 'hl-streak-hud', color: '#94a3b8', value: '0', minWidth: 60 })}
+                ${this.difficulty === 'BLITZ' ? hudStat({ label: 'TIEMPO', id: 'hl-timer-hud', color: '#fbbf24', value: '60s', minWidth: 70 }) : ''}
+            </div>
+            ${hudMode({ mode: this.difficulty, modeColor, hint: 'HIGHER / LOWER' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer, hudHTML,
+            frameColor: `${modeColor}88`, cornerColor: modeColor,
+            domOnly: true, maxWidth: 720,
+        });
+        this._frame = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
     }
 
     startGameLoop() {
@@ -692,10 +718,24 @@ export class HigherLowerGame {
             const streakColor = this.isFrenzy ? '#ef4444' : this.streak>=5 ? '#f97316' : this.streak>=3 ? '#fbbf24' : '#94a3b8';
             const scoreAccent = this.isFrenzy ? '#ef4444' : '#3b82f6';
 
-            this.uiContainer.innerHTML = `
-            <div class="hl-root">
-                <!-- HUD -->
-                <div class="hl-hud">
+            if(!this._shellBuilt) this._buildShell();
+            // Update HUD externo
+            const scoreEl = document.getElementById('hl-score-hud'); if(scoreEl) scoreEl.textContent = this.score.toLocaleString();
+            const streakEl = document.getElementById('hl-streak-hud');
+            if(streakEl) {
+                streakEl.textContent = this.streak;
+                streakEl.style.color = streakColor;
+                streakEl.style.textShadow = `0 0 14px ${streakColor}`;
+            }
+            if(this.difficulty === 'BLITZ') {
+                const timerEl = document.getElementById('hl-timer-val');
+                if(timerEl) timerEl.textContent = `${this.blitzTimeLeft}s`;
+            }
+
+            this._content.innerHTML = `
+            <div class="hl-root" style="padding:0;height:auto;">
+                <!-- HUD inline para mantener animaciones específicas del juego -->
+                <div class="hl-hud" style="display:none;">
                     <div class="hl-stat" style="--hl-accent:${scoreAccent};">
                         <div class="hl-stat-label">SCORE</div>
                         <div class="hl-stat-val"><span id="hl-score-val">${this.score.toLocaleString()}</span></div>

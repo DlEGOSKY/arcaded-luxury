@@ -34,7 +34,7 @@ import * as Icons from './systems/icons.js';
 // IMPORTANTE: cada import usa `?v=21` como cache buster. El numero debe
 // coincidir con el de index.html (main.js?v=N). Si cambias codigo de un
 // juego, bump este numero para que el browser recargue el modulo.
-const GV = '21';
+const GV = '42';
 const GAME_LOADERS = {
     'higher-lower':   () => import(`./games/higher-lower.js?v=${GV}`).then(m => m.HigherLowerGame),
     'guess-card':     () => import(`./games/guess-card.js?v=${GV}`).then(m => m.GuessCardGame),
@@ -64,6 +64,8 @@ const GAME_LOADERS = {
     'pattern-rush':   () => import(`./games/pattern-rush.js?v=${GV}`).then(m => m.PatternRushGame),
     'reaction-chain': () => import(`./games/reaction-chain.js?v=${GV}`).then(m => m.ReactionChainGame),
     'word-rush':      () => import(`./games/word-rush.js?v=${GV}`).then(m => m.WordRushGame),
+    'speed-tap':      () => import(`./games/speed-tap.js?v=${GV}`).then(m => m.SpeedTap),
+    'neon-maze':      () => import(`./games/neon-maze.js?v=${GV}`).then(m => m.NeonMaze),
 };
 
 const app = {
@@ -535,8 +537,11 @@ const app = {
 
     // --- UI / LOBBY (delegado a systems/ui.js) ---
     activeFilter: 'ALL',
-    toggleFavorite(gameId, e) { return UI.toggleFavorite(this, gameId, e); },
-    setLobbyFilter(cat, btn)  { return UI.setLobbyFilter(this, cat, btn); },
+    lobbySearch:  '',
+    toggleFavorite(gameId, e)  { return UI.toggleFavorite(this, gameId, e); },
+    setLobbyFilter(cat, btn)   { return UI.setLobbyFilter(this, cat, btn); },
+    setLobbySearch(query)      { return UI.setLobbySearch(this, query); },
+    clearLobbySearch()         { return UI.clearLobbySearch(this); },
 
 
 
@@ -689,6 +694,21 @@ const app = {
                                 setTimeout(()=>this.showToast('¡TODAS LAS MISIONES!','Reclama tu recompensa semanal','purple'),1000);
                             }
                             this.save();
+                        }
+                    } catch(e) {}
+                    // Challenge diario especial
+                    try {
+                        const ch = this.daily.challenge;
+                        if (ch && !ch.done && !this.daily.challengeClaimed && ch.gameId === gId) {
+                            const target = CONFIG.DAILY_TARGETS[gId] || 10;
+                            if (gScore >= target) {
+                                ch.done = true;
+                                this.showToast('¡DESAFÍO DEL DÍA!', `Modo ${ch.mode} superado · Reclama +${ch.rewardCR} CR`, 'gold');
+                                setTimeout(()=>{
+                                    try { this.canvas.explode(window.innerWidth/2, window.innerHeight*0.4, ch.color||'#fbbf24'); } catch(e) {}
+                                }, 300);
+                                this.save();
+                            }
                         }
                     } catch(e) {}
                 }
@@ -1236,7 +1256,8 @@ const app = {
         this.save();
     },
 
-    claimWeekly()          { return Missions.claimWeekly(this); },
+    claimWeekly()           { return Missions.claimWeekly(this); },
+    claimDailyChallenge()   { return Missions.claimDailyChallenge(this); },
 
 
     // ─── SISTEMA DE NOTIFICACIONES (delegado a systems/notifications.js) ───

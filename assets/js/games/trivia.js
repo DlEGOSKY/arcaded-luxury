@@ -2,6 +2,10 @@ import { CONFIG, TRIVIA_DATA } from '../config.js';
 import * as FX from '../systems/game-fx.js';
 import * as Backdrop from '../systems/game-backdrop.js';
 import { icon } from '../systems/icons.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
 
 const TARGET_QUESTIONS = 10;
 const LIVES_START = 3;
@@ -163,9 +167,36 @@ export class TriviaGame {
         this.questionsAnswered = 0;
         this.lives = LIVES_START;
         this.creditsEarned = 0;
-        // Reset power-ups
+        this._shellBuilt = false;
         Object.values(this.powerups).forEach(p => p.used = false);
         this.nextQuestion();
+    }
+
+    _buildShell() {
+        const modeColor = this.mode === 'SPEED' ? '#ef4444'
+                        : this.mode === 'TECH'  ? '#3b82f6'
+                        : this.mode === 'POP'   ? '#a855f7'
+                        : '#06b6d4';
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'NEURAL', subtitle: 'TRIVIA', titleColor: '#06b6d4', subColor: '#fbbf24' })}
+                ${hudStat({ label: 'SCORE',  id: 'triv-score-hud', color: '#22c55e', value: '0', minWidth: 70 })}
+                ${hudStat({ label: 'VIDAS',  id: 'triv-lives-num', color: '#ec4899', value: String(LIVES_START), minWidth: 60 })}
+                ${hudStat({ label: 'PREGUNTA', id: 'triv-qnum', color: '#fbbf24', value: '1', minWidth: 70 })}
+            </div>
+            ${hudMode({ mode: this.mode, modeColor, hint: 'QUIZ PROTOCOL' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer,
+            hudHTML,
+            frameColor: `${modeColor}88`,
+            cornerColor: modeColor,
+            domOnly: true,
+            maxWidth: 720,
+        });
+        this._frame = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
     }
 
     nextQuestion() {
@@ -223,9 +254,16 @@ export class TriviaGame {
     }
 
     render(options) {
-        const livesHtml = Array.from({length: LIVES_START}).map((_, i) =>
-            `<span class="triv-life ${i < LIVES_START - this.lives ? 'lost' : ''}">${icon('heart')}</span>`
-        ).join('');
+        if(!this._shellBuilt) this._buildShell();
+
+        // Actualizar HUD externo
+        const scoreEl = document.getElementById('triv-score-hud');
+        if(scoreEl) scoreEl.textContent = this.score;
+        const livesEl = document.getElementById('triv-lives-num');
+        if(livesEl) livesEl.textContent = this.lives;
+        const qnumEl = document.getElementById('triv-qnum');
+        if(qnumEl) qnumEl.textContent = `${this.questionsAnswered + 1}/${TARGET_QUESTIONS}`;
+
         const puHtml = Object.entries(this.powerups).map(([key, p]) => {
             const used = p.used ? 'used' : '';
             const disabled = this.isProcessing ? 'disabled' : '';
@@ -236,15 +274,7 @@ export class TriviaGame {
             </div>`;
         }).join('');
 
-        this.uiContainer.innerHTML = `
-        <div class="triv-root">
-            <div class="triv-hud">
-                <div class="triv-hud-cell"><div class="triv-hud-cell-lbl">PREGUNTA</div><div class="triv-hud-cell-val">${this.questionsAnswered + 1}<span style="font-size:0.6rem;color:#64748b;margin-left:2px;">/${TARGET_QUESTIONS}</span></div></div>
-                <div class="triv-hud-cell"><div class="triv-hud-cell-lbl">SCORE</div><div class="triv-hud-cell-val" style="color:#22c55e;">${this.score}</div></div>
-                <div class="triv-hud-cell"><div class="triv-hud-cell-lbl">VIDAS</div><div class="triv-hud-cell-val"><span class="triv-lives">${livesHtml}</span></div></div>
-                <div class="triv-hud-cell"><div class="triv-hud-cell-lbl">TIEMPO</div><div class="triv-hud-cell-val" style="color:#06b6d4;">${this.timePerQuestion}s</div></div>
-            </div>
-
+        this._content.innerHTML = `
             <div style="display:flex;justify-content:center;width:100%;">
                 <div class="triv-category">${this.currentQ.c}</div>
             </div>
@@ -262,17 +292,15 @@ export class TriviaGame {
                     <button class="triv-btn" data-idx="${i}" data-correct="${opt === this.currentQ.a ? '1' : '0'}">${opt}</button>
                 `).join('')}
             </div>
-        </div>`;
+        `;
 
-        // Bind answer buttons
-        this.uiContainer.querySelectorAll('.triv-btn').forEach(btn => {
+        this._content.querySelectorAll('.triv-btn').forEach(btn => {
             btn.onclick = (e) => {
                 try { FX.rippleClick(btn, e); } catch(err) {}
                 this.check(btn.innerText, btn);
             };
         });
-        // Bind power-up buttons
-        this.uiContainer.querySelectorAll('[data-pu]').forEach(pu => {
+        this._content.querySelectorAll('[data-pu]').forEach(pu => {
             pu.onclick = (e) => {
                 if (this.isProcessing || this.powerups[pu.dataset.pu]?.used) return;
                 try { FX.rippleClick(pu, e); } catch(err) {}
@@ -280,8 +308,7 @@ export class TriviaGame {
             };
         });
 
-        // Shine sweep en la pregunta al aparecer
-        try { FX.shineSweep(this.uiContainer.querySelector('.triv-q-wrap'), { duration: 0.9, color:'rgba(6,182,212,0.45)' }); } catch(e) {}
+        try { FX.shineSweep(this._content.querySelector('.triv-q-wrap'), { duration: 0.9, color:'rgba(6,182,212,0.45)' }); } catch(e) {}
     }
 
     usePowerup(key) {
@@ -369,6 +396,10 @@ export class TriviaGame {
             try { this.audio.playWin(1); } catch(e) {}
             try { window.app.combo?.hit(); } catch(e) {}
             try { FX.hitFeedback(btn); } catch(e) {}
+            winFlash(this._frame, { color: speedMulti >= 2 ? '#fbbf24' : '#22c55e', duration: 350 });
+            if(speedMulti >= 2) {
+                burstConfetti(this._frame, { count: 45, colors: ['#fbbf24', '#06b6d4', '#22c55e', '#ffffff'] });
+            }
             try {
                 const rect = btn.getBoundingClientRect();
                 if (this.canvas?.explode) this.canvas.explode(rect.left + rect.width/2, rect.top + rect.height/2, CONFIG.COLORS.CYAN || '#06b6d4');
@@ -398,6 +429,8 @@ export class TriviaGame {
             try { window.app.combo?.miss(); } catch(e) {}
             try { FX.missFeedback(btn); } catch(e) {}
             try { FX.screenFlash('#ef4444', 0.12); } catch(e) {}
+            screenShake(this._frame, { strength: 8, count: 5 });
+            winFlash(this._frame, { color: '#ef4444', duration: 300 });
 
             this.showFeedback(false);
             this.loseLife();

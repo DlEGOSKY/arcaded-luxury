@@ -1,4 +1,8 @@
 import { CONFIG } from '../config.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
 
 const SPRITES = [
     { name:'CORAZÓN',   grid: [
@@ -132,7 +136,7 @@ export class PixelDrawGame {
         this.drawing = Array.from({length:8}, ()=>Array(8).fill('#0a0e1a'));
         this.selectedColor = '#ef4444';
         this.isDrawing = false;
-        // Reset nuevas mecánicas
+        this._shellBuilt = false;
         this.streak = 0; this.maxStreak = 0;
         this.spritesCompleted = 0;
         this.colorHintAvailable = 2;
@@ -152,13 +156,39 @@ export class PixelDrawGame {
         this.render();
     }
 
+    _buildShell() {
+        const modeColor = this.mode === 'SPEED' ? '#f97316' : this.mode === 'FREE' ? '#a855f7' : '#3b82f6';
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'PIXEL', subtitle: 'DRAW', titleColor: '#3b82f6', subColor: '#a855f7' })}
+                ${hudStat({ label: 'PUNTOS', id: 'pd-score', color: '#fbbf24', value: String(this.score), minWidth: 70 })}
+                ${this.mode === 'SPEED' ? hudStat({ label: 'TIEMPO', id: 'pd-timer', color: '#f97316', value: this.timeLeft+'s', minWidth: 70 }) : ''}
+                ${this.target ? hudStat({ label: 'OBJETIVO', id: 'pd-target', color: '#a855f7', value: this.target.name, minWidth: 90 }) : ''}
+            </div>
+            ${hudMode({ mode: this.mode, modeColor, hint: 'PIXEL PROTOCOL' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer,
+            hudHTML,
+            frameColor: `${modeColor}88`,
+            cornerColor: modeColor,
+            domOnly: true,
+            maxWidth: 720,
+        });
+        this._frame = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
+    }
+
     render() {
+        if(!this._shellBuilt) this._buildShell();
+
         const PALETTE = ['#ef4444','#f97316','#fbbf24','#10b981','#3b82f6','#a855f7','#ec4899',
                          '#ffffff','#94a3b8','#475569','#1e293b','#0a0e1a'];
 
-        const timerHTML = this.mode === 'SPEED'
-            ? '<div class="pd-stat"><div class="pd-stat-val" id="pd-timer" style="color:#f97316;">'+this.timeLeft+'s</div><div class="pd-stat-lbl">TIEMPO</div></div>'
-            : '';
+        // HUD updates
+        const scoreEl = document.getElementById('pd-score');
+        if(scoreEl) scoreEl.textContent = this.score;
 
         const renderGrid = (grid, isRef, sprite) => {
             return grid.map((row, ri) =>
@@ -204,13 +234,7 @@ export class PixelDrawGame {
 
         const streakHTML = this.streak >= 2 ? `<div class="pd-streak">RACHA ×${this.streak}</div>` : '';
 
-        this.uiContainer.innerHTML = `
-        <div class="pd-root">
-            <div class="pd-header">
-                <div class="pd-stat"><div class="pd-stat-val" id="pd-score">${this.score}</div><div class="pd-stat-lbl">PUNTOS</div></div>
-                ${timerHTML}
-                ${this.target ? `<div class="pd-stat"><div class="pd-stat-val" style="color:#a855f7;">${this.target.name}</div><div class="pd-stat-lbl">OBJETIVO</div></div>` : ''}
-            </div>
+        this._content.innerHTML = `
             <div class="pd-boards">${refHTML}${drawHTML}</div>
             <div class="pd-palette">${paletteHTML}</div>
             ${streakHTML}
@@ -221,10 +245,10 @@ export class PixelDrawGame {
                 ${scoreHTML}
                 <button class="pd-btn" onclick="window.pixelDraw.quit()"><i class="fa-solid fa-arrow-left"></i> SALIR</button>
             </div>
-        </div>`;
+        `;
 
         // Eventos de mouse global para drag
-        this.uiContainer.onmouseup = () => this.stopDraw();
+        this._content.onmouseup = () => this.stopDraw();
         window.pixelDraw = this;
     }
 
@@ -323,14 +347,27 @@ export class PixelDrawGame {
         const sc = document.getElementById('pd-score');
         if(sc) sc.innerText = this.score;
 
-        if(accuracy >= 80) { try { this.audio.playWin(5); } catch(e) {} }
-        else               { try { this.audio.playLose(); } catch(e) {} }
+        if(accuracy >= 80) {
+            try { this.audio.playWin(5); } catch(e) {}
+            winFlash(this._frame, { color: accuracy >= 95 ? '#10b981' : '#3b82f6', duration: 400 });
+            if(accuracy >= 95 || this.streak >= 3) {
+                burstConfetti(this._frame, {
+                    count: this.streak >= 5 ? 60 : 35,
+                    colors: ['#10b981', '#fbbf24', '#3b82f6', '#ffffff'],
+                });
+            }
+        } else {
+            try { this.audio.playLose(); } catch(e) {}
+            screenShake(this._frame, { strength: 6, count: 4 });
+            winFlash(this._frame, { color: '#ef4444', duration: 300 });
+        }
 
         if(!timeout && accuracy >= 60 && this.mode !== 'FREE') {
             // Siguiente sprite si acertó
             setTimeout(() => {
                 this.target = SPRITES[Math.floor(Math.random() * SPRITES.length)];
                 this.drawing = Array.from({length:8}, ()=>Array(8).fill('#0a0e1a'));
+                this._shellBuilt = false;  // rebuild para actualizar OBJETIVO en HUD
                 this.render();
                 window.pixelDraw = this;
             }, 1500);

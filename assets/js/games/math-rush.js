@@ -1,4 +1,8 @@
 import { CONFIG } from '../config.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
 
 export class MathRushGame {
     constructor(canvas, audio, onQuit) {
@@ -124,9 +128,32 @@ export class MathRushGame {
         this.start();
     }
 
-    // ... (start, handleKeyInput, spawnEquation, checkAnswer, success, fail, loop IGUALES) ...
+    _buildShell() {
+        const modeColor = this.mode === 'BLITZ' ? '#ef4444' : this.mode === 'MULTIPLY' ? '#a855f7' : '#3b82f6';
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'MATH', subtitle: 'RUSH', titleColor: '#3b82f6', subColor: '#a855f7' })}
+                ${hudStat({ label: 'PUNTOS', id: 'mr-score', color: '#fbbf24', value: '0', minWidth: 70 })}
+                ${hudStat({ label: 'NIVEL',  id: 'mr-level', color: '#a855f7', value: '1', minWidth: 60 })}
+                ${this.mode === 'BLITZ'
+                    ? hudStat({ label: 'TIEMPO', id: 'mr-timer', color: '#fbbf24', value: '45s', minWidth: 70 })
+                    : hudStat({ label: 'VIDAS', id: 'mr-lives-num', color: '#ec4899', value: '3', minWidth: 60 })}
+            </div>
+            ${hudMode({ mode: this.mode, modeColor, hint: 'VERDAD / FALSO' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer, hudHTML,
+            frameColor: `${modeColor}88`, cornerColor: modeColor,
+            domOnly: true, arena: true, maxWidth: 1000,
+        });
+        this._frame = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
+    }
+
     start() {
         this.isRunning = true;
+        this._shellBuilt = false;
         this.score = 0;
         this.lives = 3;
         this.level = 1;
@@ -153,16 +180,9 @@ export class MathRushGame {
         }
         if(this.uiScore) this.uiScore.innerText = '0';
 
-        // HUD condicional según modo
-        const livesHTML = this.mode === 'BLITZ'
-            ? `<div class="math-lives-indicator" id="mr-timer" style="color:#fbbf24;font-family:var(--font-display);font-size:1.2rem;">45s</div>`
-            : `<div class="math-lives-indicator" id="mr-lives"><i class="fa-solid fa-heart" style="color:#ec4899;margin:0 3px;"></i><i class="fa-solid fa-heart" style="color:#ec4899;margin:0 3px;"></i><i class="fa-solid fa-heart" style="color:#ec4899;margin:0 3px;"></i></div>`;
+        if(!this._shellBuilt) this._buildShell();
 
-        const modeBadge = `<div style="position:absolute;top:20px;right:20px;padding:4px 10px;background:rgba(10,16,30,0.9);border:1px solid #3b82f6;border-radius:12px;color:#3b82f6;font-family:monospace;font-size:0.55rem;letter-spacing:2px;z-index:50;">${this.mode}</div>`;
-
-        this.uiContainer.innerHTML = `
-            ${modeBadge}
-            ${livesHTML}
+        this._content.innerHTML = `
             <div class="zone-indicator zone-true">VERDAD (Izq)</div>
             <div class="zone-indicator zone-false">FALSO (Der)</div>
             <div id="math-track" style="position:absolute; top:0; left:0; width:100%; height:100%; overflow:hidden; pointer-events:none;"></div>
@@ -271,9 +291,18 @@ export class MathRushGame {
         this.updateStreakChip();
         try { this.audio.playClick(); } catch(e){}
         if(this.uiScore) this.uiScore.innerText = this.score;
+        const scoreEl = document.getElementById('mr-score');
+        if(scoreEl) scoreEl.textContent = this.score;
+        if(streakMulti >= 2) winFlash(this._frame, { color: '#fbbf24', duration: 200 });
+        if(this.streak === 8 || this.streak === 15) {
+            burstConfetti(this._frame, { count: this.streak >= 15 ? 60 : 40, colors: ['#3b82f6', '#fbbf24', '#a855f7', '#ffffff'] });
+        }
         if (this.score >= this.level * 50) {
             this.level++;
             this.speed += 0.05;
+            const lvlEl = document.getElementById('mr-level');
+            if(lvlEl) lvlEl.textContent = this.level;
+            winFlash(this._frame, { color: '#a855f7', duration: 350 });
             try { this.audio.playWin(1); window.app.showToast("VELOCIDAD UP!", `Nivel ${this.level}`, "gold"); } catch(e){}
         }
     }
@@ -367,9 +396,10 @@ export class MathRushGame {
         }
         // CLASSIC / MULTIPLY: pierde vida
         this.lives--;
-        const livesStr = '<i class="fa-solid fa-heart" style="color:#ec4899;margin:0 3px;"></i>'.repeat(this.lives) + '<i class="fa-solid fa-xmark" style="color:#334155;margin:0 3px;font-size:0.9rem;"></i>'.repeat(3-this.lives);
-        const livesEl = document.getElementById('mr-lives');
-        if(livesEl) livesEl.innerHTML = livesStr;
+        screenShake(this._frame, { strength: 8, count: 5 });
+        winFlash(this._frame, { color: '#ef4444', duration: 300 });
+        const livesHudEl = document.getElementById('mr-lives-num');
+        if(livesHudEl) livesHudEl.textContent = this.lives;
         if (this.lives <= 0) this.gameOver();
     }
 

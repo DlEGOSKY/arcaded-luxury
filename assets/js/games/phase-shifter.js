@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js';
+import { mountGameFrame, unmountGameFrame } from '../systems/pixi-stage.js';
 
 export class PhaseShifterGame {
     constructor(canvas, audio, onQuit) {
@@ -106,6 +107,10 @@ export class PhaseShifterGame {
     }
 
     start() {
+        try {
+            const c = this.mode === 'SURVIVAL' ? '#ef4444' : this.mode === 'MULTI' ? '#a855f7' : '#ec4899';
+            this._frame = mountGameFrame({ color: c });
+        } catch(e) {}
         this.isRunning = true; this.score = 0; this.lives = 3; this.maxLives = 3;
         this.streak = 0; this.perfects = 0; this.totalRounds = 0;
         this.freezeAvailable = 1; this.freezeActive = false;
@@ -292,6 +297,7 @@ export class PhaseShifterGame {
 
     cleanup() {
         this.isRunning = false;
+        try { unmountGameFrame(); } catch(e) {}
         if(this.animationId) { cancelAnimationFrame(this.animationId); this.animationId = null; }
         if(this._quitTimer) { clearTimeout(this._quitTimer); this._quitTimer = null; }
         if(this.freezeTimer) { clearTimeout(this.freezeTimer); this.freezeTimer = null; }

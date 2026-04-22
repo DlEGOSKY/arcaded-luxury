@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js';
 import { showGameLoader, hideGameLoader } from '../game-loader.js';
+import { mountGameFrame, unmountGameFrame } from '../systems/pixi-stage.js';
 
 export class CyberPongGame {
     constructor(canvasManager, audioController, onGameOver) {
@@ -78,6 +79,10 @@ export class CyberPongGame {
     async startWithMode(mode) {
         this.mode = mode;
         if(this.uiContainer) this.uiContainer.innerHTML = '';
+        try {
+            const c = mode === 'TURBO' ? '#ef4444' : mode === 'CHAOS' ? '#a855f7' : mode === 'TOURNAMENT' ? '#fbbf24' : '#3b82f6';
+            this._frame = mountGameFrame({ color: c });
+        } catch(e) {}
 
         const W = this.canvasManager.canvas.width  || window.innerWidth;
         const H = this.canvasManager.canvas.height || (window.innerHeight - 56);
@@ -464,6 +469,7 @@ export class CyberPongGame {
 
     cleanup() {
         this.isPlaying = false;
+        try { unmountGameFrame(); } catch(e) {}
         if(this.animationId){ cancelAnimationFrame(this.animationId); this.animationId=null; }
         const t = this._eventTarget;
         if(t){ t.removeEventListener('mousemove',this.moveHandler); t.removeEventListener('touchmove',this.touchHandler); }

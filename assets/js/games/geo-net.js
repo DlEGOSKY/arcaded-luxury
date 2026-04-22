@@ -1,6 +1,7 @@
 import { CONFIG } from '../config.js';
 import { resolveText } from '../utils.js';
 import { icon } from '../systems/icons.js';
+import { mountGameFrame, unmountGameFrame } from '../systems/pixi-stage.js';
 
 const TARGET_ROUNDS = 10;
 
@@ -177,6 +178,10 @@ export class GeoNetGame {
     }
 
     startSession(mode) {
+        try {
+            const c = mode==='WAR'?'#ef4444' : mode==='GHOST'?'#a855f7' : mode==='FRONTERA'?'#10b981' : mode==='TERMINAL'?'#06b6d4' : mode==='INTEL'?'#3b82f6' : '#fbbf24';
+            this._frame = mountGameFrame({ color: c });
+        } catch(e) {}
         this.mode = mode; this.score = 0; this.lives = 3;
         this.questionsAnswered = 0;
         this.winStreak = 0;
@@ -582,6 +587,7 @@ export class GeoNetGame {
 
     cleanup() {
         this.isRunning = false;
+        try { unmountGameFrame(); } catch(e) {}
         if(this.timer) { clearInterval(this.timer); this.timer = null; }
     }
 }

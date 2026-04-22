@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js';
 import { icon } from '../systems/icons.js';
+import { mountGameFrame, unmountGameFrame } from '../systems/pixi-stage.js';
 
 const LIVES_START = 3;
 const TARGET_ROUNDS = 10;
@@ -120,6 +121,10 @@ export class BioScanGame {
         this.mode = mode;
         this.optionCount = mode === 'EXPERT' ? 6 : 4;
         this.timerSpeed = mode === 'SPEED' ? 1.2 : 0.5;
+        try {
+            const c = mode === 'SPEED' ? '#ef4444' : mode === 'EXPERT' ? '#a855f7' : '#06b6d4';
+            this._frame = mountGameFrame({ color: c });
+        } catch(e) {}
 
         if(this.breeds.length === 0) {
             this.uiContainer.innerHTML = '<div class="loader"></div><p style="margin-top:10px;color:var(--bio)">CARGANDO BASE DE DATOS...</p>';
@@ -178,6 +183,7 @@ export class BioScanGame {
     }
 
     cleanup() {
+        try { unmountGameFrame(); } catch(e) {}
         if(this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval = null; }
         this._quitTimers.forEach(id => clearTimeout(id));
         this._quitTimers = [];

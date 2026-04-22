@@ -14,6 +14,8 @@ const SHORTCUTS = [
     { keys: ['Enter', 'Space'],
       desc: 'Lanzar juego seleccionado',    ctx: 'menu' },
     { keys: ['F'],          desc: 'Toggle favorito (card enfocada)',        ctx: 'menu' },
+    { keys: ['/'],          desc: 'Enfocar buscador de protocolos',         ctx: 'menu' },
+    { keys: ['Esc'],        desc: 'Limpiar buscador (si está enfocado)',    ctx: 'menu' },
 
     // Juego
     { keys: ['P', 'Esc'],   desc: 'Pausar / reanudar',                      ctx: 'game' },
@@ -41,13 +43,26 @@ let overlayEl = null;
 let keyListener = null;
 
 export function init(app) {
-    // Listener global de ?
     keyListener = (e) => {
-        // Ignorar si estoy escribiendo en input/textarea
         const tag = e.target?.tagName;
-        if(tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
+        const typing = tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable;
 
-        // ? (Shift+/) o H abren el overlay
+        // Si estoy escribiendo en el buscador del lobby, Escape lo limpia
+        if(typing && e.target?.id === 'lobby-search' && e.key === 'Escape') {
+            e.preventDefault();
+            try { app?.clearLobbySearch?.(); e.target.blur(); } catch(err) {}
+            return;
+        }
+        if(typing) return;
+
+        // / enfoca el search del lobby si estamos en el menú
+        if(e.key === '/' && app?.state === 'menu') {
+            const input = document.getElementById('lobby-search');
+            if(input) { e.preventDefault(); input.focus(); input.select(); }
+            return;
+        }
+
+        // ? (Shift+/) o H abren el overlay de shortcuts
         if(e.key === '?' || e.key === 'h' || e.key === 'H') {
             e.preventDefault();
             toggle(app);

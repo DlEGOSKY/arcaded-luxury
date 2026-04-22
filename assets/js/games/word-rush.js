@@ -8,6 +8,11 @@ const WORDS = [
     'CHUNK','BLOCK','FRAME','QUEUE','FETCH','PARSE','TOKEN','SCOPE','MUTEX','SPAWN',
 ];
 
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
+
 export class WordRushGame {
     constructor(canvas, audio, onGameOver) {
         this.canvas      = canvas;
@@ -108,7 +113,7 @@ export class WordRushGame {
         this.wordsGuessed = 0;
         this.maxAttempts  = mode === 'HARD' ? 4 : 6;
         this.keyStates    = {};
-        // Reset nuevas mecánicas
+        this._shellBuilt  = false;
         this.streak = 0; this.maxStreak = 0;
         this.hintAvailable = 2;
         this.revealedLetters = [];
@@ -177,16 +182,18 @@ export class WordRushGame {
             ).join('') +
         '</div>';
 
+        if(!this._shellBuilt) this._buildShell();
+        // HUD updates
+        const scoreEl = document.getElementById('wr-score');
+        if(scoreEl) scoreEl.textContent = this.score;
+        const wordsEl = document.getElementById('wr-words');
+        if(wordsEl) wordsEl.textContent = this.wordsGuessed;
+        const attemptsEl = document.getElementById('wr-attempts');
+        if(attemptsEl) attemptsEl.textContent = `${this.attempts.length}/${maxR}`;
+
         const streakHTML = this.streak >= 2 ? `<span class="wr-streak">RACHA ×${this.streak}</span>` : '';
 
-        this.uiContainer.innerHTML = `
-        <div class="wr-root">
-            <div class="wr-header">
-                <div class="wr-stat"><div class="wr-stat-val" id="wr-score">${this.score}</div><div class="wr-stat-lbl">PUNTOS</div></div>
-                <div class="wr-stat"><div class="wr-stat-val" style="color:#a855f7;">${this.wordsGuessed}</div><div class="wr-stat-lbl">PALABRAS</div></div>
-                ${timerHTML}
-                <div class="wr-stat"><div class="wr-stat-val" style="color:#334155;">${this.attempts.length}/${maxR}</div><div class="wr-stat-lbl">INTENTOS</div></div>
-            </div>
+        this._content.innerHTML = `
             ${streakHTML}
             <div class="wr-grid">${rows}</div>
             <div class="wr-msg" id="wr-msg"></div>
@@ -194,10 +201,32 @@ export class WordRushGame {
             <div class="wr-pwrs">
                 <button class="wr-pwr" id="wr-hint">HINT <span class="cnt">·${this.hintAvailable}</span> <span class="cnt">$15</span></button>
             </div>
-        </div>`;
+        `;
         const hb = document.getElementById('wr-hint');
         if (hb) hb.onclick = () => this.activateHint();
         window.wordRush = this;
+    }
+
+    _buildShell() {
+        const modeColor = this.mode === 'BLITZ' ? '#ef4444' : this.mode === 'HARD' ? '#a855f7' : '#3b82f6';
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'WORD', subtitle: 'RUSH', titleColor: '#3b82f6', subColor: '#a855f7' })}
+                ${hudStat({ label: 'PUNTOS', id: 'wr-score', color: '#fbbf24', value: '0', minWidth: 70 })}
+                ${hudStat({ label: 'PALABRAS', id: 'wr-words', color: '#a855f7', value: '0', minWidth: 80 })}
+                ${this.mode === 'BLITZ' ? hudStat({ label: 'TIEMPO', id: 'wr-timer', color: '#f59e0b', value: this.timeLeft+'s', minWidth: 70 }) : ''}
+                ${hudStat({ label: 'INTENTOS', id: 'wr-attempts', color: '#64748b', value: `0/${this.maxAttempts}`, minWidth: 80 })}
+            </div>
+            ${hudMode({ mode: this.mode, modeColor, hint: 'WORDLE PROTOCOL' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer, hudHTML,
+            frameColor: `${modeColor}88`, cornerColor: modeColor,
+            domOnly: true, maxWidth: 620,
+        });
+        this._frame = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
     }
 
     activateHint() {
@@ -296,6 +325,8 @@ export class WordRushGame {
             const streakTxt = streakMulti > 1 ? ` ×${streakMulti}` : '';
             this.showMsg(`¡CORRECTO! +${pts} PTS${speedTxt}${streakTxt}`, '#10b981');
             try { this.audio.playWin(3); } catch(e) {}
+            winFlash(this._frame, { color: streakMulti >= 2 ? '#fbbf24' : '#10b981', duration: 400 });
+            burstConfetti(this._frame, { count: streakMulti >= 2 ? 55 : 35, colors: ['#3b82f6', '#fbbf24', '#10b981', '#ffffff'] });
             this.render(); window.wordRush = this;
             if(this.mode === 'BLITZ') {
                 setTimeout(() => { this.solved=false; this.newWord(); }, 1200);
@@ -306,6 +337,8 @@ export class WordRushGame {
             this.streak = 0;
             this.showMsg('ERA: ' + this.target, '#ef4444');
             try { this.audio.playLose(); } catch(e) {}
+            screenShake(this._frame, { strength: 10, count: 5 });
+            winFlash(this._frame, { color: '#ef4444', duration: 400 });
             this.render(); window.wordRush = this;
             setTimeout(() => this.endGame(false), 2500);
         } else {

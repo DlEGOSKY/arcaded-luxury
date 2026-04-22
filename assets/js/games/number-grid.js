@@ -1,4 +1,8 @@
 import { CONFIG } from '../config.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
 
 export class NumberGridGame {
     constructor(canvas, audio, onGameOver) {
@@ -95,9 +99,9 @@ export class NumberGridGame {
         this.mode    = mode;
         this.score   = 0;
         this.rounds  = 0;
+        this._shellBuilt = false;
         this.size    = mode === 'MAESTRO' ? 6 : 5;
         this.total   = this.size * this.size;
-        // Reset nuevas mecánicas
         this.lives = 3; this.maxLives = 3;
         this.lastTapTime = 0;
         this.fastCombo = 0; this.maxFastCombo = 0;
@@ -123,10 +127,40 @@ export class NumberGridGame {
         this.render();
     }
 
+    _buildShell() {
+        const modeColor = this.mode === 'BLITZ' ? '#ef4444' : this.mode === 'MAESTRO' ? '#a855f7' : '#3b82f6';
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'NUMBER', subtitle: 'GRID', titleColor: '#3b82f6', subColor: '#a855f7' })}
+                ${hudStat({ label: 'PUNTOS', id: 'ng-score', color: '#fbbf24', value: '0', minWidth: 70 })}
+                ${hudStat({ label: 'SIGUIENTE', id: 'ng-next', color: '#a855f7', value: '1', minWidth: 80 })}
+                ${this.mode === 'BLITZ'
+                    ? hudStat({ label: 'TIEMPO', id: 'ng-timer', color: '#f97316', value: this.timeLeft+'s', minWidth: 70 })
+                    : hudStat({ label: 'TIEMPO', id: 'ng-elapsed', color: '#64748b', value: '0.0s', minWidth: 70 })}
+                ${hudStat({ label: 'VIDAS', id: 'ng-lives-num', color: '#ec4899', value: String(this.lives), minWidth: 60 })}
+            </div>
+            ${hudMode({ mode: this.mode, modeColor, hint: 'NUMERIC PROTOCOL' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer, hudHTML,
+            frameColor: `${modeColor}88`, cornerColor: modeColor,
+            domOnly: true, maxWidth: 640,
+        });
+        this._frame = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
+    }
+
     render() {
-        const timerHTML = this.mode === 'BLITZ'
-            ? '<div class="ng-stat"><div class="ng-stat-val" id="ng-timer" style="color:#f97316;">'+this.timeLeft+'s</div><div class="ng-stat-lbl">TIEMPO</div></div>'
-            : '<div class="ng-stat"><div class="ng-stat-val" id="ng-elapsed" style="color:#475569;">0.0s</div><div class="ng-stat-lbl">TIEMPO</div></div>';
+        if(!this._shellBuilt) this._buildShell();
+
+        // Actualizar HUD
+        const scoreEl = document.getElementById('ng-score');
+        if(scoreEl) scoreEl.textContent = this.score;
+        const nextEl = document.getElementById('ng-next');
+        if(nextEl) nextEl.textContent = this.next;
+        const livesEl = document.getElementById('ng-lives-num');
+        if(livesEl) livesEl.textContent = this.lives;
 
         const cells = this.numbers.map((n, i) => {
             const isDone  = this.done.has(n);
@@ -135,24 +169,12 @@ export class NumberGridGame {
                 'onclick="window.numberGrid.tap(' + n + ')">' + n + '</div>';
         }).join('');
 
-        const heartsHTML = Array.from({length:this.maxLives},(_,i)=>
-            `<i class="fa-solid fa-heart ng-heart${i>=this.lives?' lost':''}"></i>`
-        ).join('');
-
-        this.uiContainer.innerHTML = `
-        <div class="ng-root">
-            <div class="ng-header">
-                <div class="ng-stat"><div class="ng-stat-val" id="ng-score">${this.score}</div><div class="ng-stat-lbl">PUNTOS</div></div>
-                <div class="ng-stat"><div class="ng-stat-val" style="color:#a855f7;">${this.next}</div><div class="ng-stat-lbl">SIGUIENTE</div></div>
-                ${timerHTML}
-                <div class="ng-stat"><div class="ng-lives" id="ng-lives">${heartsHTML}</div><div class="ng-stat-lbl">VIDAS</div></div>
-                <div class="ng-stat"><div class="ng-stat-val" style="color:#334155;">${this.rounds}</div><div class="ng-stat-lbl">RONDAS</div></div>
-            </div>
+        this._content.innerHTML = `
             <div class="ng-grid" style="grid-template-columns:repeat(${this.size},1fr);">${cells}</div>
             <div class="ng-speed-chip" id="ng-speed">RACHA RÁPIDA</div>
             <div class="ng-msg" id="ng-msg">Toca los números del 1 al ${this.total} en orden</div>
             <button class="ng-pwr" id="ng-highlight">HIGHLIGHT <span class="cnt">·${this.highlightAvailable}</span> <span class="cnt">$15</span></button>
-        </div>`;
+        `;
 
         const hb = document.getElementById('ng-highlight');
         if (hb) hb.onclick = () => this.activateHighlight();
@@ -233,7 +255,11 @@ export class NumberGridGame {
             const cells = document.querySelectorAll('.ng-cell');
             cells.forEach(c => { if(parseInt(c.textContent)===n) { c.classList.add('wrong'); setTimeout(()=>c.classList.remove('wrong'),300); } });
             try { this.audio.playTone(150,'square',0.05,0.1); } catch(e) {}
+            screenShake(this._frame, { strength: 6, count: 4 });
+            winFlash(this._frame, { color: '#ef4444', duration: 250 });
             this.lives--;
+            const livesHudEl = document.getElementById('ng-lives-num');
+            if(livesHudEl) livesHudEl.textContent = this.lives;
             this.fastCombo = 0;
             const chip = document.getElementById('ng-speed');
             if (chip) chip.classList.remove('show');
@@ -263,6 +289,8 @@ export class NumberGridGame {
         if(msg) { msg.style.color='#10b981'; msg.textContent = elapsed.toFixed(2)+'s · +'+pts+' PTS'; }
 
         try { this.audio.playWin(5); } catch(e) {}
+        winFlash(this._frame, { color: elapsed < 10 ? '#fbbf24' : '#10b981', duration: 400 });
+        burstConfetti(this._frame, { count: 50, colors: ['#3b82f6', '#fbbf24', '#10b981', '#ffffff'] });
 
         if(this.mode === 'BLITZ') {
             setTimeout(() => { this.newRound(); }, 800);

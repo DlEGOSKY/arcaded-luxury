@@ -2,6 +2,10 @@ import { CONFIG } from '../config.js';
 import * as FX from '../systems/game-fx.js';
 import * as Backdrop from '../systems/game-backdrop.js';
 import { icon } from '../systems/icons.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
 
 const SUIT_DATA = {
     H: { char:'♥', key:'heart',   color:'#ef4444', name:'Corazones', red:true,  glow:'rgba(239,68,68,0.55)' },
@@ -191,6 +195,7 @@ export class GuessCardGame {
 
     startWithMode(mode) {
         this.mode = mode;
+        this._shellBuilt = false;
         try { this.canvas.setMood('MYSTERY'); } catch(e) {}
         this.score = 0; this.round = 0; this.winStreak = 0;
         this.totalWins = 0; this.totalLosses = 0;
@@ -201,6 +206,28 @@ export class GuessCardGame {
         const gs = document.getElementById('ui-score'); if (gs) gs.innerText = '0';
         try { Backdrop.mount({ color:'#a855f7', particles:'cards', intensity: mode==='BLITZ'?1.2:1 }); } catch(e) {}
         this.nextRound();
+    }
+
+    _buildShell() {
+        const modeColor = this.mode === 'BLITZ' ? '#ef4444' : this.mode === 'EXPERT' ? '#fbbf24' : '#a855f7';
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'THE', subtitle: 'ORACLE', titleColor: '#a855f7', subColor: '#fbbf24' })}
+                ${hudStat({ label: 'RONDA', id: 'oc-round', color: '#fbbf24', value: '0', minWidth: 60 })}
+                ${hudStat({ label: 'ACIERTOS', id: 'oc-wins', color: '#22c55e', value: '0', minWidth: 80 })}
+                ${hudStat({ label: 'RACHA', id: 'oc-streak', color: '#a855f7', value: '0', minWidth: 60 })}
+                ${hudStat({ label: 'MAZO', id: 'oc-deck', color: '#64748b', value: '52/52', minWidth: 70 })}
+            </div>
+            ${hudMode({ mode: this.mode, modeColor, hint: 'ORACLE PROTOCOL' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer, hudHTML,
+            frameColor: `${modeColor}88`, cornerColor: modeColor,
+            domOnly: true, maxWidth: 760,
+        });
+        this._frame = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
     }
 
     nextRound() {
@@ -328,9 +355,21 @@ export class GuessCardGame {
         const allowFN = this.mode !== 'BLITZ';
         const allowSuit = this.mode !== 'BLITZ';
 
-        this.uiContainer.innerHTML = `
-        <div class="oracle-root">
-            <div class="oracle-hud">
+        if(!this._shellBuilt) this._buildShell();
+        // Update HUD externo
+        const rEl = document.getElementById('oc-round'); if(rEl) rEl.textContent = this.round;
+        const wEl = document.getElementById('oc-wins'); if(wEl) wEl.textContent = this.totalWins;
+        const sEl = document.getElementById('oc-streak');
+        if(sEl) {
+            sEl.textContent = this.winStreak;
+            sEl.style.color = this.winStreak >= 3 ? '#f97316' : '#a855f7';
+            sEl.style.textShadow = `0 0 14px ${sEl.style.color}`;
+        }
+        const dEl = document.getElementById('oc-deck'); if(dEl) dEl.textContent = `${remaining}/52`;
+
+        this._content.innerHTML = `
+        <div class="oracle-root" style="padding:0;">
+            <div class="oracle-hud" style="display:none;">
                 <div class="oracle-hud-cell"><div class="oracle-hud-cell-lbl">RONDA</div><div class="oracle-hud-cell-val">${this.round}</div></div>
                 <div class="oracle-hud-cell"><div class="oracle-hud-cell-lbl">ACIERTOS</div><div class="oracle-hud-cell-val" style="color:#22c55e;">${this.totalWins}</div></div>
                 <div class="oracle-hud-cell"><div class="oracle-hud-cell-lbl">RACHA</div><div class="oracle-hud-cell-val" style="color:${this.winStreak>=3?'#f97316':'#a855f7'};">${this.winStreak}${this.winStreak>=3?icon('fire'):''}</div></div>
@@ -524,6 +563,10 @@ export class GuessCardGame {
                 if (this.canvas?.explode) this.canvas.explode(window.innerWidth/2, window.innerHeight/2, si.color);
             } catch(e) {}
             try { FX.hitFeedback(document.getElementById('oracle-card-el')); } catch(e) {}
+            winFlash(this._frame, { color: streakMulti >= 2 ? '#fbbf24' : '#22c55e', duration: 350 });
+            if(this.winStreak === 5 || this.winStreak === 10) {
+                burstConfetti(this._frame, { count: this.winStreak >= 10 ? 70 : 45, colors: ['#a855f7', '#fbbf24', '#22c55e', '#ffffff'] });
+            }
         } else {
             this.totalLosses++;
             this.winStreak = 0;
@@ -531,6 +574,8 @@ export class GuessCardGame {
             try { window.app.showToast('PREDICCIÓN FALLIDA','Datos corruptos','danger'); this.audio.playLose(); } catch(e) {}
             try { FX.missFeedback(document.getElementById('oracle-card-el')); } catch(e) {}
             try { FX.screenFlash('#ef4444', 0.15); } catch(e) {}
+            screenShake(this._frame, { strength: 10, count: 5 });
+            winFlash(this._frame, { color: '#ef4444', duration: 350 });
         }
 
         this.burnedCards.push(card);

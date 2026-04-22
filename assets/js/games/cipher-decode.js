@@ -1,4 +1,8 @@
 import { CONFIG } from '../config.js';
+import {
+    createGameShell, hudStat, hudLogo, hudMode,
+    winFlash, screenShake, burstConfetti,
+} from '../systems/pixi-stage.js';
 
 // ─────────────────────────────────────────────
 //  Alfabetos / cifrados
@@ -155,12 +159,36 @@ export class CipherDecodeGame {
         this.lives = mode === 'EXPERT' ? 2 : 3;
         this.round = 0;
         this.isProcessing = false;
-        // Reset nuevas mecánicas
+        this._shellBuilt = false;
         this.streak = 0; this.maxStreak = 0;
         this.perfectDecodes = 0;
         this.halfAvailable = 2;
         try { this.canvas.setMood('VAULT'); } catch(e) {}
         this.nextRound();
+    }
+
+    _buildShell() {
+        const modeColor = this.mode === 'EXPERT' ? '#ef4444' : this.mode === 'MORSE' ? '#f59e0b' : '#3b82f6';
+        const hudHTML = `
+            <div style="display:flex;gap:20px;align-items:center;">
+                ${hudLogo({ title: 'CIPHER', subtitle: 'DECODE', titleColor: '#3b82f6', subColor: '#f59e0b' })}
+                ${hudStat({ label: 'PUNTOS', id: 'cd-score', color: '#fbbf24', value: '0', minWidth: 70 })}
+                ${hudStat({ label: 'TIEMPO', id: 'cd-timer', color: '#f97316', value: '20', minWidth: 60 })}
+                ${hudStat({ label: 'VIDAS',  id: 'cd-lives-num', color: '#ef4444', value: this.lives, minWidth: 60 })}
+            </div>
+            ${hudMode({ mode: this.mode, modeColor, hint: 'CRYPTO PROTOCOL' })}
+        `;
+        const shell = createGameShell({
+            container: this.uiContainer,
+            hudHTML,
+            frameColor: `${modeColor}88`,
+            cornerColor: modeColor,
+            domOnly: true,
+            maxWidth: 640,
+        });
+        this._frame   = shell.frame;
+        this._content = shell.content;
+        this._shellBuilt = true;
     }
 
     pickCipher() {
@@ -198,8 +226,7 @@ export class CipherDecodeGame {
         const timeLimit = this.mode === 'EXPERT' ? 10 : this.mode === 'MORSE' ? 15 : 20;
         this.timeLeft   = timeLimit;
 
-        const livesHTML = Array.from({length: this.mode==='EXPERT'?2:3}, (_,i) =>
-            `<i class="fa-solid fa-heart cd-heart ${i >= this.lives ? 'lost' : ''}"></i>`).join('');
+        if(!this._shellBuilt) this._buildShell();
 
         const hintText = cipherKey === 'CAESAR'
             ? `Cifrado César · ${cipher.hint(shift)}`
@@ -207,13 +234,7 @@ export class CipherDecodeGame {
 
         const streakHTML = this.streak >= 2 ? `<div class="cd-streak">RACHA ×${this.streak}</div>` : '<div></div>';
 
-        this.uiContainer.innerHTML = `
-        <div class="cd-root">
-            <div class="cd-header">
-                <div class="cd-stat"><div class="cd-stat-val" id="cd-score">${this.score}</div><div class="cd-stat-lbl">PUNTOS</div></div>
-                <div class="cd-stat"><div class="cd-stat-val" id="cd-timer" style="color:#f97316;">${timeLimit}</div><div class="cd-stat-lbl">TIEMPO</div></div>
-                <div class="cd-stat"><div class="cd-lives" id="cd-lives">${livesHTML}</div><div class="cd-stat-lbl">VIDAS</div></div>
-            </div>
+        this._content.innerHTML = `
             <div class="cd-timer-bar"><div class="cd-timer-fill" id="cd-tfill" style="width:100%;background:var(--primary);"></div></div>
             <div class="cd-cipher-box">
                 <div class="cd-cipher-lbl">${cipher.name} · RONDA ${this.round}</div>
@@ -231,7 +252,12 @@ export class CipherDecodeGame {
                 ${streakHTML}
                 <button class="cd-pwr${this.halfAvailable<=0?' used':''}" id="cd-50">50/50 <span class="cnt">·${this.halfAvailable}</span> <span class="cnt">$20</span></button>
             </div>
-        </div>`;
+        `;
+
+        // Actualizar HUD
+        const scoreEl = document.getElementById('cd-score'); if(scoreEl) scoreEl.textContent = this.score;
+        const livesEl = document.getElementById('cd-lives-num'); if(livesEl) livesEl.textContent = this.lives;
+        const timerEl = document.getElementById('cd-timer'); if(timerEl) timerEl.textContent = timeLimit;
 
         const hb = document.getElementById('cd-50');
         if (hb) hb.onclick = () => this.activate5050(word);
@@ -293,13 +319,11 @@ export class CipherDecodeGame {
 
         if(isCorrect) {
             el.classList.add('correct');
-            // Streak
             this.streak++;
             if (this.streak > this.maxStreak) this.maxStreak = this.streak;
             let streakMulti = 1;
             if (this.streak >= 5) streakMulti = 2;
             else if (this.streak >= 3) streakMulti = 1.5;
-            // Perfect decode si >50% tiempo restante
             const totalTime = this.mode === 'EXPERT' ? 10 : this.mode === 'MORSE' ? 15 : 20;
             const isPerfect = this.timeLeft > totalTime * 0.5;
             if (isPerfect) this.perfectDecodes++;
@@ -309,22 +333,28 @@ export class CipherDecodeGame {
             const pts = Math.floor(basePts * streakMulti);
             this.score += pts;
             const sc = document.getElementById('cd-score');
-            if(sc) sc.innerText = this.score;
+            if(sc) sc.textContent = this.score;
             try { this.audio.playWin(2); } catch(e) {}
             const perfectTxt = isPerfect ? ' + PERFECT' : '';
             const streakTxt = streakMulti > 1 ? ` ×${streakMulti}` : '';
             try { window.app.showToast(`+${pts} PTS${perfectTxt}${streakTxt}`, `Tiempo bonus: +${timeBonus}`, 'success'); } catch(e) {}
+            // FX
+            winFlash(this._frame, { color: isPerfect ? '#22c55e' : '#3b82f6', duration: 250 });
+            if(this.streak === 5 || this.streak === 10) {
+                burstConfetti(this._frame, {
+                    count: this.streak >= 10 ? 60 : 35,
+                    colors: ['#3b82f6', '#fbbf24', '#22c55e', '#ffffff'],
+                });
+            }
         } else {
             el.classList.add('wrong');
             this.lives--;
             this.streak = 0;
             try { this.audio.playLose(); } catch(e) {}
-            // Actualizar corazones
-            const lv = document.getElementById('cd-lives');
-            if(lv) {
-                const hearts = lv.querySelectorAll('.cd-heart');
-                if(hearts[this.lives]) hearts[this.lives].classList.add('lost');
-            }
+            screenShake(this._frame, { strength: 8, count: 5 });
+            winFlash(this._frame, { color: '#ef4444', duration: 300 });
+            const livesEl = document.getElementById('cd-lives-num');
+            if(livesEl) livesEl.textContent = this.lives;
         }
 
         setTimeout(() => {
@@ -342,8 +372,10 @@ export class CipherDecodeGame {
         allOpts.forEach(o => { o.setAttribute('disabled','true'); });
         try { this.audio.playLose(); } catch(e) {}
         try { window.app.showToast('TIEMPO AGOTADO', '−1 vida', 'danger'); } catch(e) {}
-        const lv = document.getElementById('cd-lives');
-        if(lv) { const hearts = lv.querySelectorAll('.cd-heart'); if(hearts[this.lives]) hearts[this.lives].classList.add('lost'); }
+        const livesEl = document.getElementById('cd-lives-num');
+        if(livesEl) livesEl.textContent = this.lives;
+        screenShake(this._frame, { strength: 8, count: 5 });
+        winFlash(this._frame, { color: '#ef4444', duration: 300 });
         setTimeout(() => {
             if(this.lives <= 0) { this.gameOver(); }
             else { this.nextRound(); }

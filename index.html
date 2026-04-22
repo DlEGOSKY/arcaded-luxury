@@ -10,6 +10,7 @@
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.9.2/dist/pixi.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-filters@6.1.4/dist/browser/pixi-filters.min.js" defer></script>
     <!-- Libs v1 polish: animaciones + confetti + screenshot -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js" defer></script>
@@ -19,7 +20,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="assets/css/style.css?v=27">
+    <link rel="stylesheet" href="assets/css/style.css?v=42">
     <style>
         /* Fallback mínimo: garantiza que la pantalla welcome sea visible si el CSS
            externo tarda en cargar. NO matar animaciones — dejar que corran. */
@@ -137,6 +138,18 @@
 
             <!-- GRID DE JUEGOS -->
             <div id="lobby-recommend" style="display:none;"></div>
+            <!-- SEARCH + FILTROS -->
+            <div class="lobby-search-bar">
+                <div class="lsb-input-wrap">
+                    <i class="fa-solid fa-magnifying-glass lsb-icon"></i>
+                    <input type="text" id="lobby-search" class="lsb-input" placeholder="BUSCAR PROTOCOLO..." autocomplete="off" oninput="window.app.setLobbySearch(this.value)">
+                    <kbd class="lsb-kbd" title="Presiona / para buscar">/</kbd>
+                    <button class="lsb-clear" id="lsb-clear" onclick="window.app.clearLobbySearch()" title="Limpiar búsqueda (Esc)">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="lsb-count" id="lobby-count"></div>
+            </div>
             <!-- FILTROS -->
             <div class="lobby-filters" id="lobby-filters">
                 <button class="lf-btn active" data-cat="ALL"      onclick="window.app.setLobbyFilter('ALL',this)"><i class="fa-solid fa-grip"></i> TODOS</button>
@@ -492,7 +505,7 @@
 
     </div>
 
-    <script type="module" src="assets/js/main.js?v=27"></script>
+    <script type="module" src="assets/js/main.js?v=42"></script>
 
 </body>
 </html>

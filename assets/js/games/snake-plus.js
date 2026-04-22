@@ -193,9 +193,10 @@ export class SnakePlusGame {
 
     spawnPowerUp() {
         const types = [
-            { t:'SPEED',  color:'#fbbf24', icon:'⚡', label:'VELOCIDAD' },
-            { t:'SLOW',   color:'#3b82f6', icon:'❄',  label:'LENTO'     },
-            { t:'DOUBLE', color:'#a855f7', icon:'×2', label:'DOBLE'     },
+            { t:'SPEED',  color:'#fbbf24', faIcon:'fa-bolt',         label:'VELOCIDAD' },
+            { t:'SLOW',   color:'#3b82f6', faIcon:'fa-snowflake',    label:'LENTO'     },
+            { t:'DOUBLE', color:'#a855f7', faIcon:'fa-star',         label:'DOBLE'     },
+            { t:'SHIELD', color:'#10b981', faIcon:'fa-shield-halved',label:'ESCUDO'    },
         ];
         const pick = types[Math.floor(Math.random()*types.length)];
         let pos;
@@ -279,8 +280,18 @@ export class SnakePlusGame {
             this.addParticles(head.x*this.CELL+this.CELL/2, head.y*this.CELL+this.CELL/2, pu.color, 10);
             if(pu.t==='SPEED')  { this.tickMs = Math.max(40, this.tickMs-20); setTimeout(()=>{this.tickMs+=20;},5000); }
             if(pu.t==='SLOW')   { this.tickMs += 40; setTimeout(()=>{this.tickMs-=40;},5000); }
-            if(pu.t==='DOUBLE') { this.score += this.level; grew = true; }
+            if(pu.t==='DOUBLE') { this.score += this.level * 5; grew = true; }
+            if(pu.t==='SHIELD') {
+                this.ghostActive = true;
+                if(this.ghostTimer) clearTimeout(this.ghostTimer);
+                this.ghostTimer = setTimeout(() => { this.ghostActive = false; }, 5000);
+            }
             try { this.audio.playWin(2); window.app.showToast(pu.label,'Power-up activado','success'); } catch(e) {}
+        }
+
+        // Spawn ocasional de power-ups en todos los modos (bajo prob cada food)
+        if(grew && this.mode !== 'PORTAL' && Math.random() < 0.12 && this.powerups.length === 0) {
+            this.spawnPowerUp();
         }
 
         if(!grew) this.snake.pop();

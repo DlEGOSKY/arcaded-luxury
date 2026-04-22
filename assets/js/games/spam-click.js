@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js';
+import { mountGameFrame, unmountGameFrame } from '../systems/pixi-stage.js';
 
 export class SpamClickGame {
     constructor(canvas, audio, onQuit) {
@@ -111,6 +112,10 @@ export class SpamClickGame {
         window.app.credits -= 10;
         document.getElementById('val-credits').innerText = window.app.credits;
         this.mode = mode;
+        try {
+            const c = mode === 'BLITZ' ? '#ef4444' : mode === 'TURBO' ? '#f97316' : '#fbbf24';
+            this._frame = mountGameFrame({ color: c });
+        } catch(e) {}
         this.targetClicks = mode==='TURBO'?60:mode==='BLITZ'?50:40;
         this.timeLeft     = mode==='BLITZ'?3.0:5.0;
         this.isPlaying = true; this.isEnding = false;
@@ -312,6 +317,7 @@ export class SpamClickGame {
     }
 
     cleanup() {
+        try { unmountGameFrame(); } catch(e) {}
         if(this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval = null; }
         if(this._quitTimer) { clearTimeout(this._quitTimer); this._quitTimer = null; }
     }
